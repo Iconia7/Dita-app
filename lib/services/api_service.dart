@@ -90,4 +90,24 @@ static Future<bool> initiatePayment(String phone) async {
       return false;
     }
   } 
+
+  static Future<bool> updateUser(int userId, Map<String, dynamic> data) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/users/$userId/'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(data),
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print("Update Failed: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Error updating user: $e");
+      return false;
+    }
+  }
 }

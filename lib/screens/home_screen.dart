@@ -1,5 +1,7 @@
 import 'package:dita_app/screens/login_screen.dart';
+import 'package:dita_app/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/api_service.dart';
 import 'pay_fees_screen.dart';
@@ -176,9 +178,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             elevation: 0,
             leading: Padding(
               padding: const EdgeInsets.only(left: 20),
-              child: CircleAvatar(
-                backgroundColor: _primaryBlue.withOpacity(0.1),
-                child: Icon(Icons.school_rounded, color: _primaryBlue),
+              child: GestureDetector( // Make the logo clickable
+                onTap: () {
+                   Navigator.push(context, MaterialPageRoute(
+                     builder: (_) => ProfileScreen(user: _currentUser)
+                   ));
+                },
+                child: CircleAvatar(
+                  backgroundColor: _primaryBlue.withOpacity(0.1),
+                  child: Icon(Icons.person, color: _primaryBlue), // Changed Icon to Person
+                ),
               ),
             ),
             title: Text(
@@ -195,13 +204,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 padding: const EdgeInsets.only(right: 20),
                 child: IconButton(
                   onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    );
+                    // Navigate to Profile Screen
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => ProfileScreen(user: _currentUser)
+                    ));
                   },
-                  icon: Icon(Icons.logout_rounded, color: Colors.red[300]),
-                  tooltip: "Logout",
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.grey[200], shape: BoxShape.circle),
+                    child: const Icon(Icons.settings, color: Colors.black54, size: 20),
+                  ),
                 ),
               )
             ],
@@ -319,6 +331,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       const Icon(Icons.nfc, color: Colors.white38, size: 30),
                     ],
                   ),
+                  if (isPaid && _currentUser['membership_expiry'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Text(
+                          "Expires: ${DateFormat('MMM d, yyyy').format(DateTime.parse(_currentUser['membership_expiry']))}",
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 10),
+                        ),
+                      ),
                   const Spacer(),
                   Row(
                     children: [

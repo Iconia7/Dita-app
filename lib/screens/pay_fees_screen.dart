@@ -35,27 +35,29 @@ class _PayFeesScreenState extends State<PayFeesScreen> {
     super.dispose();
   }
 
-  void _startListeningForPayment() {
+void _startListeningForPayment() {
+    print("Starting to poll server for payment status..."); // Debug print
+    
+    // Check every 3 seconds
     _statusCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      print("Checking payment status..."); // See if this prints every 3s
+      
       final updatedUser = await ApiService.getUserDetails(widget.user['id']);
       
-      if (updatedUser != null && updatedUser['is_paid_member'] == true) {
-        timer.cancel();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: Colors.green, 
-              behavior: SnackBarBehavior.floating,
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 10),
-                  Text("Payment Received! Welcome."),
-                ],
+      if (updatedUser != null) {
+        print("Status on Server: ${updatedUser['is_paid_member']}"); // Debug print
+        
+        if (updatedUser['is_paid_member'] == true) {
+          timer.cancel();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Colors.green, 
+                content: Text("Payment Received! Welcome.")
               )
-            )
-          );
-          _goToHome(updatedUser);
+            );
+            _goToHome(updatedUser);
+          }
         }
       }
     });

@@ -160,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     // --- 2. INPUT FIELDS (Pill Shaped) ---
                     _buildStylishInput(
                       controller: _usernameController,
-                      hint: "Admission Number",
+                      hint: "Username/Admission Number",
                       icon: Icons.person_outline_rounded,
                       validator: (v) => v!.isEmpty ? "Required" : null,
                     ),
