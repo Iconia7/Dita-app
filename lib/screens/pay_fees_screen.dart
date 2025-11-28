@@ -1,31 +1,29 @@
 import 'dart:async';
-import 'package:dita_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
-class PayFeesScreen extends StatefulWidget {
-  final String phoneNumber;
+class PayFeesSheet extends StatefulWidget {
   final Map<String, dynamic> user;
 
-  const PayFeesScreen({super.key, required this.phoneNumber, required this.user});
+  const PayFeesSheet({super.key, required this.user});
 
   @override
-  State<PayFeesScreen> createState() => _PayFeesScreenState();
+  State<PayFeesSheet> createState() => _PayFeesSheetState();
 }
 
-class _PayFeesScreenState extends State<PayFeesScreen> {
+class _PayFeesSheetState extends State<PayFeesSheet> {
   late TextEditingController _phoneController;
   bool _isLoading = false;
   Timer? _statusCheckTimer;
 
-  // Design Colors
+  // --- DESIGN SYSTEM COLORS ---
+  final Color _primaryDark = const Color(0xFF003366);
   final Color _mpesaGreen = const Color(0xFF4CAF50);
-  final Color _bgWhite = Colors.white;
 
   @override
   void initState() {
     super.initState();
-    _phoneController = TextEditingController(text: widget.phoneNumber);
+    _phoneController = TextEditingController(text: widget.user['phone_number'] ?? "");
   }
 
   @override
@@ -35,243 +33,166 @@ class _PayFeesScreenState extends State<PayFeesScreen> {
     super.dispose();
   }
 
-void _startListeningForPayment() {
-    print("Starting to poll server for payment status..."); // Debug print
+  void _handlePayment() async {
+    // Hide keyboard
+    FocusScope.of(context).unfocus();
     
-    // Check every 3 seconds
+    setState(() => _isLoading = true);
+    // Simulate API Call or Real Call
+    bool success = await ApiService.initiatePayment(_phoneController.text, widget.user['id']);
+    setState(() => _isLoading = false);
+
+    if (mounted && success) {
+      _showInstructionDialog();
+    }
+  }
+
+  void _startListeningForPayment() {
     _statusCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      print("Checking payment status..."); // See if this prints every 3s
-      
       final updatedUser = await ApiService.getUserDetails(widget.user['id']);
-      
-      if (updatedUser != null) {
-        print("Status on Server: ${updatedUser['is_paid_member']}"); // Debug print
-        
-        if (updatedUser['is_paid_member'] == true) {
+      if (updatedUser != null && updatedUser['is_paid_member'] == true) {
           timer.cancel();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: Colors.green, 
-                content: Text("Payment Received! Welcome.")
-              )
-            );
-            _goToHome(updatedUser);
+            Navigator.pop(context, true); // Close sheet and return TRUE
           }
-        }
       }
     });
   }
 
-  void _goToHome(Map<String, dynamic> userData) {
-    Navigator.pushReplacement(
-      context, 
-      MaterialPageRoute(builder: (_) => HomeScreen(user: userData))
+  void _showInstructionDialog() {
+    // minimize the sheet slightly or show dialog on top
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Check your Phone 📲", textAlign: TextAlign.center),
+        content: const Text("Enter your M-Pesa PIN to complete the transaction.", textAlign: TextAlign.center),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _startListeningForPayment();
+            },
+            child: Text("I Entered y PIN", style: TextStyle(color: _mpesaGreen, fontWeight: FontWeight.bold)),
+          )
+        ],
+      ),
     );
-  }
-
-  void _handlePayment() async {
-    setState(() => _isLoading = true);
-    bool success = await ApiService.initiatePayment(_phoneController.text);
-    setState(() => _isLoading = false);
-
-    if (mounted && success) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Column(
-            children: [
-              Icon(Icons.notification_important_rounded, size: 50, color: Colors.orange),
-              SizedBox(height: 10),
-              Text("Check your Phone 📲", textAlign: TextAlign.center),
-            ],
-          ),
-          content: const Text(
-            "We sent an M-Pesa request to your phone.\n\nEnter your PIN to complete the registration.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _startListeningForPayment();
-              }, 
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _mpesaGreen,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
-              ),
-              child: const Text("I Entered my PIN")
-            )
-          ],
-        ),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgWhite,
-      // Minimal App Bar for the Skip Button
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false, // Hide back button
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: TextButton(
-              onPressed: () => _goToHome(widget.user),
-              style: TextButton.styleFrom(foregroundColor: Colors.grey),
-              child: const Row(
+    // This makes the sheet respect the keyboard height
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min, // Wrap content height
+          children: [
+            // --- HANDLE BAR ---
+            const SizedBox(height: 15),
+            Container(
+              height: 5, width: 50,
+              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+            ),
+            
+            // --- HEADER ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
+              child: Row(
                 children: [
-                  Text("Do this later"),
-                  Icon(Icons.arrow_forward_ios, size: 14),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: _primaryDark.withOpacity(0.1), shape: BoxShape.circle),
+                    child: Icon(Icons.wallet, color: _primaryDark),
+                  ),
+                  const SizedBox(width: 15),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("Membership Payment", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text("Secure M-Pesa Checkout", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                    onPressed: () => Navigator.pop(context),
+                  )
                 ],
               ),
             ),
-          )
-        ],
-      ),
-      
-      // Main Content centered vertically
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 1. VISUAL IDENTIFIER
-              Container(
-                height: 100,
-                width: 100,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _mpesaGreen.withOpacity(0.2),
-                      blurRadius: 25,
-                      offset: const Offset(0, 10),
+            
+            const Divider(height: 1),
+
+            // --- CONTENT ---
+            Padding(
+              padding: const EdgeInsets.all(25),
+              child: Column(
+                children: [
+                  // Price Tag
+                  Text("KES 200", style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: _primaryDark)),
+                  const Text("Semester Membership Fee", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+                  
+                  const SizedBox(height: 30),
+
+                  // Phone Input
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(15),
                     ),
-                  ],
-                ),
-                child: Center(
-                  child: Icon(Icons.monetization_on_rounded, size: 50, color: _mpesaGreen),
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              // 2. TEXT HEADERS
-              const Text(
-                "Membership Fee",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                  letterSpacing: 1,
-                  fontWeight: FontWeight.w500
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "KES 500",
-                style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.black87,
-                  letterSpacing: -1,
-                ),
-              ),
-              
-              const SizedBox(height: 50),
-
-              // 3. PHONE INPUT (Modern Pill Shape)
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  decoration: const InputDecoration(
-                    prefixIcon: Padding(
-                      padding: EdgeInsets.only(left: 20, right: 10),
-                      child: Icon(Icons.phone_iphone_rounded, color: Colors.grey),
-                    ),
-                    labelText: "M-Pesa Number",
-                    labelStyle: TextStyle(color: Colors.grey),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // 4. PAY BUTTON
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handlePayment,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _mpesaGreen,
-                    foregroundColor: Colors.white,
-                    shadowColor: _mpesaGreen.withOpacity(0.4),
-                    elevation: 10,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: _isLoading 
-                    ? const SizedBox(
-                        width: 24, height: 24,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.lock_outline_rounded, size: 20),
-                          SizedBox(width: 10),
-                          Text("PAY SECURELY", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // 5. DISCLAIMER
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.orange[400], size: 20),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        "Resources & Voting are locked until payment is complete.",
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                    child: TextField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.phone_android),
+                        hintText: "M-Pesa Number",
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                       ),
                     ),
-                  ],
-                ),
-              )
-            ],
-          ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // Action Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handlePayment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _mpesaGreen,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      ),
+                      child: _isLoading 
+                       ? const CircularProgressIndicator(color: Colors.white)
+                       : const Text("PAY NOW", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 15),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.lock, size: 12, color: Colors.grey[400]),
+                      const SizedBox(width: 5),
+                      Text("Secured by DITA", style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,5 +1,6 @@
-package com.example.dita_app
+package com.example.dita_app // Your package name might vary
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity // <--- IMPORT THIS
 
-class MainActivity : FlutterActivity()
+class MainActivity: FlutterFragmentActivity() { // <--- EXTEND THIS
+}

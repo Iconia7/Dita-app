@@ -17,8 +17,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isUpdating = false;
 
   // Daystar Brand Colors
-  final Color _primaryBlue = const Color(0xFF003366);
-  final Color _bgWhite = const Color(0xFFF5F7FA);
+  final Color _primaryDark = const Color(0xFF003366);
 
   @override
   void initState() {
@@ -28,23 +27,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // --- 1. EDIT PROFILE LOGIC ---
   void _showEditDialog() {
-    // Initialize controllers with current data
     final admController = TextEditingController(text: _currentUser['admission_number']);
     final programController = TextEditingController(text: _currentUser['program']);
     final phoneController = TextEditingController(text: _currentUser['phone_number']);
     final emailController = TextEditingController(text: _currentUser['email']);
     
-    // Handle Year Dropdown (Default to 1 if null)
     int selectedYear = _currentUser['year_of_study'] ?? 1;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        // StatefulBuilder is required to update the Dropdown inside the Dialog
         builder: (context, setStateDialog) {
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Text("Edit Profile", style: TextStyle(color: _primaryBlue, fontWeight: FontWeight.bold)),
+            title: Text("Edit Profile", style: TextStyle(color: _primaryDark, fontWeight: FontWeight.bold)),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -53,19 +49,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 15),
                   _buildDialogInput(programController, "Program", Icons.school_outlined),
                   const SizedBox(height: 15),
-                  
-                  // Year Dropdown
                   DropdownButtonFormField<int>(
                     value: selectedYear,
                     decoration: InputDecoration(
                       labelText: "Year of Study",
-                      prefixIcon: Icon(Icons.calendar_today, color: _primaryBlue),
+                      prefixIcon: Icon(Icons.calendar_today, color: _primaryDark),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     items: [1, 2, 3, 4].map((y) => DropdownMenuItem(value: y, child: Text("Year $y"))).toList(),
                     onChanged: (val) => setStateDialog(() => selectedYear = val!),
                   ),
-                  
                   const SizedBox(height: 15),
                   _buildDialogInput(phoneController, "Phone Number", Icons.phone_iphone_rounded, isPhone: true),
                   const SizedBox(height: 15),
@@ -80,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  Navigator.pop(context); // Close dialog first
+                  Navigator.pop(context); 
                   await _updateProfile(
                     admController.text,
                     programController.text,
@@ -90,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
+                  backgroundColor: _primaryDark,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                 ),
@@ -106,7 +99,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _updateProfile(String adm, String prog, int year, String phone, String email) async {
     setState(() => _isUpdating = true);
 
-    // Prepare Payload
     Map<String, dynamic> data = {
       "admission_number": adm,
       "program": prog,
@@ -115,10 +107,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       "email": email,
     };
 
-    // Call API
     bool success = await ApiService.updateUser(_currentUser['id'], data);
 
-    // Refresh Data if successful
     if (success) {
       final freshData = await ApiService.getUserDetails(_currentUser['id']);
       if (freshData != null) {
@@ -151,7 +141,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openWhatsApp() async {
-    // Replace with Admin Number
     const String adminPhone = "254115332870"; 
     const String message = "Hello, I need help with the DITA App.";
     final Uri whatsappUrl = Uri.parse("https://wa.me/$adminPhone?text=${Uri.encodeComponent(message)}");
@@ -166,55 +155,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgWhite,
+      backgroundColor: _primaryDark, // Dark background for status bar blending
       appBar: AppBar(
         title: const Text("My Profile", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: _primaryBlue,
+        backgroundColor: _primaryDark,
+        foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           if (_isUpdating)
              const Padding(
                padding: EdgeInsets.all(15.0),
-               child: SizedBox(width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+               child: SizedBox(width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
              )
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // --- HEADER (Avatar & Name) ---
-            Center(
+      body: Column(
+        children: [
+          // --- TOP DARK SECTION (Avatar & Name) ---
+          Padding(
+            padding: const EdgeInsets.only(bottom: 30, top: 10),
+            child: Center(
               child: Column(
                 children: [
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(5),
+                        padding: const EdgeInsets.all(4), // White ring
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: _primaryBlue.withOpacity(0.2), width: 3),
+                          color: Colors.white.withOpacity(0.2), 
                         ),
                         child: CircleAvatar(
                           radius: 50,
-                          backgroundColor: _primaryBlue.withOpacity(0.1),
-                          child: Icon(Icons.person_rounded, size: 60, color: _primaryBlue),
+                          backgroundColor: Colors.white,
+                          child: Icon(Icons.person_rounded, size: 60, color: _primaryDark),
                         ),
                       ),
-                      // Edit Button on Avatar
+                      // Edit Button
                       GestureDetector(
                         onTap: _showEditDialog,
                         child: Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: Colors.orange,
                             shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]
+                            border: Border.all(color: _primaryDark, width: 2), // Cutout effect
                           ),
-                          child: const Icon(Icons.edit, color: Colors.white, size: 18),
+                          child: const Icon(Icons.edit, color: Colors.white, size: 16),
                         ),
                       )
                     ],
@@ -222,104 +211,120 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 15),
                   Text(
                     (_currentUser['username'] ?? "Student").toUpperCase(),
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _primaryBlue),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   Text(
                     _currentUser['email'] ?? "No Email",
-                    style: TextStyle(color: Colors.grey[600]),
+                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
                   ),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 30),
+          ),
 
-            // --- DETAILS CARD ---
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      IconButton(
-                        onPressed: _showEditDialog,
-                        icon: const Icon(Icons.edit_note_rounded, color: Colors.blue),
-                        tooltip: "Edit Details",
-                      )
-                    ],
-                  ),
-                  const Divider(),
-                  _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-"),
-                  const Divider(height: 25),
-                  _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-"),
-                  const Divider(height: 25),
-                  _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}"),
-                  const Divider(height: 25),
-                  _buildDetailRow(Icons.phone_iphone_rounded, "Phone", _currentUser['phone_number'] ?? "-"),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-            
-            // --- SUPPORT SECTION ---
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 10, bottom: 10),
-                child: Text("Support & Help", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primaryBlue)),
-              ),
-            ),
-            
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
-              ),
-              child: Column(
-                children: [
-                  _buildActionTile(Icons.chat_bubble_outline_rounded, "Chat on WhatsApp", Colors.green, _openWhatsApp),
-                  const Divider(height: 1, indent: 60),
-                  _buildActionTile(Icons.call_outlined, "Call Support", Colors.blue, () => _launchContact('tel', '0115332870')),
-                  const Divider(height: 1, indent: 60),
-                  _buildActionTile(Icons.email_outlined, "Email Issues", Colors.orange, () => _launchContact('mailto', 'dita@daystar.ac.ke')),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            // --- LOGOUT BUTTON ---
-            SizedBox(
+          // --- BOTTOM WHITE SHEET ---
+          Expanded(
+            child: Container(
               width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context, 
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
-                  );
-                },
-                icon: const Icon(Icons.logout_rounded, color: Colors.red),
-                label: const Text("Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  backgroundColor: Colors.red.withOpacity(0.05),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF5F7FA), // Light grey background for content
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(top: 30, bottom: 20),
+                child: Column(
+                  children: [
+                    // --- DETAILS CARD ---
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _primaryDark)),
+                              IconButton(
+                                onPressed: _showEditDialog,
+                                icon: const Icon(Icons.edit_note_rounded, color: Colors.blue),
+                                tooltip: "Edit Details",
+                              )
+                            ],
+                          ),
+                          const Divider(),
+                          _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-"),
+                          const Divider(height: 25),
+                          _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-"),
+                          const Divider(height: 25),
+                          _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}"),
+                          const Divider(height: 25),
+                          _buildDetailRow(Icons.phone_iphone_rounded, "Phone", _currentUser['phone_number'] ?? "-"),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+                    
+                    // --- SUPPORT SECTION ---
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 10, bottom: 10),
+                        child: Text("Support & Help", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primaryDark)),
+                      ),
+                    ),
+                    
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
+                      ),
+                      child: Column(
+                        children: [
+                          _buildActionTile(Icons.chat_bubble_outline_rounded, "Chat on WhatsApp", Colors.green, _openWhatsApp),
+                          const Divider(height: 1, indent: 60),
+                          _buildActionTile(Icons.call_outlined, "Call Support", Colors.blue, () => _launchContact('tel', '0115332870')),
+                          const Divider(height: 1, indent: 60),
+                          _buildActionTile(Icons.email_outlined, "Email Issues", Colors.orange, () => _launchContact('mailto', 'dita@daystar.ac.ke')),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // --- LOGOUT BUTTON ---
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.pushAndRemoveUntil(
+                            context, 
+                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            (route) => false,
+                          );
+                        },
+                        icon: const Icon(Icons.logout_rounded, color: Colors.red),
+                        label: const Text("Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          backgroundColor: Colors.red.withOpacity(0.05),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -332,10 +337,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: _primaryBlue.withOpacity(0.05),
+            color: _primaryDark.withOpacity(0.05),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: _primaryBlue, size: 20),
+          child: Icon(icon, color: _primaryDark, size: 20),
         ),
         const SizedBox(width: 15),
         Expanded(
@@ -344,7 +349,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(title, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              Text(value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87)),
             ],
           ),
         ),
@@ -374,7 +379,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: _primaryBlue),
+        prefixIcon: Icon(icon, color: _primaryDark),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
       ),

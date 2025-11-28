@@ -8,15 +8,17 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   
+  // Controllers
+  final _usernameController = TextEditingController(); // New field for display name
   final _admController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPassController = TextEditingController();
   
-  // DROPDOWN VALUES
+  // Dropdown Values
   String? _selectedProgram;
   int? _selectedYear;
 
@@ -34,21 +36,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  final Color _primaryBlue = const Color(0xFF003366);
-  final Color _lightFillColor = const Color(0xFFF2F6FA);
+  // Colors
+  final Color _primaryDark = const Color(0xFF003366);
+  final Color _primaryLight = const Color(0xFF004C99);
+  final Color _bgInput = const Color(0xFFF5F7FA);
+  final Color _accentGold = const Color(0xFFFFD700);
+
+  // Animations
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _fadeAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeOut);
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
+    
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   void _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
 
     setState(() => _isLoading = true);
 
     final data = {
-      "username": _admController.text.trim(), 
+      "username": _usernameController.text.trim(), // Use the preferred name
       "admission_number": _admController.text.trim(),
       "phone_number": _phoneController.text.trim(),
-      "email": "${_admController.text.trim()}@daystar.ac.ke",
+      "email": "${_admController.text.trim()}@daystar.ac.ke", // Auto-generate email
       "password": _passwordController.text,
-      // SEND SELECTED VALUES
       "program": _selectedProgram ?? "Applied Computer Science", 
       "year_of_study": _selectedYear ?? 1 
     };
@@ -61,10 +92,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(backgroundColor: Colors.green, content: Text("Account Created! Please Login."))
       );
-      Navigator.pop(context);
+      Navigator.pop(context); // Go back to login
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(backgroundColor: Colors.red, content: Text("Registration Failed. User may exist."))
+        const SnackBar(backgroundColor: Colors.red, content: Text("Registration Failed. Username or Adm No may exist."))
       );
     }
   }
@@ -72,83 +103,186 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
-          child: Form(
-            key: _formKey,
-            child: Column(
+      backgroundColor: _primaryDark,
+      body: Stack(
+        children: [
+          // 1. BACKGROUND GRADIENT
+          Container(
+            height: MediaQuery.of(context).size.height * 0.4,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_primaryDark, _primaryLight],
+              ),
+            ),
+            child: Stack(
               children: [
-                Text(
-                  "Create Account",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: _primaryBlue, letterSpacing: 1),
+                Positioned(
+                  right: -50, top: -50,
+                  child: Icon(Icons.person_add_rounded, size: 250, color: Colors.white.withOpacity(0.05)),
                 ),
-                Text("Join the DITA Community", style: TextStyle(color: Colors.grey[500])),
-                const SizedBox(height: 30),
-
-                // Admission Number
-                _buildStylishInput(controller: _admController, hint: "Admission Number", icon: Icons.badge_outlined),
-                const SizedBox(height: 15),
-
-                // Phone Number
-                _buildStylishInput(controller: _phoneController, hint: "M-Pesa Number", icon: Icons.phone_iphone_rounded, keyboardType: TextInputType.phone),
-                const SizedBox(height: 15),
-
-                // --- PROGRAM DROPDOWN ---
-                _buildDropdown(
-                  hint: "Select Program",
-                  icon: Icons.school_outlined,
-                  value: _selectedProgram,
-                  items: _programs,
-                  onChanged: (val) => setState(() => _selectedProgram = val as String?),
-                ),
-                const SizedBox(height: 15),
-
-                // --- YEAR DROPDOWN ---
-                _buildDropdown(
-                  hint: "Year of Study",
-                  icon: Icons.calendar_today_outlined,
-                  value: _selectedYear,
-                  items: [1, 2, 3, 4],
-                  onChanged: (val) => setState(() => _selectedYear = val as int?),
-                ),
-                const SizedBox(height: 15),
-
-                // Passwords
-                _buildStylishInput(controller: _passwordController, hint: "Password", icon: Icons.lock_outline_rounded, isPassword: true),
-                const SizedBox(height: 15),
-                _buildStylishInput(controller: _confirmPassController, hint: "Confirm Password", icon: Icons.lock_reset_rounded, isPassword: true),
-
-                const SizedBox(height: 40),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleRegister,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryBlue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text("SIGN UP", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                // Back Button positioned safely
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 10, top: 10),
                   ),
                 ),
               ],
             ),
           ),
-        ),
+
+          // 2. MAIN CONTENT
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 40),
+                        const Text(
+                          "Create Account",
+                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        Text(
+                          "Join the DITA Community",
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+                        ),
+                        
+                        const SizedBox(height: 30),
+
+                        // WHITE CARD FORM
+                        Container(
+                          padding: const EdgeInsets.all(25),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30, offset: const Offset(0, 15))
+                            ],
+                          ),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              children: [
+                                // Username (Display Name)
+                                _buildStylishInput(
+                                  controller: _usernameController, 
+                                  hint: "Username (e.g. Newton)", 
+                                  icon: Icons.person_outline_rounded
+                                ),
+                                const SizedBox(height: 15),
+
+                                // Admission Number
+                                _buildStylishInput(
+                                  controller: _admController, 
+                                  hint: "Admission Number", 
+                                  icon: Icons.badge_outlined
+                                ),
+                                const SizedBox(height: 15),
+
+                                // Phone Number
+                                _buildStylishInput(
+                                  controller: _phoneController, 
+                                  hint: "M-Pesa Number", 
+                                  icon: Icons.phone_iphone_rounded, 
+                                  keyboardType: TextInputType.phone
+                                ),
+                                const SizedBox(height: 15),
+
+                                // --- PROGRAM DROPDOWN ---
+                                _buildDropdown(
+                                  hint: "Select Program",
+                                  icon: Icons.school_outlined,
+                                  value: _selectedProgram,
+                                  items: _programs,
+                                  onChanged: (val) => setState(() => _selectedProgram = val as String?),
+                                ),
+                                const SizedBox(height: 15),
+
+                                // --- YEAR DROPDOWN ---
+                                _buildDropdown(
+                                  hint: "Year of Study",
+                                  icon: Icons.calendar_today_outlined,
+                                  value: _selectedYear,
+                                  items: [1, 2, 3, 4],
+                                  onChanged: (val) => setState(() => _selectedYear = val as int?),
+                                ),
+                                const SizedBox(height: 15),
+
+                                // Passwords
+                                _buildStylishInput(
+                                  controller: _passwordController, 
+                                  hint: "Password", 
+                                  icon: Icons.lock_outline_rounded, 
+                                  isPassword: true
+                                ),
+                                const SizedBox(height: 15),
+                                _buildStylishInput(
+                                  controller: _confirmPassController, 
+                                  hint: "Confirm Password", 
+                                  icon: Icons.lock_reset_rounded, 
+                                  isPassword: true
+                                ),
+
+                                const SizedBox(height: 30),
+
+                                // SIGN UP BUTTON
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 55,
+                                  child: ElevatedButton(
+                                    onPressed: _isLoading ? null : _handleRegister,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _primaryDark,
+                                      foregroundColor: Colors.white,
+                                      elevation: 5,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                    ),
+                                    child: _isLoading
+                                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                        : const Text("SIGN UP", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Footer
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text("Already a member? ", style: TextStyle(color: Colors.white70)),
+                            GestureDetector(
+                              onTap: () => Navigator.pop(context),
+                              child: Text(
+                                "Login",
+                                style: TextStyle(
+                                  color: _accentGold,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: _accentGold
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -161,19 +295,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool isPassword = false,
     TextInputType keyboardType = TextInputType.text,
   }) {
-    return Container(
-      decoration: BoxDecoration(color: _lightFillColor, borderRadius: BorderRadius.circular(30)),
-      child: TextFormField(
-        controller: controller,
-        obscureText: isPassword ? _obscurePassword : false,
-        keyboardType: keyboardType,
-        validator: (v) => v!.isEmpty ? "Required" : null,
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: Padding(padding: const EdgeInsets.only(left: 20, right: 10), child: Icon(icon, color: _primaryBlue)),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 20),
-        ),
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword ? _obscurePassword : false,
+      keyboardType: keyboardType,
+      validator: (v) => v!.isEmpty ? "Required" : null,
+      style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: _bgInput,
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+        prefixIcon: Icon(icon, color: Colors.grey[500]),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey[400], size: 20),
+                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              )
+            : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
       ),
     );
   }
@@ -187,17 +328,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required Function(dynamic) onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      decoration: BoxDecoration(color: _lightFillColor, borderRadius: BorderRadius.circular(30)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: _bgInput, borderRadius: BorderRadius.circular(15)),
       child: DropdownButtonFormField(
         value: value,
         decoration: InputDecoration(
-          icon: Icon(icon, color: _primaryBlue),
+          prefixIcon: Icon(icon, color: Colors.grey[500]),
           border: InputBorder.none,
+          hintText: hint,
+          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
         ),
-        hint: Text(hint),
+        icon: Icon(Icons.arrow_drop_down_circle, color: _primaryDark),
         items: items.map((item) {
-          return DropdownMenuItem(value: item, child: Text(item.toString()));
+          return DropdownMenuItem(value: item, child: Text(item.toString(), style: const TextStyle(fontWeight: FontWeight.w600)));
         }).toList(),
         onChanged: onChanged,
         validator: (v) => v == null ? "Required" : null,
