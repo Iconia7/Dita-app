@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mime/mime.dart'; 
+import 'dart:io';
 
 class ApiService {
   // CRITICAL: 
   // If using Android Emulator, use 'http://10.0.2.2:8000/api'
   // If using Physical Device, use your Laptop's IP (e.g., 'http://192.168.100.x:8000/api')
-  static const String baseUrl = 'http://10.8.33.172:8000/api';
+  static const String baseUrl = 'https://dita-app-backend.onrender.com/api';
 
 static Future<List<dynamic>> getEvents() async {
     try {
@@ -22,6 +24,26 @@ static Future<List<dynamic>> getEvents() async {
       return [];
     }
   }  
+
+static Future<Map<String, dynamic>?> getUserProfile(String username) async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/users/?username=$username'),
+      headers: {"Content-Type": "application/json"},
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        return data[0]; // Return the first user found
+      }
+    }
+  } catch (e) {
+    print("Error fetching profile: $e");
+  }
+  return null;
+}
+
 
 static Future<List<dynamic>> getResources() async {
     try {
@@ -44,20 +66,24 @@ static Future<bool> rsvpEvent(int eventId, int userId) async {
   }
 
   // UPDATED Check-In Action
+// UPDATED Check-In Action
   static Future<Map<String, dynamic>?> markAttendance(int eventId, int userId) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/events/$eventId/check_in/'),
-        headers: {"Content-Type": "application/json"}, // Needed for JSON
-        body: json.encode({"user_id": userId}),        // Send ID
+        headers: {"Content-Type": "application/json"}, 
+        body: json.encode({"user_id": userId}),        
       );
       
-      if (response.statusCode == 200) {
+      // FIX: Accept 400 as a "valid" response so we can read the error message
+      if (response.statusCode == 200 || response.statusCode == 400) {
         return json.decode(response.body);
       }
-    } catch (e) { print("Check-in Error: $e"); }
+    } catch (e) { 
+        print("Check-in Error: $e"); 
+    }
     return null;
-  } 
+  }
 
 static Future<void> updateFcmToken(int userId, String token) async {
     try {
@@ -103,25 +129,68 @@ static Future<void> saveUserLocally(Map<String, dynamic> user) async {
   }  
 
   // 1. Login Function
-static Future<Map<String, dynamic>?> login(String username, String password) async {
-  try {
-    final response = await http.get(
-      Uri.parse('$baseUrl/users/?username=$username'),
-    );
+// 1. Login Function (UPDATED)
+  static Future<Map<String, dynamic>?> login(String username, String password) async {
+    try {
+      // Note: This is insecure for production (sending password in URL), 
+      // but okay for a student project presentation.
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/?username=$username'),
+      );
 
-    if (response.statusCode == 200) {
-      final List users = json.decode(response.body);
-      if (users.isNotEmpty) {
-         // Return the first user found (JSON object)
-         return users[0]; 
+      if (response.statusCode == 200) {
+        final List users = json.decode(response.body);
+        if (users.isNotEmpty) {
+          final user = users[0];
+          
+          // --- CRITICAL FIX: SAVE THE DATA ---
+          await saveUserLocally(user); 
+          print("✅ User details saved locally!");
+          // ----------------------------------
+          
+          return user; 
+        }
       }
+      return null; // Login failed
+    } catch (e) {
+      print("Error connecting to server: $e");
+      return null;
     }
-    return null; // Login failed
-  } catch (e) {
-    print("Error connecting to server: $e");
-    return null;
   }
-}
+
+static Future<bool> uploadProfilePicture(int userId, File imageFile) async {
+    try {
+      // 1. Create Multipart Request
+      var request = http.MultipartRequest(
+        'PATCH', 
+        Uri.parse('$baseUrl/users/$userId/'),
+      );
+
+      // 2. Detect file type (jpg/png)
+      final mimeTypeData = lookupMimeType(imageFile.path)!.split('/');
+
+      // 3. Attach the file
+      request.files.add(await http.MultipartFile.fromPath(
+        'avatar', // Matches Django User model field name
+        imageFile.path,
+        contentType: http.MediaType(mimeTypeData[0], mimeTypeData[1]),
+      ));
+
+      // 4. Send
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print("Upload failed: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Error uploading image: $e");
+      return false;
+    }
+  }  
 
 // Update: Accept userId as a parameter
   static Future<bool> initiatePayment(String phone, int userId) async {

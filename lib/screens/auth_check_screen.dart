@@ -133,21 +133,29 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Logo Container
-                  Container(
-                    padding: const EdgeInsets.all(25),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2), 
-                          blurRadius: 30, 
-                          offset: const Offset(0, 10)
-                        )
-                      ],
-                    ),
-                    child: Icon(Icons.school_rounded, size: 60, color: _primaryDark),
-                  ),
+                 Container(
+  padding: const EdgeInsets.all(25),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    shape: BoxShape.circle,
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.2), 
+        blurRadius: 30, 
+        offset: const Offset(0, 10)
+      )
+    ],
+  ),
+  // Replace the Icon with your Image
+  child: SizedBox(
+    height: 60,
+    width: 60,
+    child: Image.asset(
+      'assets/icon/icon.png', // <--- YOUR NEW LOGO ASSET
+      fit: BoxFit.contain,
+    ),
+  ),
+),
                   
                   const SizedBox(height: 30),
                   

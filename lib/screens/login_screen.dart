@@ -147,19 +147,30 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       children: [
                         // LOGO AREA
                         Hero(
-                          tag: 'logo',
-                          child: Container(
-                            height: 80, width: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))
-                              ]
-                            ),
-                            child: Icon(Icons.school_rounded, size: 40, color: _primaryDark),
-                          ),
-                        ),
+  tag: 'logo',
+  child: Container(
+    height: 100, // Slightly larger for impact
+    width: 100,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      shape: BoxShape.circle,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.2),
+          blurRadius: 20,
+          offset: const Offset(0, 10),
+        )
+      ],
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(15.0), // Add padding so the logo isn't touching the edges
+      child: Image.asset(
+        'assets/icon/icon.png', // <--- YOUR NEW LOGO ASSET
+        fit: BoxFit.contain,
+      ),
+    ),
+  ),
+),
                         const SizedBox(height: 20),
                         const Text(
                           "Welcome Back",

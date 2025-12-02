@@ -24,9 +24,10 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
 
   final List<String> _programs = [
     "Applied Computer Science",
-    "Business Information Tech (BIT)",
-    "Computer Science",
-    "Commerce",
+    "Bio Medical Science",
+    "Acturial Science",
+    "Management Information Systems",
+    "Education",
     "Communication",
     "Nursing",
     "Psychology",
@@ -78,7 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       "username": _usernameController.text.trim(), // Use the preferred name
       "admission_number": _admController.text.trim(),
       "phone_number": _phoneController.text.trim(),
-      "email": "${_admController.text.trim()}@daystar.ac.ke", // Auto-generate email
+      "email": "${_usernameController.text.trim()}@dita.co.ke", // Auto-generate email
       "password": _passwordController.text,
       "program": _selectedProgram ?? "Applied Computer Science", 
       "year_of_study": _selectedYear ?? 1 
@@ -119,9 +120,17 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             child: Stack(
               children: [
                 Positioned(
-                  right: -50, top: -50,
-                  child: Icon(Icons.person_add_rounded, size: 250, color: Colors.white.withOpacity(0.05)),
-                ),
+  right: -50, 
+  top: -50,
+  child: Opacity( // Use Opacity to make it subtle like the icon was
+    opacity: 0.1, 
+    child: Image.asset(
+      'assets/icon/icon.png', // <--- YOUR LOGO
+      height: 300,
+      width: 300,
+    ),
+  ),
+),
                 // Back Button positioned safely
                 SafeArea(
                   child: Padding(
@@ -144,6 +153,23 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                     child: Column(
                       children: [
                         const SizedBox(height: 40),
+                        Hero(
+  tag: 'logo', // Smooth transition from Login screen!
+  child: Container(
+    height: 60, 
+    width: 60,
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      shape: BoxShape.circle,
+      boxShadow: [
+        BoxShadow(color: Colors.black12, blurRadius: 10)
+      ]
+    ),
+    child: Image.asset('assets/icon/icon.png'),
+  ),
+),
+const SizedBox(height: 20),
                         const Text(
                           "Create Account",
                           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
@@ -331,7 +357,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(color: _bgInput, borderRadius: BorderRadius.circular(15)),
       child: DropdownButtonFormField(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: Colors.grey[500]),
           border: InputBorder.none,

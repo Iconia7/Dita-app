@@ -74,7 +74,7 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
               Navigator.pop(context);
               _startListeningForPayment();
             },
-            child: Text("I Entered y PIN", style: TextStyle(color: _mpesaGreen, fontWeight: FontWeight.bold)),
+            child: Text("Okay", style: TextStyle(color: _mpesaGreen, fontWeight: FontWeight.bold)),
           )
         ],
       ),

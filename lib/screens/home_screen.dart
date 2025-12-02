@@ -1,16 +1,23 @@
 import 'dart:convert';
 import 'dart:ui'; // Required for BackdropFilter (Glassmorphism)
+import 'package:dita_app/screens/class_timetable_screen.dart';
+import 'package:dita_app/screens/exam_timetable_screen.dart';
+import 'package:dita_app/screens/gpa_calculator_screen.dart';
 import 'package:dita_app/screens/profile_screen.dart';
 import 'package:dita_app/screens/qr_scanner_screen.dart';
 import 'package:dita_app/screens/search_screen.dart';
+import 'package:dita_app/screens/tasks_screen.dart';
+import 'package:dita_app/services/update_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import 'pay_fees_screen.dart';
+import 'dart:io';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -38,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    UpdateService.checkForUpdate(context);
     _currentUser = widget.user;
     _animationController = AnimationController(
       vsync: this,
@@ -78,17 +86,46 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     });
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final ImagePicker picker = ImagePicker();
+    // Pick from gallery
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      // Show loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Uploading profile picture...")),
+      );
+
+      File file = File(image.path);
+      bool success = await ApiService.uploadProfilePicture(_currentUser['id'], file);
+
+      if (success) {
+        await _refreshData(); // Reload user data from server to get new URL
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(backgroundColor: Colors.green, content: Text("Profile updated!")),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(backgroundColor: Colors.red, content: Text("Upload failed.")),
+          );
+        }
+      }
+    }
+  }
+
   void _syncNotificationToken() async {
     try {
       // Get the token from Firebase
       String? token = await FirebaseMessaging.instance.getToken();
       
-      if (token != null) {
-        print("My Device Token: $token"); // Debug print
-        // Send it to Django
-        await ApiService.updateFcmToken(_currentUser['id'], token);
-      }
-    } catch (e) {
+      print("My Device Token: $token"); // Debug print
+      // Send it to Django
+      await ApiService.updateFcmToken(_currentUser['id'], token!);
+        } catch (e) {
       print("Notification Init Error: $e");
     }
   }
@@ -102,9 +139,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Future<void> _refreshData() async {
     final updatedData = await ApiService.getUserDetails(_currentUser['id']);
     if (updatedData != null) {
+      await ApiService.saveUserLocally(updatedData);
       setState(() {
         _currentUser = updatedData;
       });
+
+      print("New Avatar URL: ${_currentUser['avatar']}");
       
       if (_currentUser['is_paid_member'] == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -138,56 +178,360 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return [];
   }
 
+// --- 1. STYLISH ANNOUNCEMENT DIALOG ---
   void _showNotificationsDialog() {
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          height: 400,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Announcements", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _primaryDark)),
-              const Divider(),
-              Expanded(
-                child: FutureBuilder<List<dynamic>>(
-                  future: _fetchAnnouncements(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator(color: _primaryDark));
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No new announcements"));
-                    
-                    return ListView.builder(
-                      itemCount: snapshot.data!.length,
-                      itemBuilder: (context, index) {
-                        final item = snapshot.data![index];
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(item['message'], maxLines: 2, overflow: TextOverflow.ellipsis),
-                          trailing: Text(DateFormat('MMM d').format(DateTime.parse(item['date_posted'])), style: const TextStyle(fontSize: 10)),
+      barrierDismissible: true,
+      barrierLabel: "Announcements",
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: MediaQuery.of(context).size.height * 0.6,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("📢 Announcements", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _primaryDark)),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    ],
+                  ),
+                  const Divider(),
+                  
+                  // Content
+                  Expanded(
+                    child: FutureBuilder<List<dynamic>>(
+                      future: _fetchAnnouncements(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Center(child: CircularProgressIndicator(color: _primaryDark));
+                        }
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.notifications_off_outlined, size: 60, color: Colors.grey[300]),
+                                const SizedBox(height: 10),
+                                Text("All caught up!", style: TextStyle(color: Colors.grey[500])),
+                              ],
+                            ),
+                          );
+                        }
+                        
+                        return ListView.builder(
+                          itemCount: snapshot.data!.length,
+                          itemBuilder: (context, index) {
+                            final item = snapshot.data![index];
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 15),
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                color: _bgOffWhite,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: _primaryDark.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          "NEWS", 
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _primaryDark)
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        DateFormat('MMM d, h:mm a').format(DateTime.parse(item['date_posted'])),
+                                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    item['title'],
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item['message'],
+                                    style: TextStyle(color: Colors.grey[700], fontSize: 13, height: 1.4),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
-              )
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+          child: child,
+        );
+      },
+    );
+  }
+
+  // --- 3. STYLISH RSVP DIALOG ---
+  void _showRSVPDialog(bool isJoining, String eventTitle) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "RSVP",
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (ctx, a1, a2) => Container(),
+      transitionBuilder: (ctx, a1, a2, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: a1, curve: Curves.elasticOut),
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            contentPadding: const EdgeInsets.all(20),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon Circle (Green for Join, Orange for Leave)
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: isJoining ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isJoining ? Icons.check_circle_rounded : Icons.remove_circle_outline_rounded,
+                    color: isJoining ? Colors.green : Colors.orange,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Title
+                Text(
+                  isJoining ? "RSVP Confirmed!" : "RSVP Cancelled",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryDark),
+                ),
+                const SizedBox(height: 10),
+                
+                // Message
+                Text(
+                  isJoining
+                      ? "You are all set for \"$eventTitle\".\nSee you there!"
+                      : "You have been removed from the guest list for \"$eventTitle\".",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.5),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryDark,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text("Okay", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // --- 2. ATTRACTIVE SUCCESS DIALOG (REPLACES OLD DIALOG) ---
+  void _showSuccessDialog(String title, String msg) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Success",
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (ctx, a1, a2) => Container(),
+      transitionBuilder: (ctx, a1, a2, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: a1, curve: Curves.elasticOut),
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+            contentPadding: EdgeInsets.zero,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top Green Area
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: const BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+                  ),
+                  child: const Icon(Icons.check_circle_outline, color: Colors.white, size: 60),
+                ),
+                
+                Padding(
+                  padding: const EdgeInsets.all(25.0),
+                  child: Column(
+                    children: [
+                      Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _primaryDark), textAlign: TextAlign.center),
+                      const SizedBox(height: 10),
+                      Text(msg, style: TextStyle(color: Colors.grey[600], fontSize: 14), textAlign: TextAlign.center),
+                      const SizedBox(height: 25),
+                      
+                      // Animated Points Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _accentGold.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _accentGold)
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.stars_rounded, color: Colors.orange, size: 20),
+                            const SizedBox(width: 8),
+                            Text("+20 Points Added", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[800])),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 25),
+                      
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryDark,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            padding: const EdgeInsets.symmetric(vertical: 12)
+                          ),
+                          child: const Text("Continue", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // --- 4. STYLISH ERROR/WARNING DIALOG ---
+  void _showResponseDialog({required bool isError, required String title, required String msg}) {
+    Color headerColor = isError ? Colors.red : Colors.orange;
+    IconData icon = isError ? Icons.error_outline : Icons.warning_amber_rounded;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Status",
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (ctx, a1, a2) => Container(),
+      transitionBuilder: (ctx, a1, a2, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: a1, curve: Curves.elasticOut),
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            contentPadding: EdgeInsets.zero,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Colored Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: headerColor,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 50),
+                ),
+                
+                Padding(
+                  padding: const EdgeInsets.all(25.0),
+                  child: Column(
+                    children: [
+                      Text(
+                        title, 
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _primaryDark),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        msg, 
+                        style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5), 
+                        textAlign: TextAlign.center
+                      ),
+                      
+                      const SizedBox(height: 25),
+                      
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: headerColor,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 12)
+                          ),
+                          child: const Text("Got it", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   // --- LOGIC: QUICK ACTIONS ---
 // --- LOGIC: QUICK ACTIONS ---
-  void _openScanner() async {
-    // 1. Open the Scanner Screen and wait for a result (the QR string)
+void _openScanner() async {
+    // 1. Open the Scanner Screen
     final result = await Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const QRScannerScreen()),
     );
@@ -196,12 +540,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (result != null) {
       debugPrint('Scanned Code: $result');
 
-      // 3. Parse the Event ID from the string
-      // We assume the QR code contains just the ID number (e.g., "1")
+      // 3. Parse Event ID
       int? eventId = int.tryParse(result.toString());
 
       if (eventId != null) {
-        // Show a loading indicator
+        // Show subtle loading indicator
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -211,19 +554,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           );
         }
 
-        // 4. Call the Backend
+        // 4. Call Backend
         var response = await ApiService.markAttendance(eventId, _currentUser['id']);
 
         if (mounted) {
           // 5. Handle Success
           if (response != null && response.containsKey('new_points')) {
             
-            // --- LIVE UPDATE LOGIC ---
+            // Update Points locally
             setState(() {
-              // Update the local user map with the new points from server
               _currentUser['points'] = response['new_points'];
             });
-            // -------------------------
 
             _showSuccessDialog(
               "Check-in Complete! ✅", 
@@ -231,71 +572,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             );
             
           } else {
-            // 6. Handle Failure (e.g. "Already checked in")
-            _showErrorDialog(response?['message'] ?? "Check-in Failed");
+            // 6. Handle Failure/Warning
+            String message = response?['message'] ?? "Check-in Failed";
+            
+            // Check if it's an "Already checked in" message
+            bool isAlreadyDone = message.toLowerCase().contains("already");
+
+            _showResponseDialog(
+              isError: !isAlreadyDone, // If already done, it's a warning (Orange), else Error (Red)
+              title: isAlreadyDone ? "Oops!" : "Error",
+              msg: message
+            );
           }
         }
       } else {
-        // QR Code wasn't a number
-        _showErrorDialog("Invalid QR Code format.");
+        // 7. Invalid QR Format
+        _showResponseDialog(
+          isError: true,
+          title: "Invalid Code",
+          msg: "This QR code is not valid for DITA events."
+        );
       }
     }
   }
 
-  // --- DIALOG HELPERS ---
 
-  void _showSuccessDialog(String title, String msg) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Column(
-          children: [
-            Icon(Icons.stars_rounded, color: Colors.amber, size: 50),
-            SizedBox(height: 10),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: _primaryDark, fontSize: 18)),
-            const SizedBox(height: 10),
-            Text(msg, textAlign: TextAlign.center),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context), 
-            child: const Text("Awesome!")
-          )
-        ],
-      )
-    );
-  }
-
-  void _showErrorDialog(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(child: Text(msg)),
-          ],
-        ),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      )
-    );
-  }
-
-  void _openWebsite() async {
-    const url = 'https://dita.co.ke';
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    }
-  }
 
     void _checkAndPromptPayment() {
     bool isPaid = _currentUser['is_paid_member'] ?? false;
@@ -399,21 +700,27 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
                         Row(
                           children: [
                             GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(user: _currentUser))),
+                              onTap: _pickAndUploadImage, // <--- TRIGGER UPLOAD
                               child: Hero(
                                 tag: 'profile_pic',
                                 child: Container(
                                   padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
+                                  decoration: const BoxDecoration(
                                     color: Colors.white,
                                     shape: BoxShape.circle,
                                     boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
                                   ),
                                   child: CircleAvatar(
-                                    radius: 24,
-                                    backgroundImage: const NetworkImage("https://i.pravatar.cc/150?img=12"), 
-                                    child: _currentUser['avatar'] == null ? const Icon(Icons.person) : null,
-                                  ),
+  radius: 24,
+  backgroundColor: Colors.grey[200],
+  // 1. Check if avatar exists and is not empty
+  backgroundImage: (_currentUser['avatar'] != null && _currentUser['avatar'].toString().isNotEmpty)
+      ? NetworkImage(_currentUser['avatar']) 
+      : null, // Set to null if no image, so child Icon shows
+  child: (_currentUser['avatar'] == null || _currentUser['avatar'].toString().isEmpty)
+      ? Icon(Icons.person, color: Colors.grey[400]) // Fallback Icon
+      : null,
+),
                                 ),
                               ),
                             ),
@@ -500,13 +807,33 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
+                          _buildQuickAction(
+  Icons.school_rounded, 
+  "Exams", 
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => ExamTimetableScreen(user: _currentUser)))
+),
+const SizedBox(width: 20),
+_buildQuickAction(
+  Icons.school_rounded, 
+  "Classes", 
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => ClassTimetableScreen()))
+),
+const SizedBox(width: 20),
+_buildQuickAction(
+  Icons.calculate_rounded, 
+  "GPA", 
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => GpaCalculatorScreen(user: _currentUser)))
+),
+const SizedBox(width: 20),
+                          _buildQuickAction(
+         Icons.checklist_rtl_rounded, 
+         "Planner", 
+         () => Navigator.push(context, MaterialPageRoute(builder: (_) => TasksScreen(user: _currentUser)))
+      ),
+      const SizedBox(width: 20),
                           _buildQuickAction(Icons.payment, "Pay Fees", _showPaymentSheet),
                           const SizedBox(width: 20),
                           _buildQuickAction(Icons.qr_code_scanner, "Scan", _openScanner),
-                          const SizedBox(width: 20),
-                          _buildQuickAction(Icons.language, "Website", _openWebsite),
-                          const SizedBox(width: 20),
-                          _buildQuickAction(Icons.support_agent, "Support", () => setState(() => _currentIndex = 3)),
                         ],
                       ),
                     ),
@@ -590,39 +917,85 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
 
                   const SizedBox(height: 15),
                   // Feature Banner
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(20),
-                      image: const DecorationImage(
-                        image: NetworkImage("https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80"),
-                        fit: BoxFit.cover,
-                        opacity: 0.4
-                      )
+                  // --- UPCOMING EVENTS SECTION (NEW) ---
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Upcoming Events", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    TextButton(
+                      onPressed: () => setState(() => _currentIndex = 1), // Switch to Events Tab
+                      child: const Text("View All"),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("NIRU Hackathon", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 5),
-                        Text("DITA invites you to participate in the NIRU hackathon.", style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12)),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: (){setState(() {
-                          _currentIndex = 1; // Switch to Events Tab
-                        });}, 
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _accentGold,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
-                          ),
-                          child: const Text("Register Now")
-                        )
-                      ],
-                    ),
+                  ],
+                ),
+                
+                SizedBox(
+                  height: 160, // Height for horizontal list
+                  child: FutureBuilder<List<dynamic>>(
+                    future: ApiService.getEvents(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+                          child: const Center(child: Text("No upcoming events")),
+                        );
+                      }
+
+                      // Show max 4 events
+                      final events = snapshot.data!.take(4).toList();
+
+                      return ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: events.length,
+                        itemBuilder: (context, index) {
+                          final event = events[index];
+                          return GestureDetector(
+                            onTap: () => setState(() => _currentIndex = 1), // Go to tab on click
+                            child: Container(
+                              width: 200,
+                              margin: const EdgeInsets.only(right: 15),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(15),
+                                image: event['image'] != null 
+                                  ? DecorationImage(image: NetworkImage(event['image']), fit: BoxFit.cover, opacity: 0.2)
+                                  : null,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(15.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      event['title'], 
+                                      maxLines: 2, 
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _primaryDark)
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 12, color: _accentGold),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          DateFormat('MMM d').format(DateTime.parse(event['date'])),
+                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                        ),
+                                      ],
+                                    )
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
+                ),
 
                   const SizedBox(height: 100), // Bottom spacer
                 ],
@@ -841,7 +1214,7 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
       appBar: AppBar(
         backgroundColor: _primaryDark,
         elevation: 0,
-        title: const Text("Upcoming Events", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Upcoming Events", style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white)),
         centerTitle: true,
         automaticallyImplyLeading: false, // Hides back button if it appears
       ),
@@ -879,8 +1252,14 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
             padding: const EdgeInsets.all(20),
             itemCount: events.length,
             itemBuilder: (context, index) {
-              final event = events[index];
-              return _buildEventCard(event);
+              return EventCard(
+                event: snapshot.data![index],
+                userId: _currentUser['id'],
+                primaryDark: _primaryDark,
+                onRsvpChanged: (bool isJoining, String title) {
+                  _showRSVPDialog(isJoining, title);
+                },
+              );
             },
           );
         },
@@ -888,143 +1267,14 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
     );
   }
 
-  Widget _buildEventCard(Map<String, dynamic> event) {
-    // Parse Date
-    final DateTime date = DateTime.parse(event['date']);
-    final String day = DateFormat('dd').format(date);
-    final String month = DateFormat('MMM').format(date).toUpperCase();
-    final String time = DateFormat('h:mm a').format(date);
-    bool hasRsvped = event['has_rsvped'] ?? false;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Image / Color Banner (Top Half)
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              color: _primaryDark.withOpacity(0.1), // Placeholder color (or use event image url)
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              image: event['image'] != null 
-                ? DecorationImage(
-                    // USE DJANGO MEDIA URL
-                    image: NetworkImage(event['image']), 
-                    fit: BoxFit.cover
-                  )
-                : null,
-            ),
-            child: event['image'] == null 
-              ? Center(child: Icon(Icons.image, color: Colors.grey[400], size: 40)) 
-              : null,
-          ),
-          
-          // Details (Bottom Half)
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              children: [
-                // Date Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _primaryDark.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: _primaryDark.withOpacity(0.1)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(day, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _primaryDark)),
-                      Text(month, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _primaryDark.withOpacity(0.6))),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 15),
-                
-                // Text Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event['title'], 
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on, size: 14, color: Colors.grey[500]),
-                          const SizedBox(width: 4),
-                          Text(event['venue'], style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.access_time_filled, size: 14, color: Colors.grey[500]),
-                          const SizedBox(width: 4),
-                          Text(time, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // RSVP Button
-                ElevatedButton(
-                  onPressed: () async {
-                    // Call RSVP API
-                    bool success = await ApiService.rsvpEvent(event['id'], _currentUser['id']);
-                    if(success) {
-                        setState(() {}); // Simple refresh (in real app, refresh list)
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("RSVP Updated!")));
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryDark,
-                    shape: const CircleBorder(),
-                    padding: const EdgeInsets.all(12),
-                  ),
-                  child: Icon(hasRsvped ? Icons.check_circle : Icons.add_alert, color: Colors.white, size: 20),
-                )
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 Widget _buildResourcesTab(bool isPaid) {
-    if (!isPaid) {
-      return Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.lock, size: 60, color: Colors.grey[400]),
-          const SizedBox(height: 20),
-          const Text("Resources Locked", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          TextButton(onPressed: _showPaymentSheet, child: const Text("Pay to Unlock"))
-        ]),
-      );
-    }
-    
+    if (!isPaid) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.lock, size: 60, color: Colors.grey[400]), const SizedBox(height: 20), const Text("Resources Locked", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), TextButton(onPressed: _showPaymentSheet, child: const Text("Pay to Unlock"))]));
 
     return Scaffold(
       backgroundColor: _bgOffWhite,
-      appBar: AppBar(title: const Text("Resources", style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: _bgOffWhite, automaticallyImplyLeading: false),
+      appBar: AppBar(title: const Text("Resources", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), backgroundColor: _primaryDark, elevation: 0, centerTitle: true, automaticallyImplyLeading: false),
       body: FutureBuilder<List<dynamic>>(
-        future: ApiService.getResources(), // Call Backend
+        future: ApiService.getResources(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator(color: _primaryDark));
           if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No Resources Available"));
@@ -1035,24 +1285,84 @@ Widget _buildResourcesTab(bool isPaid) {
             itemBuilder: (context, index) {
               final res = snapshot.data![index];
               
-              // Icon Logic based on Type
               IconData icon = Icons.description;
               Color color = Colors.blue;
-              if (res['resource_type'] == 'PDF') { icon = Icons.picture_as_pdf; color = Colors.red; }
-              if (res['resource_type'] == 'LINK') { icon = Icons.link; color = Colors.green; }
+              String actionLabel = "Open";
+              
+              if (res['resource_type'] == 'PDF') { 
+                  icon = Icons.picture_as_pdf; 
+                  color = Colors.red; 
+                  actionLabel = "Download";
+              }
+              if (res['resource_type'] == 'PPT') { 
+                  icon = Icons.slideshow; 
+                  color = Colors.orange; 
+                  actionLabel = "Download";
+              }
+              if (res['resource_type'] == 'LINK') { 
+                  icon = Icons.link; 
+                  color = Colors.green; 
+                  actionLabel = "Visit";
+              }
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 15),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]),
-                child: ListTile(
-                  leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: color)),
-                  title: Text(res['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(res['description'] ?? ""),
-                  trailing: const Icon(Icons.download_rounded, color: Colors.grey),
-                  onTap: () async {
-                    // Open the link
-                    if(res['link'] != null) await launchUrl(Uri.parse(res['link']));
-                  },
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.white, 
+                  borderRadius: BorderRadius.circular(15), 
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0,2))]
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12), 
+                      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), 
+                      child: Icon(icon, color: color, size: 24)
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(res['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          if(res['description'] != null && res['description'].toString().isNotEmpty)
+                             Text(res['description'], style: TextStyle(color: Colors.grey[600], fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    
+                    // ACTIVE ACTION BUTTON
+                    ElevatedButton(
+                      onPressed: () async { 
+                          // 1. Check for Direct File Upload First
+                          String? urlToOpen = res['file'];
+                          
+                          // 2. If no file, check for External Link
+                          if (urlToOpen == null || urlToOpen.isEmpty) {
+                              urlToOpen = res['link'];
+                          }
+
+                          // 3. Launch
+                          if (urlToOpen != null && urlToOpen.isNotEmpty) {
+                              await launchUrl(Uri.parse(urlToOpen), mode: LaunchMode.externalApplication); 
+                          } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("No file or link available"))
+                              );
+                          }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _bgOffWhite,
+                        foregroundColor: _primaryDark,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                      ),
+                      child: Text(actionLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    )
+                  ],
                 ),
               );
             },
@@ -1062,4 +1372,120 @@ Widget _buildResourcesTab(bool isPaid) {
     );
   }
   Widget _buildNewsTab() =>  ProfileScreen(user: _currentUser);
+}
+
+class EventCard extends StatefulWidget {
+  final Map<String, dynamic> event;
+  final int userId;
+  final Color primaryDark;
+  final Function(bool, String) onRsvpChanged;
+
+  const EventCard({
+    super.key, 
+    required this.event, 
+    required this.userId, 
+    required this.primaryDark,
+    required this.onRsvpChanged
+  });
+
+  @override
+  State<EventCard> createState() => _EventCardState();
+}
+
+class _EventCardState extends State<EventCard> {
+  late bool _hasRsvped;
+  bool _isProcessing = false; // Tracks loading for THIS button only
+
+  @override
+  void initState() {
+    super.initState();
+    _hasRsvped = widget.event['has_rsvped'] ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DateTime date = DateTime.parse(widget.event['date']);
+    final String day = DateFormat('dd').format(date);
+    final String month = DateFormat('MMM').format(date).toUpperCase();
+    final String time = DateFormat('h:mm a').format(date);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))]),
+      child: Column(
+        children: [
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: widget.primaryDark.withOpacity(0.1),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              image: widget.event['image'] != null ? DecorationImage(image: NetworkImage(widget.event['image']), fit: BoxFit.cover) : null,
+            ),
+            child: widget.event['image'] == null ? Center(child: Icon(Icons.image, color: Colors.grey[400], size: 40)) : null,
+          ),
+          Padding(
+            padding: const EdgeInsets.all(15),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                  decoration: BoxDecoration(color: widget.primaryDark.withOpacity(0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: widget.primaryDark.withOpacity(0.1))),
+                  child: Column(children: [Text(day, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: widget.primaryDark)), Text(month, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.primaryDark.withOpacity(0.6)))]),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.event['title'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 5),
+                      Row(children: [Icon(Icons.location_on, size: 14, color: Colors.grey[500]), const SizedBox(width: 4), Text(widget.event['venue'], style: TextStyle(fontSize: 12, color: Colors.grey[500]))]),
+                      const SizedBox(height: 4),
+                      Row(children: [Icon(Icons.access_time_filled, size: 14, color: Colors.grey[500]), const SizedBox(width: 4), Text(time, style: TextStyle(fontSize: 12, color: Colors.grey[500]))]),
+                    ],
+                  ),
+                ),
+                
+                // --- BUTTON WITH LOADING STATE ---
+                SizedBox(
+                  width: 45, height: 45,
+                  child: ElevatedButton(
+                    onPressed: _isProcessing 
+                        ? null // Disable if loading (Prevents multi-clicks)
+                        : () async {
+                            setState(() => _isProcessing = true); // Start Loading
+                            
+                            bool isNowJoining = !_hasRsvped;
+                            bool success = await ApiService.rsvpEvent(widget.event['id'], widget.userId);
+                            
+                            if (mounted) {
+                              setState(() => _isProcessing = false); // Stop Loading
+                              
+                              if(success) {
+                                setState(() => _hasRsvped = isNowJoining); // Flip State
+                                widget.onRsvpChanged(isNowJoining, widget.event['title']);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text("Could not update RSVP.")));
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _hasRsvped ? Colors.white : widget.primaryDark,
+                      foregroundColor: _hasRsvped ? widget.primaryDark : Colors.white,
+                      side: _hasRsvped ? BorderSide(color: widget.primaryDark) : BorderSide.none,
+                      shape: const CircleBorder(),
+                      padding: EdgeInsets.zero, // Center icon
+                    ),
+                    child: _isProcessing 
+                        ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _hasRsvped ? widget.primaryDark : Colors.white))
+                        : Icon(_hasRsvped ? Icons.check_circle : Icons.add_alert_rounded, size: 20),
+                  ),
+                )
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
