@@ -1,3 +1,4 @@
+import 'package:dita_app/screens/privacy_policy_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
@@ -135,6 +136,83 @@ Future<void> _updateProfile(String adm, String prog, int year, String phone, Str
     }
 
     setState(() => _isUpdating = false);
+  }
+
+  void _showChangePasswordDialog() {
+    final oldController = TextEditingController();
+    final newController = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Change Password", style: TextStyle(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: oldController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: "Current Password", 
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
+                  ),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: newController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: "New Password", 
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
+                  ),
+                ),
+                if (isLoading) const Padding(
+                  padding: EdgeInsets.only(top: 15.0),
+                  child: CircularProgressIndicator(),
+                )
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: isLoading ? null : () async {
+                  if (oldController.text.isEmpty || newController.text.isEmpty) return;
+                  
+                  setDialogState(() => isLoading = true);
+                  
+                  bool success = await ApiService.changePassword(
+                    _currentUser['id'], 
+                    oldController.text, 
+                    newController.text
+                  );
+                  
+                  setDialogState(() => isLoading = false);
+                  
+                  if (mounted) {
+                    Navigator.pop(context); // Close dialog
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(success ? "Password changed!" : "Incorrect old password."),
+                        backgroundColor: success ? Colors.green : Colors.red,
+                      )
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: _primaryDark),
+                child: const Text("Update", style: TextStyle(color: Colors.white)),
+              )
+            ],
+          );
+        }
+      ),
+    );
   }
 
   // --- 2. SUPPORT LOGIC ---
@@ -311,11 +389,25 @@ Future<void> _updateProfile(String adm, String prog, int year, String phone, Str
                         ),
                         child: Column(
                           children: [
+                            _buildActionTile(
+  Icons.lock_outline, 
+  "Change Password", 
+  Colors.redAccent, 
+  _showChangePasswordDialog // Call the function above
+),
+const Divider(height: 1, indent: 60),
                             _buildActionTile(Icons.chat_bubble_outline_rounded, "Chat on WhatsApp", Colors.green, _openWhatsApp),
                             const Divider(height: 1, indent: 60),
                             _buildActionTile(Icons.call_outlined, "Call Support", Colors.blue, () => _launchContact('tel', '0115332870')),
                             const Divider(height: 1, indent: 60),
                             _buildActionTile(Icons.email_outlined, "Email Issues", Colors.orange, () => _launchContact('mailto', 'dita@daystar.ac.ke')),
+                            const Divider(height: 1, indent: 60),
+_buildActionTile(
+  Icons.privacy_tip_outlined, 
+  "Privacy & Terms", 
+  Colors.purple, 
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()))
+),
                           ],
                         ),
                       ),

@@ -138,47 +138,105 @@ static Future<void> scheduleTaskNotification({
 
   // --- FEATURE: SCHEDULE WEEKLY CLASS REMINDER ---
 // --- FEATURE: SCHEDULE WEEKLY CLASS REMINDER ---
+// --- FEATURE: SCHEDULE WEEKLY CLASS REMINDERS (DUAL ALARMS) ---
   static Future<void> scheduleClassNotification({
     required int id,
     required String title,
     required String venue,
-    required int dayOfWeek,
+    required int dayOfWeek, // 1=Mon ... 7=Sun
     required TimeOfDay startTime,
   }) async {
     
-    // Logic: Remind at 7:00 PM (19:00) the PREVIOUS Evening
-    int reminderDay = dayOfWeek - 1;
-    if (reminderDay == 0) reminderDay = 7;
-
-    // FIX: Format time manually to avoid 'context' error
+    // FORMAT TIME STRING
     final String formattedTime = 
         "${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}";
 
+    // ==========================================
+    // ALARM 1: The "Evening Before" (7:00 PM)
+    // ==========================================
+    
+    int prevDay = dayOfWeek - 1;
+    if (prevDay == 0) prevDay = 7; // Handle Sunday -> Monday wrap
+
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
-        id: id,
+        id: id, // Use the original ID
         channelKey: 'dita_planner_channel_v3',
         title: '📅 Tomorrow: $title',
         body: 'Don\'t forget! Class at $formattedTime in $venue.',
         notificationLayout: NotificationLayout.Default,
         category: NotificationCategory.Reminder,
+        wakeUpScreen: true,
       ),
       schedule: NotificationCalendar(
-        weekday: reminderDay,
+        weekday: prevDay,
         hour: 19, // 7 PM
         minute: 0,
         second: 0,
-        repeats: true, // Repeats every week
+        repeats: true,
         allowWhileIdle: true,
         preciseAlarm: true,
       ),
     );
-    print("⏰ Class Alarm set for Day $reminderDay at 19:00");
+
+    // ==========================================
+    // ALARM 2: The "30 Minutes Before"
+    // ==========================================
+
+    // 1. Calculate time logic (handle subtracting minutes)
+    int totalMinutes = startTime.hour * 60 + startTime.minute;
+    int reminderMinutes = totalMinutes - 30;
+    int reminderWeekday = dayOfWeek;
+
+    // Handle wrapping to previous day if class is e.g., at 00:15 AM
+    if (reminderMinutes < 0) {
+      reminderMinutes += 1440; // Add 24 hours
+      reminderWeekday -= 1;
+      if (reminderWeekday == 0) reminderWeekday = 7;
+    }
+
+    int remHour = reminderMinutes ~/ 60;
+    int remMinute = reminderMinutes % 60;
+
+    // 2. Create a unique ID for this second alarm
+    // We can't use the same 'id' or it will overwrite the 7 PM one.
+    // We generate a derived hash from the original ID.
+    int id30Min = ("$id" + "_30").hashCode; 
+
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: id30Min, // <--- DIFFERENT ID
+        channelKey: 'dita_planner_channel_v3',
+        title: '🔔 Upcoming Class: $title',
+        body: 'Starts in 30 mins ($formattedTime) at $venue.',
+        notificationLayout: NotificationLayout.Default,
+        category: NotificationCategory.Alarm, // Higher urgency
+        wakeUpScreen: true,
+        fullScreenIntent: true, // Shows over lock screen on some devices
+      ),
+      schedule: NotificationCalendar(
+        weekday: reminderWeekday,
+        hour: remHour,
+        minute: remMinute,
+        second: 0,
+        repeats: true,
+        allowWhileIdle: true,
+        preciseAlarm: true,
+      ),
+    );
+
+    print("✅ Scheduled Dual Alarms for $title (IDs: $id & $id30Min)");
   }
 
-  // --- FEATURE: CANCEL REMINDER ---
+  // --- FEATURE: CANCEL BOTH REMINDERS ---
   static Future<void> cancelNotification(int id) async {
+    // 1. Cancel the 7 PM Alarm
     await AwesomeNotifications().cancel(id);
-    print("🚫 Awesome Notification cancelled for ID: $id");
+    
+    // 2. Cancel the 30 Minute Alarm (using the same derived ID logic)
+    int id30Min = ("$id" + "_30").hashCode;
+    await AwesomeNotifications().cancel(id30Min);
+    
+    print("🚫 Cancelled both alarms for Class ID: $id");
   }
 }

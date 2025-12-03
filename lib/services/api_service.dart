@@ -85,6 +85,30 @@ static Future<bool> rsvpEvent(int eventId, int userId) async {
     return null;
   }
 
+static Future<bool> changePassword(int userId, String oldPass, String newPass) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/change-password/'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "user_id": userId,
+          "old_password": oldPass,
+          "new_password": newPass,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print("Password Change Failed: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Error: $e");
+      return false;
+    }
+  }  
+
 static Future<void> updateFcmToken(int userId, String token) async {
     try {
       final response = await http.patch(

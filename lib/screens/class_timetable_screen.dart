@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:dita_app/services/notification.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'manual_class_entry_screen.dart';
 import 'portal_import_screen.dart';
+import '../services/notification.dart';
 
 class ClassTimetableScreen extends StatefulWidget {
   const ClassTimetableScreen({super.key});
@@ -14,20 +15,37 @@ class ClassTimetableScreen extends StatefulWidget {
 
 class _ClassTimetableScreenState extends State<ClassTimetableScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Timer? _timer;
   
-  // Theme Colors
-  final Color _primaryDark = const Color(0xFF003366);
+  // --- MODERN COLOR PALETTE ---
+  final Color _primaryDark = const Color(0xFF0F172A); // Midnight Blue (Modern Dark)
+  final Color _primaryBlue = const Color(0xFF003366); // Daystar Blue
   final Color _accentGold = const Color(0xFFFFD700);
-  final Color _bgOffWhite = const Color(0xFFF4F6F9);
+  final Color _bgLight = const Color(0xFFF1F5F9);     // Slate 100
+  final Color _cardWhite = Colors.white;
+  final Color _textMain = const Color(0xFF1E293B);    // Slate 800
+  final Color _textSub = const Color(0xFF64748B);     // Slate 500
+  final Color _liveGreen = const Color(0xFF10B981);   // Emerald 500
 
-  final List<String> _days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+  final List<String> _days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   List<dynamic> _classes = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    int todayIndex = DateTime.now().weekday - 1; 
+    _tabController = TabController(length: 7, initialIndex: todayIndex, vsync: this);
     _loadClasses();
+    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadClasses() async {
@@ -38,204 +56,180 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
         _classes = json.decode(data);
       });
     } else {
-      setState(() {
-        _classes = [];
-      });
+      setState(() => _classes = []);
     }
   }
 
-  // Helper to wipe data if user wants a fresh start
-Future<void> _clearAllClasses() async {
-  // Loop through all current classes and cancel their specific alarms
-  for (var c in _classes) {
-    if (c['id'] != null) {
-      await NotificationService.cancelNotification(c['id']);
+  Future<void> _clearAllClasses() async {
+    for (var c in _classes) {
+      if (c['id'] != null) await NotificationService.cancelNotification(c['id']);
     }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('my_classes');
+    _loadClasses();
   }
 
-  // Now clear the data
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.remove('my_classes');
-  
-  _loadClasses(); // Refresh UI
-  
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Timetable cleared Successfully.")),
-    );
-  }
-}
+  // --- LOGIC ---
+  bool _isClassLive(Map<String, dynamic> cls) {
+    int currentDayIndex = DateTime.now().weekday;
+    int classDayIndex = _days.indexOf(cls['day']) + 1;
+    if (classDayIndex != currentDayIndex) return false;
 
-// 2. Updated Single Delete Method
-Future<void> _deleteSingleClass(int id) async {
-  // Cancel the alarm for this specific ID
-  await NotificationService.cancelNotification(id);
+    int nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
+    int startMinutes = _timeToMinutes(cls['startTime']);
+    int endMinutes = _timeToMinutes(cls['endTime']);
 
-  // Remove from the list and save
-  final prefs = await SharedPreferences.getInstance();
-  List<dynamic> currentList = json.decode(prefs.getString('my_classes') ?? '[]');
-  
-  currentList.removeWhere((item) => item['id'] == id);
-  
-  await prefs.setString('my_classes', json.encode(currentList));
-  _loadClasses(); // Refresh UI
-
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Class deleted and alarm cancelled.")),
-    );
-  }
-}
-
-  void _navigateToManual() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualClassEntryScreen()))
-        .then((_) => _loadClasses());
+    return nowMinutes >= startMinutes && nowMinutes < endMinutes;
   }
 
-  void _navigateToSync() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen()))
-        .then((_) => _loadClasses());
+  int _timeToMinutes(String timeStr) {
+    try {
+      var parts = timeStr.split(":");
+      return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+    } catch (e) {
+      return 0;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. EMPTY STATE: Show Large Option Cards
-    if (_classes.isEmpty) {
-      return Scaffold(
-        backgroundColor: _bgOffWhite,
-        appBar: AppBar(
-          title: const Text("My Classes", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), 
-          backgroundColor: _primaryDark,
-          centerTitle: true,
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.school_rounded, size: 80, color: Colors.grey[300]),
-              const SizedBox(height: 20),
-              const Text("No classes added yet.", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              const Text("Choose how you want to set up your timetable:", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 40),
-              
-              // OPTION 1: AUTOMATIC
-              _buildOptionCard(
-                icon: Icons.auto_mode,
-                title: "Portal Sync",
-                subtitle: "Login & extract automatically.",
-                color: Colors.green,
-                onTap: _navigateToSync,
-              ),
-              
-              const SizedBox(height: 20),
-
-              // OPTION 2: MANUAL
-              _buildOptionCard(
-                icon: Icons.edit_note,
-                title: "Manual Entry",
-                subtitle: "Type units yourself.",
-                color: _primaryDark,
-                onTap: _navigateToManual,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // 2. FILLED STATE: Show Timetable with Menu Action
     return Scaffold(
-      backgroundColor: _bgOffWhite,
-      appBar: AppBar(
-        title: const Text("Class Timetable", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: _primaryDark,
-        bottom: TabBar(
+      backgroundColor: _bgLight,
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            SliverAppBar(
+              expandedHeight: 120.0,
+              floating: false,
+              pinned: true,
+              backgroundColor: _primaryBlue,
+              flexibleSpace: FlexibleSpaceBar(
+                titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+                title: const Text(
+                  "Timetable",
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18,color: Colors.white),
+                ),
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [_primaryDark, _primaryBlue],
+                        ),
+                      ),
+                    ),
+                    // Decorative Circle
+                    Positioned(
+                      right: -30,
+                      top: -50,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                 PopupMenuButton<String>(
+                  icon: const Icon(Icons.tune, color: Colors.white), // Settings/Tune icon
+                  onSelected: (value) {
+                    if (value == 'manual') Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualClassEntryScreen())).then((_) => _loadClasses());
+                    else if (value == 'sync') Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses());
+                    else if (value == 'clear') _clearAllClasses();
+                  },
+                  itemBuilder: (BuildContext context) => [
+                    const PopupMenuItem(value: 'manual', child: Row(children: [Icon(Icons.add, size: 18), SizedBox(width: 8), Text("Add Class")])),
+                    const PopupMenuItem(value: 'sync', child: Row(children: [Icon(Icons.sync, size: 18), SizedBox(width: 8), Text("Sync Portal")])),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 8), Text("Clear All", style: TextStyle(color: Colors.red))])),
+                  ],
+                )
+              ],
+            ),
+            SliverPersistentHeader(
+              delegate: _SliverAppBarDelegate(
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  indicator: BoxDecoration(
+                    color: _accentGold,
+                    borderRadius: BorderRadius.circular(50),
+                    boxShadow: [
+                      BoxShadow(color: _accentGold.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))
+                    ]
+                  ),
+                  labelColor: _primaryDark,
+                  unselectedLabelColor: _textSub,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                  tabs: _days.map((d) => Tab(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(d),
+                    ),
+                  )).toList(),
+                ),
+              ),
+              pinned: true,
+            ),
+          ];
+        },
+        body: TabBarView(
           controller: _tabController,
-          indicatorColor: _accentGold,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          tabs: _days.map((d) => Tab(text: d)).toList(),
+          children: _days.map((day) => _buildDayTimeline(day)).toList(),
         ),
-        actions: [
-          // POPUP MENU REPLACES THE SINGLE ADD BUTTON
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onSelected: (value) {
-              if (value == 'manual') {
-                _navigateToManual();
-              } else if (value == 'sync') {
-                _navigateToSync();
-              } else if (value == 'clear') {
-                _confirmClear();
-              }
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem(
-                value: 'manual',
-                child: Row(children: [Icon(Icons.edit, color: Colors.black54), SizedBox(width: 10), Text("Add Manually")]),
-              ),
-              const PopupMenuItem(
-                value: 'sync',
-                child: Row(children: [Icon(Icons.sync, color: Colors.green), SizedBox(width: 10), Text("Sync from Portal")]),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'clear',
-                child: Row(children: [Icon(Icons.delete_forever, color: Colors.red), SizedBox(width: 10), Text("Clear Timetable")]),
-              ),
-            ],
-          )
-        ],
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: _days.map((day) => _buildDayList(day)).toList(),
       ),
     );
   }
 
-  // Helper dialog to prevent accidental deletion
-  void _confirmClear() {
-    showDialog(
-      context: context, 
-      builder: (ctx) => AlertDialog(
-        title: const Text("Clear Timetable?"),
-        content: const Text("This will remove all classes. You can re-sync or add them manually again."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _clearAllClasses();
-            }, 
-            child: const Text("Clear All", style: TextStyle(color: Colors.red))
-          ),
-        ],
-      )
-    );
-  }
-
-  Widget _buildOptionCard({required IconData icon, required String title, required String subtitle, required Color color, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-        child: Row(
+  // --- EMPTY STATE WIDGET ---
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 28)),
-            const SizedBox(width: 15),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 5), Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12))])),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+            Container(
+              padding: const EdgeInsets.all(25),
+              decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, spreadRadius: 5)]),
+              child: Icon(Icons.calendar_month_outlined, size: 50, color: _primaryBlue.withOpacity(0.5)),
+            ),
+            const SizedBox(height: 25),
+            Text("No Classes Yet", style: TextStyle(color: _primaryDark, fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text("Sync your portal or add classes manually to get started.", textAlign: TextAlign.center, style: TextStyle(color: _textSub)),
+            const SizedBox(height: 30),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses()),
+              icon: const Icon(Icons.cloud_download_outlined),
+              label: const Text("Sync Now"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDayList(String day) {
+  // --- TIMELINE BUILDER ---
+  Widget _buildDayTimeline(String day) {
+    if (_classes.isEmpty) return _buildEmptyState();
+
     final dayClasses = _classes.where((c) => c['day'] == day).toList();
     dayClasses.sort((a, b) => a['startTime'].compareTo(b['startTime'])); 
 
@@ -244,52 +238,69 @@ Future<void> _deleteSingleClass(int id) async {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_busy, size: 50, color: Colors.grey[300]),
-            const SizedBox(height: 10),
-            Text("No classes on $day", style: TextStyle(color: Colors.grey[400])),
+            Icon(Icons.weekend_outlined, size: 60, color: Colors.grey[300]),
+            const SizedBox(height: 15),
+            Text("Free Day!", style: TextStyle(color: _textSub, fontSize: 16, fontWeight: FontWeight.w600)),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
       itemCount: dayClasses.length,
       itemBuilder: (context, index) {
         final c = dayClasses[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border(left: BorderSide(color: _primaryDark, width: 4))),
-          child: Column(
+        bool isLive = _isClassLive(c);
+        bool isLast = index == dayClasses.length - 1;
+
+        return IntrinsicHeight(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // 1. TIME COLUMN
+              SizedBox(
+                width: 50,
+                child: Column(
+                  children: [
+                    Text(
+                      c['startTime'], 
+                      style: TextStyle(fontWeight: FontWeight.bold, color: isLive ? _liveGreen : _textMain)
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      c['endTime'], 
+                      style: TextStyle(fontSize: 12, color: _textSub)
+                    ),
+                  ],
+                ),
+              ),
+
+              // 2. TIMELINE LINE
+              Column(
                 children: [
-                  Text(c['code'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  // Optional: Add a small delete button for specific items
-                  InkWell(
-                    onTap: () => _deleteSingleClass(c['id']),
-                    child: const Icon(Icons.close, size: 18, color: Colors.grey),
-                  )
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: isLive ? _liveGreen : Colors.white,
+                      border: Border.all(color: isLive ? _liveGreen : Colors.grey[300]!, width: 2),
+                      shape: BoxShape.circle,
+                      boxShadow: isLive ? [BoxShadow(color: _liveGreen.withOpacity(0.5), blurRadius: 6, spreadRadius: 1)] : null
+                    ),
+                  ),
+                  if (!isLast) 
+                    Expanded(child: Container(width: 2, color: Colors.grey[200])),
                 ],
               ),
-              const SizedBox(height: 5),
-              Row(
-                children: [
-                   Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
-                   const SizedBox(width: 5),
-                   Text("${c['startTime']} - ${c['endTime']}", style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.w500)),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Row(
-                children: [
-                   Icon(Icons.location_on, size: 14, color: _accentGold),
-                   const SizedBox(width: 5),
-                   Text(c['venue'], style: TextStyle(color: Colors.grey[600])),
-                ],
+
+              // 3. CARD CONTENT
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: _buildClassCard(c, isLive),
+                ),
               ),
             ],
           ),
@@ -298,4 +309,123 @@ Future<void> _deleteSingleClass(int id) async {
     );
   }
 
+  Widget _buildClassCard(Map<String, dynamic> c, bool isLive) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isLive ? Colors.white : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: isLive ? Border.all(color: _liveGreen, width: 1.5) : Border.all(color: Colors.transparent),
+        boxShadow: [
+          BoxShadow(
+            color: isLive ? _liveGreen.withOpacity(0.15) : Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          )
+        ],
+        gradient: isLive ? LinearGradient(colors: [Colors.white, _liveGreen.withOpacity(0.05)]) : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onLongPress: () => _deleteSingleClass(c['id']), // Long press to delete
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // HEADER: Code & Live Badge
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isLive ? _liveGreen : _primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          c['code'], 
+                          style: TextStyle(
+                            color: isLive ? Colors.white : _primaryBlue, 
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12
+                          )
+                        ),
+                      ),
+                      if (isLive)
+                         Row(children: [
+                           Icon(Icons.sensors, size: 14, color: _liveGreen),
+                           const SizedBox(width: 4),
+                           Text("LIVE", style: TextStyle(color: _liveGreen, fontWeight: FontWeight.bold, fontSize: 12))
+                         ]),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // TITLE (Venue as Title for now or Code if title missing)
+                  Text(
+                    "Class at ${c['venue']}",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textMain),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // DETAILS ROW
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline, size: 16, color: _textSub),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          c['lecturer'] == "Unknown" ? "Lecturer N/A" : c['lecturer'], 
+                          style: TextStyle(color: _textSub, fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteSingleClass(int id) async {
+    if (id != 0) await NotificationService.cancelNotification(id);
+    final prefs = await SharedPreferences.getInstance(); 
+    List<dynamic> current = json.decode(prefs.getString('my_classes') ?? '[]');
+    current.removeWhere((item) => item['id'] == id);
+    await prefs.setString('my_classes', json.encode(current));
+    _loadClasses();
+    if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Class removed")));
+  }
+}
+
+// --- HELPER FOR STICKY TAB BAR ---
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  _SliverAppBarDelegate(this._tabBar);
+  final TabBar _tabBar;
+
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: const Color(0xFFF1F5F9), // Match background color
+      child: _tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
+    return false;
+  }
 }

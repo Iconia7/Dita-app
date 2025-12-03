@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ui'; // Required for BackdropFilter (Glassmorphism)
+import 'package:dita_app/screens/attendance_history_screen.dart';
 import 'package:dita_app/screens/class_timetable_screen.dart';
 import 'package:dita_app/screens/exam_timetable_screen.dart';
 import 'package:dita_app/screens/gpa_calculator_screen.dart';
@@ -902,14 +903,21 @@ const SizedBox(width: 20),
                   Row(
                     children: [
                       Expanded(
-                    child: _buildStatCard(
-                      "Attendance", 
-                      // LIVE DATA LOGIC:
-                      "${_currentUser['attendance_percentage'] ?? 0}%", 
-                      Icons.bar_chart, 
-                      Colors.purple
-                    )
-                  ),
+  child: GestureDetector( // <--- Wrap in GestureDetector
+    onTap: () {
+        Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (_) => AttendanceHistoryScreen(userId: _currentUser['id']))
+        );
+    },
+    child: _buildStatCard(
+      "Attendance", 
+      "${_currentUser['attendance_percentage'] ?? 0}%", 
+      Icons.bar_chart, 
+      Colors.purple
+    ),
+  ),
+),
                       const SizedBox(width: 15),
                       Expanded(child: _buildStatCard("Points", "${_currentUser['points'] ?? 0}", Icons.stars, _accentGold)),
                     ],

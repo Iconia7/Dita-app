@@ -15,9 +15,13 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
   final _codeController = TextEditingController();
   final _venueController = TextEditingController();
   
-  // Colors
-  final Color _primaryDark = const Color(0xFF003366);
-  final Color _bgOffWhite = const Color(0xFFF4F6F9);
+  // --- MODERN THEME COLORS ---
+  final Color _primaryDark = const Color(0xFF0F172A); // Midnight Blue
+  final Color _primaryBlue = const Color(0xFF003366); // Daystar Blue
+  final Color _accentGold = const Color(0xFFFFD700);
+  final Color _bgLight = const Color(0xFFF1F5F9);     // Slate 100
+  final Color _textMain = const Color(0xFF1E293B);    // Slate 800
+  final Color _textSub = const Color(0xFF64748B);     // Slate 500
 
   String _selectedDay = "MON";
   TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
@@ -26,8 +30,7 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
   Future<void> _saveClass() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // 1. Format Data (Same format as Portal Scraper)
-    // Note: We format time as "08:00" (24h) for consistency
+    // 1. Format Data
     final String startStr = "${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}";
     final String endStr = "${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}";
     
@@ -38,7 +41,7 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
       "day": _selectedDay,
       "startTime": startStr,
       "endTime": endStr,
-      "lecturer": "Manual Entry", // Placeholder since we don't know
+      "lecturer": "Manual Entry",
       "id": (DateTime.now().millisecondsSinceEpoch / 1000).round(),
     };
 
@@ -48,14 +51,12 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
     if (prefs.containsKey('my_classes')) {
       classes = json.decode(prefs.getString('my_classes')!);
     }
-    // Remove duplicates if editing same code
     classes.removeWhere((c) => c['code'] == newClass['code']);
     classes.add(newClass);
     
     await prefs.setString('my_classes', json.encode(classes));
 
-    // 3. SCHEDULE NOTIFICATION
-    // Map day string to int (MON=1 ... SUN=7)
+    // 3. Schedule Notification
     int dayIndex = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].indexOf(_selectedDay) + 1;
     
     await NotificationService.scheduleClassNotification(
@@ -68,7 +69,7 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Class Added Successfully!"), backgroundColor: Colors.green)
+        SnackBar(content: Text("Class '${newClass['code']}' added successfully!"), backgroundColor: _primaryBlue)
       );
       Navigator.pop(context);
     }
@@ -77,98 +78,147 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgOffWhite,
+      backgroundColor: _bgLight,
       appBar: AppBar(
-        title: const Text("Add Class", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), 
-        backgroundColor: _primaryDark,
+        title: const Text("Add New Class", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), 
         centerTitle: true,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_primaryDark, _primaryBlue],
+            ),
+          ),
+        ),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
+      body: SingleChildScrollView(
+        child: Column(
           children: [
-            // Unit Code
-            _buildLabel("Unit Code"),
-            TextFormField(
-              controller: _codeController,
-              decoration: _buildInputDeco("e.g. ACS 401"),
-              validator: (v) => v!.isEmpty ? "Required" : null,
-            ),
-            const SizedBox(height: 20),
-
-            // Venue
-            _buildLabel("Venue"),
-            TextFormField(
-              controller: _venueController,
-              decoration: _buildInputDeco("e.g. DAC 201"),
-              validator: (v) => v!.isEmpty ? "Required" : null,
-            ),
-            const SizedBox(height: 20),
-
-            // Day Selector
-            _buildLabel("Day of Week"),
+            // Decorative Header Background extension
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedDay,
-                  isExpanded: true,
-                  items: ["MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                  onChanged: (v) => setState(() => _selectedDay = v.toString()),
+              height: 20,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [_primaryDark, _primaryBlue]),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- SECTION 1: DETAILS ---
+                    _buildSectionHeader("Class Details", Icons.class_outlined),
+                    const SizedBox(height: 15),
+                    
+                    // Unit Code Input
+                    _buildInputCard(
+                      child: TextFormField(
+                        controller: _codeController,
+                        style: TextStyle(fontWeight: FontWeight.bold, color: _textMain),
+                        decoration: _buildInputDeco("Unit Code", "e.g. ACS 401", Icons.qr_code),
+                        validator: (v) => v!.isEmpty ? "Required" : null,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // Venue Input
+                    _buildInputCard(
+                      child: TextFormField(
+                        controller: _venueController,
+                        style: TextStyle(fontWeight: FontWeight.bold, color: _textMain),
+                        decoration: _buildInputDeco("Venue", "e.g. DAC 201", Icons.location_on_outlined),
+                        validator: (v) => v!.isEmpty ? "Required" : null,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 30),
+
+                    // --- SECTION 2: SCHEDULE ---
+                    _buildSectionHeader("Schedule", Icons.access_time),
+                    const SizedBox(height: 15),
+
+                    // Day Selector
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedDay,
+                          isExpanded: true,
+                          icon: Icon(Icons.keyboard_arrow_down, color: _primaryBlue),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textMain),
+                          items: ["MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => DropdownMenuItem(
+                            value: d, 
+                            child: Row(
+                              children: [
+                                Icon(Icons.calendar_today, size: 16, color: _textSub),
+                                const SizedBox(width: 10),
+                                Text(d),
+                              ],
+                            )
+                          )).toList(),
+                          onChanged: (v) => setState(() => _selectedDay = v.toString()),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // Time Pickers Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTimePickerCard("Start Time", _startTime, (t) => setState(() => _startTime = t)),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: _buildTimePickerCard("End Time", _endTime, (t) => setState(() => _endTime = t)),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: _saveClass,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primaryBlue, 
+                          foregroundColor: Colors.white,
+                          elevation: 8,
+                          shadowColor: _primaryBlue.withOpacity(0.4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_outline),
+                            SizedBox(width: 10),
+                            Text("Save to Timetable", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                    )
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-
-            // Time Pickers Row
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel("Start Time"),
-                      _buildTimeButton(_startTime, (t) => setState(() => _startTime = t)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel("End Time"),
-                      _buildTimeButton(_endTime, (t) => setState(() => _endTime = t)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 40),
-
-            // Save Button
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _saveClass,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryDark, 
-                  foregroundColor: Colors.white,
-                  elevation: 5,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
-                ),
-                child: const Text("Save Class", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-            )
           ],
         ),
       ),
@@ -176,40 +226,66 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
   }
 
   // --- UI HELPERS ---
-  Widget _buildLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 5),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: _primaryBlue),
+        const SizedBox(width: 8),
+        Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: _textSub, fontSize: 14, letterSpacing: 0.5)),
+      ],
     );
   }
 
-  InputDecoration _buildInputDeco(String hint) {
+  Widget _buildInputCard({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: child,
+    );
+  }
+
+  InputDecoration _buildInputDeco(String label, String hint, IconData icon) {
     return InputDecoration(
+      labelText: label,
       hintText: hint,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 18),
+      prefixIcon: Icon(icon, color: _textSub),
+      labelStyle: TextStyle(color: _textSub),
+      hintStyle: TextStyle(color: Colors.grey[300]),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
     );
   }
 
-  Widget _buildTimeButton(TimeOfDay time, Function(TimeOfDay) onPicked) {
+  Widget _buildTimePickerCard(String label, TimeOfDay time, Function(TimeOfDay) onPicked) {
     return InkWell(
       onTap: () async {
         final t = await showTimePicker(context: context, initialTime: time);
         if (t != null) onPicked(t);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 15),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border.all(color: Colors.transparent),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(time.format(context), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const Icon(Icons.access_time, size: 18, color: Colors.grey),
+            Text(label, style: TextStyle(color: _textSub, fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(time.format(context), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _primaryDark)),
+                Icon(Icons.access_time_filled, size: 20, color: _accentGold),
+              ],
+            ),
           ],
         ),
       ),

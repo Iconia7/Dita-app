@@ -1,3 +1,4 @@
+import 'package:dita_app/screens/privacy_policy_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
@@ -24,11 +25,15 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
 
   final List<String> _programs = [
     "Applied Computer Science",
+    "Information Technology",
     "Bio Medical Science",
     "Acturial Science",
     "Management Information Systems",
+    "Diploma in Infomation & Communiation Technology",
     "Education",
     "Communication",
+    "Community Development",
+    "International Relations & Peace Studies",
     "Nursing",
     "Psychology",
     "Law"
@@ -256,6 +261,27 @@ const SizedBox(height: 20),
                                 ),
 
                                 const SizedBox(height: 30),
+                                Row(
+  mainAxisAlignment: MainAxisAlignment.center,
+  children: [
+    const Text("By signing up, you agree to our "),
+    GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+      },
+      child: Text(
+        "Terms & Privacy",
+        style: TextStyle(
+          color: _primaryDark, // Use your blue color
+          fontWeight: FontWeight.bold,
+          decoration: TextDecoration.underline,
+        ),
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 10),
 
                                 // SIGN UP BUTTON
                                 SizedBox(
