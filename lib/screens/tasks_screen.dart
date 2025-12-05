@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
@@ -358,7 +359,7 @@ void _showAddTaskSheet() {
         label: const Text("New Task", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading && _tasks.isEmpty 
-        ? Center(child: CircularProgressIndicator(color: _primaryDark))
+        ? const LogoSpinner()
         : _tasks.isEmpty 
           ? Center(
               child: Column(

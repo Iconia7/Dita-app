@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:dita_app/services/notification.dart';
+import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification.dart';
 
 class PortalImportScreen extends StatefulWidget {
   const PortalImportScreen({super.key});
@@ -14,7 +16,11 @@ class PortalImportScreen extends StatefulWidget {
 class _PortalImportScreenState extends State<PortalImportScreen> {
   late final WebViewController _controller;
   bool _isLoading = true;
-  final Color _primaryDark = const Color(0xFF003366);
+  bool _hasExtracted = false; // Prevent double extraction
+  
+  // URL CONSTANTS
+  final String _targetUrl = 'https://student.daystar.ac.ke/Course/StudentTimetable';
+  final Color _primaryDark = const Color(0xFF0F172A);
 
   @override
   void initState() {
@@ -23,233 +29,243 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (_) => setState(() => _isLoading = true),
-          onPageFinished: (_) => setState(() => _isLoading = false),
+          onPageStarted: (url) => setState(() => _isLoading = true),
+          
+          onPageFinished: (url) async {
+            setState(() => _isLoading = false);
+            
+            // AUTOMATION LOGIC:
+            // Check if we have landed on the Timetable Page
+            if (url.toLowerCase().contains("studenttimetable") && !_hasExtracted) {
+              print("🎯 Target Page Detected! Starting auto-extraction...");
+              
+              // Add a small delay to ensure the table renders (JS frameworks often lag)
+              await Future.delayed(const Duration(seconds: 2));
+              _extractTimetable();
+            }
+          },
         ),
       )
-      ..loadRequest(Uri.parse('https://student.daystar.ac.ke/')); // Portal URL
+      // 1. DIRECT TARGET STRATEGY
+      // We load the Timetable URL first. The portal will redirect to Login,
+      // and then redirect BACK here automatically after login.
+      ..loadRequest(Uri.parse(_targetUrl)); 
   }
 
-// REPLACE THE ENTIRE _extractTimetable FUNCTION WITH THIS:
+  Future<void> _extractTimetable() async {
+    setState(() {
+      _isLoading = true;
+      _hasExtracted = true; // Mark as done so we don't loop
+    });
 
-Future<void> _extractTimetable() async {
-  setState(() => _isLoading = true);
-
-  try {
-    // UPDATED SCRIPT: Scans specifically for the "My Timetable" section
-    const String extractionScript = """
-    (function() {
-        var tables = document.getElementsByTagName('table');
-        for (var i = 0; i < tables.length; i++) {
-            var tableText = tables[i].innerText || tables[i].textContent;
-            
-            // Confirm this table has the headers we expect
-            if (tableText.indexOf('Unit') > -1 && tableText.indexOf('Lecture Room') > -1) {
-                
-                var extractedData = [];
-                var rows = tables[i].querySelectorAll('tr');
-                var collecting = false; // FLAG: Are we inside 'My Timetable' yet?
-
-                for (var j = 0; j < rows.length; j++) {
-                    var rowText = rows[j].innerText || rows[j].textContent;
-
-                    // 1. START TRIGGER
-                    if (rowText.trim() === "My Timetable") {
-                        collecting = true;
-                        continue; // Skip this header row
-                    }
-
-                    // 2. STOP TRIGGER
-                    if (rowText.indexOf("Courses in Timetable") > -1) {
-                        break; // STOP immediately if we reach the next section
-                    }
-
-                    // 3. COLLECT DATA
-                    if (collecting) {
-                        var cells = rows[j].querySelectorAll('td');
-                        // Ensure it's a valid data row (not a sub-header or empty)
-                        if (cells.length >= 6) {
-                             extractedData.push({
-                                "code": cells[0].innerText.trim(),
-                                "day": cells[2].innerText.trim(),
-                                "time": cells[3].innerText.trim(),
-                                "venue": cells[5].innerText.trim(),
-                                "lecturer": cells.length > 6 ? cells[6].innerText.trim() : "Unknown"
-                            });
-                        }
-                    }
-                }
-                
-                // If we found data, return it. If not, maybe we didn't hit the flags.
-                if (extractedData.length > 0) return JSON.stringify(extractedData);
-            }
-        }
-        return "NOT_FOUND";
-    })();
-    """;
-
-    // 1. Run the script
-    final result = await _controller.runJavaScriptReturningResult(extractionScript);
-    
-    // 2. Clean Result
-    String jsonString = result.toString();
-    if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
-      jsonString = jsonString.substring(1, jsonString.length - 1);
-      jsonString = jsonString.replaceAll(r'\"', '"').replaceAll(r'\\', r'\');
-    }
-
-    if (jsonString == "NOT_FOUND") {
-      _showError("Table structure not recognized. Please wait for the page to fully load.");
-      return;
-    }
-
-    // 3. Decode
-    List<dynamic> rawData = [];
     try {
-      rawData = json.decode(jsonString);
-    } catch (e) {
-      rawData = [];
-    }
+      // 2. JS INJECTION: SMART FILTERING
+      // This script scans specifically for the "My Timetable" section and STOPS
+      // before it hits "Courses in Timetable".
+      const String extractionScript = """
+      (function() {
+          var extractedData = [];
+          
+          // Try to find the specific table
+          var table = document.querySelector('table.table.table-hover');
+          
+          // Fallback: If specific class not found, find any table with "Unit" and "Period"
+          if (!table) {
+              var tables = document.getElementsByTagName('table');
+              for (var k = 0; k < tables.length; k++) {
+                  if (tables[k].innerText.indexOf('Unit') > -1 && tables[k].innerText.indexOf('Period') > -1) {
+                      table = tables[k];
+                      break;
+                  }
+              }
+          }
 
-    if (rawData.isEmpty) {
-      _showError("Found 'My Timetable', but it looks empty.");
-      return;
-    }
+          if (!table) return "NOT_FOUND";
 
-    // 4. Process Data (Same logic as before)
-    List<Map<String, dynamic>> finalClasses = [];
+          var rows = table.querySelectorAll('tr');
+          var collecting = false; // FLAG: Are we inside 'My Timetable' yet?
 
-    for (var item in rawData) {
-      String code = item['code'];
-      String dayRaw = item['day'];
-      String timeRange = item['time'];
-      String venue = item['venue'];
-      String lecturer = item['lecturer'];
+          for (var i = 0; i < rows.length; i++) {
+              var rowText = rows[i].innerText || rows[i].textContent;
+              rowText = rowText.trim();
 
-      if (code.isEmpty || code.length < 3) continue;
+              // 1. START TRIGGER
+              // We start collecting ONLY after we see this specific header
+              if (rowText === "My Timetable") {
+                  collecting = true;
+                  continue; // Skip the header row itself
+              }
 
-      // Clean Day
-      String day = "MON";
-      String d = dayRaw.toUpperCase();
-      if (d.contains("MON")) day = "MON";
-      else if (d.contains("TUE")) day = "TUE";
-      else if (d.contains("WED")) day = "WED";
-      else if (d.contains("THU")) day = "THU";
-      else if (d.contains("FRI")) day = "FRI";
-      else if (d.contains("SAT")) day = "SAT";
+              // 2. STOP TRIGGER
+              // If we reach the bottom section, we STOP immediately
+              if (rowText.indexOf("Courses in Timetable") > -1) {
+                  break; 
+              }
 
-      // Clean Time
-      String startTime = "08:00";
-      String endTime = "10:00";
-      if (timeRange.contains("-")) {
-        var parts = timeRange.split("-");
-        startTime = _convertTo24Hour(parts[0]);
-        endTime = _convertTo24Hour(parts[1]);
+              // 3. COLLECT DATA
+              if (collecting) {
+                  var cells = rows[i].querySelectorAll('td');
+                  
+                  // Ensure it's a valid data row (at least 7 cols)
+                  if (cells.length >= 7) {
+                      var unit = cells[0].innerText.trim();
+                      
+                      // Skip if it looks like a sub-header (e.g. repeated "Unit" header)
+                      if (unit.toLowerCase() === "unit" || unit === "") continue;
+
+                      extractedData.push({
+                          "unit": unit,                            // cells[0]
+                          "section": cells[1].innerText.trim(),    // cells[1]
+                          "day": cells[2].innerText.trim(),        // cells[2]
+                          "period": cells[3].innerText.trim(),     // cells[3]
+                          "campus": cells[4].innerText.trim(),     // cells[4]
+                          "room": cells[5].innerText.trim(),       // cells[5]
+                          "lecturer": cells[6].innerText.trim()    // cells[6]
+                      });
+                  }
+              }
+          }
+          
+          return JSON.stringify(extractedData);
+      })();
+      """;
+
+      final result = await _controller.runJavaScriptReturningResult(extractionScript);
+      
+      // Clean JSON string
+      String jsonString = result.toString();
+      if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
+        jsonString = jsonString.substring(1, jsonString.length - 1);
+        jsonString = jsonString.replaceAll(r'\"', '"').replaceAll(r'\\', r'\');
       }
 
-      finalClasses.add({
-        "code": code,
-        "title": "Class: $code",
-        "venue": venue,
-        "lecturer": lecturer,
-        "day": day,
-        "startTime": startTime,
-        "endTime": endTime,
-        "id": (code + day).hashCode
-      });
-    }
+      if (jsonString == "NOT_FOUND") {
+        _hasExtracted = false; // Reset to try again
+        _showError("Waiting for table to load...");
+        setState(() => _isLoading = false);
+        return;
+      }
 
-    if (finalClasses.isNotEmpty) {
-      await _saveClasses(finalClasses);
-    } else {
-      _showError("No valid classes found in 'My Timetable'.");
-    }
+      // Decode
+      List<dynamic> rawData = [];
+      try {
+        rawData = json.decode(jsonString);
+      } catch (e) {
+        rawData = [];
+      }
 
-  } catch (e) {
-    print("JS Extract Error: $e");
-    _showError("Extraction failed: ${e.toString()}");
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
+      if (rawData.isEmpty) {
+        _showError("Found 'My Timetable', but it looks empty.");
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Process Data
+      List<Map<String, dynamic>> finalClasses = [];
+
+      for (var item in rawData) {
+        String code = item['unit'];
+        String dayRaw = item['day'];
+        String timeRange = item['period']; 
+        String venue = item['room'];
+        String lecturer = item['lecturer'];
+
+        String day = _cleanDay(dayRaw);
+        
+        String startTime = "08:00";
+        String endTime = "10:00";
+        if (timeRange.contains("-")) {
+          var parts = timeRange.split("-");
+          startTime = _convertTo24Hour(parts[0]);
+          endTime = _convertTo24Hour(parts[1]);
+        }
+
+        finalClasses.add({
+          "code": code,
+          "title": "Class: $code",
+          "venue": venue,
+          "lecturer": lecturer,
+          "day": day,
+          "startTime": startTime,
+          "endTime": endTime,
+          "id": (code + day).hashCode
+        });
+      }
+
+      if (finalClasses.isNotEmpty) {
+        await _saveClasses(finalClasses);
+      }
+
+    } catch (e) {
+      print("Extraction Error: $e");
+      setState(() => _isLoading = false);
+      _showError("Something went wrong. Please try again.");
+    }
   }
-}
 
-// Helper to convert "02:05 PM" -> "14:05"
+  // --- HELPERS (Time/Day Parsing) ---
+
+  String _cleanDay(String dayRaw) {
+    String d = dayRaw.toUpperCase();
+    if (d.contains("MON")) return "MON";
+    if (d.contains("TUE")) return "TUE";
+    if (d.contains("WED")) return "WED";
+    if (d.contains("THU")) return "THU";
+    if (d.contains("FRI")) return "FRI";
+    if (d.contains("SAT")) return "SAT";
+    return "MON"; // Fallback
+  }
+
   String _convertTo24Hour(String timeStr) {
     try {
-      // 1. Clean the string (remove dots, extra spaces)
       timeStr = timeStr.toUpperCase().replaceAll(".", "").trim(); 
-      
       bool isPM = timeStr.contains("PM");
       bool isAM = timeStr.contains("AM");
-      
-      // 2. Remove AM/PM text to get just the numbers "02:05"
       String cleanTime = timeStr.replaceAll("AM", "").replaceAll("PM", "").trim();
       List<String> parts = cleanTime.split(":");
-      
       int hour = int.parse(parts[0]);
       int minute = parts.length > 1 ? int.parse(parts[1]) : 0;
-
-      // 3. Adjust for 24-hour format
-      if (isPM && hour != 12) hour += 12; // e.g. 2 PM -> 14
-      if (isAM && hour == 12) hour = 0;   // e.g. 12 AM -> 00
-
-      // 4. Return formatted string
+      if (isPM && hour != 12) hour += 12;
+      if (isAM && hour == 12) hour = 0;
       return "${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}";
     } catch (e) {
-      print("Time convert error: $e");
-      return "08:00"; // Fallback if parsing fails
+      return "08:00";
     }
   }
 
-Future<void> _saveClasses(List<Map<String, dynamic>> newClasses) async {
+  Future<void> _saveClasses(List<Map<String, dynamic>> newClasses) async {
     final prefs = await SharedPreferences.getInstance();
     
-    // 1. Merge with existing (optional, or overwrite)
+    // Merge Logic (Cancel old alarms for updated classes)
     List<dynamic> existing = [];
     if (prefs.containsKey('my_classes')) {
-       existing = json.decode(prefs.getString('my_classes')!);
+      existing = json.decode(prefs.getString('my_classes')!);
     }
     
     for(var cls in newClasses) {
-       // Remove duplicates based on code
-       existing.removeWhere((e) => e['code'] == cls['code']);
+       // Check if this class already exists to cancel its old alarm
+       var oldIndex = existing.indexWhere((e) => e['code'] == cls['code']);
+       if (oldIndex != -1) {
+         // Cancel OLD alarm
+         await NotificationService.cancelNotification(existing[oldIndex]['id']);
+         existing.removeAt(oldIndex);
+       }
        existing.add(cls);
 
-       // 2. SCHEDULE WEEKLY NOTIFICATION
-       // Map day string (MON) to int (1=Mon, ... 7=Sun)
+       // Schedule NEW alarm
        int dayIndex = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].indexOf(cls['day']) + 1;
+       TimeOfDay t = TimeOfDay(
+         hour: int.parse(cls['startTime'].split(":")[0]), 
+         minute: int.parse(cls['startTime'].split(":")[1])
+       );
        
-       // Parse "08:00" or "11:05 AM" to TimeOfDay
-       // Your scraper output format is likely "11:05 AM" based on the code logic
-       // We need to handle AM/PM parsing carefully or stripping it
-       
-       TimeOfDay t;
-       try {
-         // Standardize "08:00 AM" -> "08:00" for parsing if needed, 
-         // or use a simple split if it's already 24h format from your previous logic.
-         // Let's assume your scraper logic cleaned it to "11:05" or handled it.
-         // If it has AM/PM, simple split won't work perfectly without offset.
-         // Better approach: Use a DateFormat if available, or simple heuristic:
-         
-         var parts = cls['startTime'].split(":");
-         int hour = int.parse(parts[0]);
-         int minute = int.parse(parts[1].split(" ")[0]); // Handle "05 AM" part if present
-         
-         if (cls['startTime'].contains("PM") && hour != 12) hour += 12;
-         if (cls['startTime'].contains("AM") && hour == 12) hour = 0;
-
-         t = TimeOfDay(hour: hour, minute: minute);
-         
-         await NotificationService.scheduleClassNotification(
-            id: cls['id'], // This is the hashCode we generated
-            title: cls['code'],
-            venue: cls['venue'],
-            dayOfWeek: dayIndex,
-            startTime: t,
-         );
-       } catch (e) {
-         print("Time parsing error for ${cls['code']}: $e");
-       }
+       await NotificationService.scheduleClassNotification(
+         id: cls['id'],
+         title: cls['code'],
+         venue: cls['venue'],
+         dayOfWeek: dayIndex,
+         startTime: t,
+       );
     }
 
     await prefs.setString('my_classes', json.encode(existing));
@@ -270,20 +286,37 @@ Future<void> _saveClasses(List<Map<String, dynamic>> newClasses) async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Login & Sync", style: TextStyle(color: Colors.white)),
+        title: const Text("Syncing...", style: TextStyle(color: Colors.white, fontSize: 18)),
         backgroundColor: _primaryDark,
-        actions: [
-          TextButton.icon(
-            onPressed: _extractTimetable,
-            icon: const Icon(Icons.download, color: Colors.white),
-            label: const Text("EXTRACT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          )
-        ],
+        centerTitle: true,
       ),
       body: Stack(
         children: [
           WebViewWidget(controller: _controller),
-          if (_isLoading) const LinearProgressIndicator(),
+          
+          // LOADING OVERLAY
+          if (_isLoading)
+            Container(
+              color: Colors.white.withOpacity(0.9),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const LogoSpinner(),
+                    const SizedBox(height: 20),
+                    const Text(
+                      "Connecting to Portal...",
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "Please Login if requested.",
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

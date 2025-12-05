@@ -1,7 +1,7 @@
+import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
@@ -51,7 +51,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         elevation: 0,
       ),
       body: _isLoading 
-        ? Center(child: CircularProgressIndicator(color: _primaryDark))
+        ? const Center(child: LogoSpinner())
         : _events.isEmpty
            ? Center(
                child: Column(

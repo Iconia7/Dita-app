@@ -18,10 +18,12 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPassController = TextEditingController();
+  final _emailController = TextEditingController(); // Add this
   
   // Dropdown Values
   String? _selectedProgram;
   int? _selectedYear;
+  bool _agreedToTerms = false;
 
   final List<String> _programs = [
     "Applied Computer Science",
@@ -74,37 +76,57 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     super.dispose();
   }
 
-  void _handleRegister() async {
-    if (!_formKey.currentState!.validate()) return;
-    FocusScope.of(context).unfocus();
-
-    setState(() => _isLoading = true);
-
-    final data = {
-      "username": _usernameController.text.trim(), // Use the preferred name
-      "admission_number": _admController.text.trim(),
-      "phone_number": _phoneController.text.trim(),
-      "email": "${_usernameController.text.trim()}@dita.co.ke", // Auto-generate email
-      "password": _passwordController.text,
-      "program": _selectedProgram ?? "Applied Computer Science", 
-      "year_of_study": _selectedYear ?? 1 
-    };
-
-    bool success = await ApiService.registerUser(data);
-
-    setState(() => _isLoading = false);
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(backgroundColor: Colors.green, content: Text("Account Created! Please Login."))
-      );
-      Navigator.pop(context); // Go back to login
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(backgroundColor: Colors.red, content: Text("Registration Failed. Username or Adm No may exist."))
-      );
-    }
+void _handleRegister() async {
+  if (!_formKey.currentState!.validate()) return;
+  if (!_agreedToTerms) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Please agree to the Terms & Privacy Policy to continue."),
+        backgroundColor: Colors.orange,
+      )
+    );
+    return;
   }
+  FocusScope.of(context).unfocus();
+
+  setState(() => _isLoading = true);
+
+  final data = {
+    "username": _usernameController.text.trim(), 
+    "admission_number": _admController.text.trim(),
+    "phone_number": _phoneController.text.trim(),
+    "email": _emailController.text.trim(),
+    "password": _passwordController.text,
+    "program": _selectedProgram ?? "Applied Computer Science", 
+    "year_of_study": _selectedYear ?? 1 
+  };
+
+  // --- UPDATED LOGIC HERE ---
+  // Returns NULL if success, or a String if failed
+  String? errorMsg = await ApiService.registerUser(data);
+
+  setState(() => _isLoading = false);
+
+  if (errorMsg == null && mounted) {
+    // SUCCESS
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(backgroundColor: Colors.green, content: Text("Account Created! Please Login."))
+    );
+    Navigator.pop(context); // Go back to login
+  } else if (mounted) {
+    // FAILURE - Show the specific error from backend
+    showDialog(
+      context: context, 
+      builder: (ctx) => AlertDialog(
+        title: const Text("Registration Failed", style: TextStyle(color: Colors.red)),
+        content: Text(errorMsg ?? "Unknown Error"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))
+        ],
+      )
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -224,6 +246,14 @@ const SizedBox(height: 20),
                                   keyboardType: TextInputType.phone
                                 ),
                                 const SizedBox(height: 15),
+                                // Real Email Address
+_buildStylishInput(
+  controller: _emailController,
+  hint: "Email Address (e.g. jane@gmail.com)",
+  icon: Icons.email_outlined,
+  keyboardType: TextInputType.emailAddress,
+),
+const SizedBox(height: 15),
 
                                 // --- PROGRAM DROPDOWN ---
                                 _buildDropdown(
@@ -262,19 +292,51 @@ const SizedBox(height: 20),
 
                                 const SizedBox(height: 30),
                                 Row(
-  mainAxisAlignment: MainAxisAlignment.center,
+  crossAxisAlignment: CrossAxisAlignment.start, // Aligns checkbox with top of text
   children: [
-    const Text("By signing up, you agree to our "),
-    GestureDetector(
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
-      },
-      child: Text(
-        "Terms & Privacy",
-        style: TextStyle(
-          color: _primaryDark, // Use your blue color
-          fontWeight: FontWeight.bold,
-          decoration: TextDecoration.underline,
+    SizedBox(
+      height: 24, 
+      width: 24,
+      child: Checkbox(
+        value: _agreedToTerms,
+        activeColor: _primaryDark, // Your blue color
+        onChanged: (bool? value) {
+          setState(() {
+            _agreedToTerms = value ?? false;
+          });
+        },
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded( // Prevents overflow errors
+      child: GestureDetector(
+        onTap: () {
+          // Allow tapping the text to toggle checkbox too!
+          setState(() => _agreedToTerms = !_agreedToTerms);
+        },
+        child: Wrap(
+          children: [
+            const Text(
+              "I agree to the ",
+              style: TextStyle(color: Colors.black54, fontSize: 14),
+            ),
+            GestureDetector(
+              onTap: () {
+                // Navigate to Privacy Policy
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+              },
+              child: Text(
+                "Terms & Privacy Policy",
+                style: TextStyle(
+                  color: _primaryDark,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     ),

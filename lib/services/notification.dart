@@ -9,39 +9,82 @@ class NotificationService {
   static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
   // --- INITIALIZATION ---
-  static Future<void> initialize() async {
+static Future<void> initialize() async {
     // A. Initialize Awesome Notifications
-    // We use 'resource://drawable/ic_notification' if you have a custom white icon.
-    // If not, use null to default to the app icon.
     await AwesomeNotifications().initialize(
       'resource://drawable/ic_notification', 
       [
         NotificationChannel(
-          channelKey: 'dita_planner_channel_v3', // New channel to be safe
+          channelKey: 'dita_planner_channel_v3',
           channelName: 'Student Planner',
           channelDescription: 'Reminders for upcoming tasks',
-          defaultColor: const Color(0xFF003366), // DITA Blue
+          defaultColor: const Color(0xFF003366),
           importance: NotificationImportance.High,
           channelShowBadge: true,
           playSound: true,
           enableVibration: true,
+        ),
+        // Add a separate channel for backend announcements
+        NotificationChannel(
+          channelKey: 'dita_announcements',
+          channelName: 'DITA Announcements',
+          channelDescription: 'News and updates from the backend',
+          defaultColor: const Color(0xFF003366),
+          importance: NotificationImportance.Max,
+          channelShowBadge: true,
+          playSound: true,
         )
       ],
-      // Debug: true allows you to see logs in the console automatically
       debug: true, 
     );
 
-    // B. Initialize Firebase (Keep existing logic)
+    // B. Initialize Firebase Permissions
     await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
 
-    await _firebaseMessaging.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
+    // C. START LISTENING TO FIREBASE MESSAGES
+    _listenToFirebaseMessages();
+  }
+
+  // --- NEW: HANDLE BACKEND MESSAGES ---
+  static void _listenToFirebaseMessages() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('🔥 FCM Message Received: ${message.notification?.title}');
+
+      // If the message has a notification payload, show it nicely
+      if (message.notification != null) {
+        _showCustomFirebaseNotification(message);
+      }
+    });
+  }
+
+  static Future<void> _showCustomFirebaseNotification(RemoteMessage message) async {
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: message.messageId.hashCode, // Unique ID based on Firebase ID
+        channelKey: 'dita_announcements',
+        
+        // 1. Map Title & Body (Description)
+        title: message.notification?.title ?? 'DITA Update',
+        body: message.notification?.body ?? 'New announcement available.',
+        
+        // 2. Make it look nice
+        // BigText allows for longer descriptions
+        notificationLayout: NotificationLayout.BigText, 
+        
+        // 3. Optional: Add a big image if sent from backend
+        // (Backend must send "image" key in the data payload)
+        bigPicture: message.data['image'], 
+        
+        // 4. Styling
+        color: const Color(0xFF003366),
+        backgroundColor: Colors.white,
+        wakeUpScreen: true,
+        category: NotificationCategory.Social,
+      ),
     );
   }
 

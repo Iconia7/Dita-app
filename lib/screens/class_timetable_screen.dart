@@ -22,7 +22,6 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
   final Color _primaryBlue = const Color(0xFF003366); // Daystar Blue
   final Color _accentGold = const Color(0xFFFFD700);
   final Color _bgLight = const Color(0xFFF1F5F9);     // Slate 100
-  final Color _cardWhite = Colors.white;
   final Color _textMain = const Color(0xFF1E293B);    // Slate 800
   final Color _textSub = const Color(0xFF64748B);     // Slate 500
   final Color _liveGreen = const Color(0xFF10B981);   // Emerald 500

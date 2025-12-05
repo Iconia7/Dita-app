@@ -1,3 +1,4 @@
+import 'package:dita_app/services/update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import '../services/api_service.dart';
@@ -33,6 +34,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
     );
     _fadeAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
     _animationController.forward();
+    checkForUpdate();
 
     // Trigger Login Check
     _checkLoginStatus();

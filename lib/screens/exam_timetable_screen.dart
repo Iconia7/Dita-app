@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
@@ -204,7 +205,7 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
             // 2. TIMELINE LIST
             Expanded(
               child: _isLoading 
-                ? Center(child: CircularProgressIndicator(color: _primaryBlue)) 
+                ? Center(child: const LogoSpinner()) 
                 : _buildExamList(),
             )
           ],

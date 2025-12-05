@@ -1,14 +1,14 @@
 import 'dart:convert';
 import 'dart:ui'; // Required for BackdropFilter (Glassmorphism)
+import 'package:dita_app/screens/ai_assistant_screen.dart';
 import 'package:dita_app/screens/attendance_history_screen.dart';
 import 'package:dita_app/screens/class_timetable_screen.dart';
 import 'package:dita_app/screens/exam_timetable_screen.dart';
-import 'package:dita_app/screens/gpa_calculator_screen.dart';
 import 'package:dita_app/screens/profile_screen.dart';
 import 'package:dita_app/screens/qr_scanner_screen.dart';
 import 'package:dita_app/screens/search_screen.dart';
 import 'package:dita_app/screens/tasks_screen.dart';
-import 'package:dita_app/services/update_service.dart';
+import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -46,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    UpdateService.checkForUpdate(context);
     _currentUser = widget.user;
     _animationController = AnimationController(
       vsync: this,
@@ -223,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       future: _fetchAnnouncements(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator(color: _primaryDark));
+                          return const Center(child: LogoSpinner());
                         }
                         if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           return Center(
@@ -650,7 +649,14 @@ void _openScanner() async {
       extendBody: true, 
       body: pages[_currentIndex],
       bottomNavigationBar: _buildFloatingBottomNav(),
-    );
+      floatingActionButton: FloatingActionButton(
+    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantScreen())),
+    backgroundColor: _primaryDark,
+    child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+  ),
+  // Adjust location so it doesn't overlap with bottom nav
+  floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, 
+);
   }
 
   // --- 1. DESIGNER HOME TAB ---
@@ -818,12 +824,6 @@ _buildQuickAction(
   Icons.school_rounded, 
   "Classes", 
   () => Navigator.push(context, MaterialPageRoute(builder: (_) => ClassTimetableScreen()))
-),
-const SizedBox(width: 20),
-_buildQuickAction(
-  Icons.calculate_rounded, 
-  "GPA", 
-  () => Navigator.push(context, MaterialPageRoute(builder: (_) => GpaCalculatorScreen(user: _currentUser)))
 ),
 const SizedBox(width: 20),
                           _buildQuickAction(
@@ -1231,7 +1231,7 @@ const SizedBox(width: 20),
         builder: (context, snapshot) {
           // 1. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: _primaryDark));
+            return const Center(child: LogoSpinner());
           }
           
           // 2. Error State
@@ -1276,99 +1276,168 @@ const SizedBox(width: 20),
   }
 
 Widget _buildResourcesTab(bool isPaid) {
-    if (!isPaid) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.lock, size: 60, color: Colors.grey[400]), const SizedBox(height: 20), const Text("Resources Locked", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), TextButton(onPressed: _showPaymentSheet, child: const Text("Pay to Unlock"))]));
+    if (!isPaid) {
+      return Center(
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.lock_outline, size: 60, color: Colors.grey[400]),
+        const SizedBox(height: 20),
+        const Text("Resources Locked",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 10),
+        TextButton(
+            onPressed: _showPaymentSheet, child: const Text("Pay to Unlock"))
+      ]));
+    }
 
     return Scaffold(
-      backgroundColor: _bgOffWhite,
-      appBar: AppBar(title: const Text("Resources", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), backgroundColor: _primaryDark, elevation: 0, centerTitle: true, automaticallyImplyLeading: false),
+      backgroundColor: const Color(0xFFF4F6F9), // _bgOffWhite
+      appBar: AppBar(
+        title: const Text("Resources",
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: const Color(0xFF003366), // _primaryDark
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+      ),
       body: FutureBuilder<List<dynamic>>(
         future: ApiService.getResources(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator(color: _primaryDark));
-          if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No Resources Available"));
-          
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: LogoSpinner());
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text("No Resources Available"));
+          }
+
           return ListView.builder(
             padding: const EdgeInsets.all(20),
             itemCount: snapshot.data!.length,
             itemBuilder: (context, index) {
               final res = snapshot.data![index];
-              
+              final type = res['resource_type'] ?? 'LINK';
+
+              // --- 1. DYNAMIC ICON LOGIC ---
               IconData icon = Icons.description;
-              Color color = Colors.blue;
+              Color color = Colors.grey;
               String actionLabel = "Open";
-              
-              if (res['resource_type'] == 'PDF') { 
-                  icon = Icons.picture_as_pdf; 
-                  color = Colors.red; 
+
+              switch (type) {
+                case 'PDF':
+                  icon = Icons.picture_as_pdf;
+                  color = Colors.red;
                   actionLabel = "Download";
-              }
-              if (res['resource_type'] == 'PPT') { 
-                  icon = Icons.slideshow; 
-                  color = Colors.orange; 
+                  break;
+                case 'PPT':
+                  icon = Icons.slideshow;
+                  color = Colors.orange;
                   actionLabel = "Download";
-              }
-              if (res['resource_type'] == 'LINK') { 
-                  icon = Icons.link; 
-                  color = Colors.green; 
+                  break;
+                case 'DOC': // Word
+                  icon = Icons.article;
+                  color = Colors.blue[800]!;
+                  actionLabel = "Download";
+                  break;
+                case 'XLS': // Excel
+                  icon = Icons.table_chart;
+                  color = Colors.green[700]!;
+                  actionLabel = "Download";
+                  break;
+                case 'ZIP': // Archive
+                  icon = Icons.folder_zip;
+                  color = Colors.purple;
+                  actionLabel = "Download";
+                  break;
+                case 'IMG': // Image
+                  icon = Icons.image;
+                  color = Colors.teal;
+                  actionLabel = "View";
+                  break;
+                case 'LINK':
+                  icon = Icons.link;
+                  color = Colors.blue;
                   actionLabel = "Visit";
+                  break;
+                default:
+                  icon = Icons.insert_drive_file;
+                  color = Colors.grey;
               }
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 15),
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
-                  color: Colors.white, 
-                  borderRadius: BorderRadius.circular(15), 
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0,2))]
-                ),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2))
+                    ]),
                 child: Row(
                   children: [
+                    // Icon Box
                     Container(
-                      padding: const EdgeInsets.all(12), 
-                      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), 
-                      child: Icon(icon, color: color, size: 24)
-                    ),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Icon(icon, color: color, size: 28)),
                     const SizedBox(width: 15),
+                    
+                    // Title & Desc
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(res['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          if(res['description'] != null && res['description'].toString().isNotEmpty)
-                             Text(res['description'], style: TextStyle(color: Colors.grey[600], fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(res['title'],
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16)),
+                          if (res['description'] != null &&
+                              res['description'].toString().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text(res['description'],
+                                  style: TextStyle(
+                                      color: Colors.grey[600], fontSize: 12),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 10),
-                    
-                    // ACTIVE ACTION BUTTON
-                    ElevatedButton(
-                      onPressed: () async { 
-                          // 1. Check for Direct File Upload First
-                          String? urlToOpen = res['file'];
-                          
-                          // 2. If no file, check for External Link
-                          if (urlToOpen == null || urlToOpen.isEmpty) {
-                              urlToOpen = res['link'];
-                          }
 
-                          // 3. Launch
-                          if (urlToOpen != null && urlToOpen.isNotEmpty) {
-                              await launchUrl(Uri.parse(urlToOpen), mode: LaunchMode.externalApplication); 
+                    // Action Button
+                    ElevatedButton(
+                      onPressed: () async {
+                        String? urlToOpen = res['file'];
+                        if (urlToOpen == null || urlToOpen.isEmpty) {
+                          urlToOpen = res['link'];
+                        }
+
+                        if (urlToOpen != null && urlToOpen.isNotEmpty) {
+                          final uri = Uri.parse(urlToOpen);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri,
+                                mode: LaunchMode.externalApplication);
                           } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("No file or link available"))
-                              );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Could not open file")));
                           }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _bgOffWhite,
-                        foregroundColor: _primaryDark,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                      ),
-                      child: Text(actionLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          backgroundColor: const Color(0xFFF4F6F9), // Matches bg
+                          foregroundColor: const Color(0xFF003366), // Dark text
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10))),
+                      child: Text(actionLabel,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                     )
                   ],
                 ),

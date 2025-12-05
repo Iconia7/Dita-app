@@ -184,6 +184,16 @@ Future<void> _updateProfile(String adm, String prog, int year, String phone, Str
               ElevatedButton(
                 onPressed: isLoading ? null : () async {
                   if (oldController.text.isEmpty || newController.text.isEmpty) return;
+
+                  if (newController.text.length < 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Password must be at least 6 characters"), 
+            backgroundColor: Colors.orange
+          )
+        );
+        return;
+    }
                   
                   setDialogState(() => isLoading = true);
                   

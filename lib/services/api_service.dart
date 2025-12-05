@@ -258,25 +258,45 @@ static Future<bool> uploadProfilePicture(int userId, File imageFile) async {
     }
   }
 
- static Future<bool> registerUser(Map<String, dynamic> data) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/register/'),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode(data),
-      );
+// Inside ApiService class
 
-      if (response.statusCode == 201) { // 201 means Created
-        return true;
-      } else {
-        print("Registration Failed: ${response.body}");
-        return false;
+static Future<String?> registerUser(Map<String, dynamic> data) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/register/'),
+      headers: {"Content-Type": "application/json"},
+      body: json.encode(data),
+    );
+
+    if (response.statusCode == 201) { 
+      return null; // Success! No error message.
+    } else {
+      // Try to parse the backend error
+      try {
+        final body = json.decode(response.body);
+        // Backend might return {'username': ['Taken']} or {'error': 'Msg'}
+        // We join all values to make a readable string
+        if (body is Map) {
+          String errors = "";
+          body.forEach((key, value) {
+            if (value is List) {
+              errors += "$key: ${value.join(", ")}\n";
+            } else {
+              errors += "$value\n";
+            }
+          });
+          return errors.trim();
+        }
+        return "Registration Failed: ${response.body}";
+      } catch (_) {
+        return "Registration Failed (Status ${response.statusCode})";
       }
-    } catch (e) {
-      print("Error registering: $e");
-      return false;
     }
-  } 
+  } catch (e) {
+    print("Error registering: $e");
+    return "Connection Error. Please check internet.";
+  }
+}
 
   static Future<bool> updateUser(int userId, Map<String, dynamic> data) async {
     try {
