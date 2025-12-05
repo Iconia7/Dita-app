@@ -197,8 +197,7 @@ Future<void> _updateProfile(String adm, String prog, int year, String phone, Str
                   
                   setDialogState(() => isLoading = true);
                   
-                  bool success = await ApiService.changePassword(
-                    _currentUser['id'], 
+                  bool success = await ApiService.changePassword( 
                     oldController.text, 
                     newController.text
                   );

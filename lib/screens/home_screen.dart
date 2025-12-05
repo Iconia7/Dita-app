@@ -555,7 +555,7 @@ void _openScanner() async {
         }
 
         // 4. Call Backend
-        var response = await ApiService.markAttendance(eventId, _currentUser['id']);
+        var response = await ApiService.markAttendance(eventId);
 
         if (mounted) {
           // 5. Handle Success
@@ -1533,7 +1533,7 @@ class _EventCardState extends State<EventCard> {
                             setState(() => _isProcessing = true); // Start Loading
                             
                             bool isNowJoining = !_hasRsvped;
-                            bool success = await ApiService.rsvpEvent(widget.event['id'], widget.userId);
+                            bool success = await ApiService.rsvpEvent(widget.event['id']);
                             
                             if (mounted) {
                               setState(() => _isProcessing = false); // Stop Loading
