@@ -1,4 +1,5 @@
 import 'package:dita_app/widgets/dita_loader.dart';
+import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -53,18 +54,19 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       body: _isLoading 
         ? const Center(child: DaystarSpinner(size: 120))
         : _events.isEmpty
-           ? Center(
-               child: Column(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: [
-                   Icon(Icons.history_toggle_off, size: 80, color: Colors.grey[300]),
-                   const SizedBox(height: 10),
-                   Text("No events attended yet.", style: TextStyle(color: Colors.grey[500])),
-                   const SizedBox(height: 5),
-                   const Text("Scan a QR code to get started!", style: TextStyle(fontWeight: FontWeight.bold)),
-                 ],
-               ),
-             )
+           ? EmptyStateWidget(
+              svgPath: 'assets/svgs/no_attendance.svg', // Make sure this SVG exists!
+              title: "No Attendance Yet",
+              message: "You haven't checked in to any events. Look for the QR codes at DITA events to earn points!",
+              actionLabel: "Scan Now",
+              onActionPressed: () {
+                 // Option A: Pop back to Home so they can find the scanner
+                 Navigator.of(context).pop(); 
+                 
+                 // Option B (Better): If you want to open scanner directly:
+                 // Navigator.push(context, MaterialPageRoute(builder: (_) => const QRScannerScreen()));
+              },
+            )
            : ListView.builder(
                padding: const EdgeInsets.all(20),
                itemCount: _events.length,

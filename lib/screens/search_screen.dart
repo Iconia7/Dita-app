@@ -1,3 +1,4 @@
+import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 
 class DitaSearchDelegate extends SearchDelegate {
@@ -78,7 +79,15 @@ class DitaSearchDelegate extends SearchDelegate {
     final resourceResults = resources.where((r) => r['title'].toString().toLowerCase().contains(query.toLowerCase())).toList();
 
     if (query.isEmpty) return const Center(child: Text("Search events or resources...", style: TextStyle(color: Colors.grey)));
-    if (eventResults.isEmpty && resourceResults.isEmpty) return const Center(child: Text("No results found.", style: TextStyle(color: Colors.grey)));
+    if (eventResults.isEmpty && resourceResults.isEmpty) {
+    return const SingleChildScrollView( // ScrollView prevents overflow on small screens
+      child: EmptyStateWidget(
+        svgPath: 'assets/svgs/no_search.svg',
+        title: "No Results Found",
+        message: "We couldn't find anything matching that query. Try a different keyword.",
+      ),
+    );
+  }
 
     return ListView(
       padding: const EdgeInsets.all(15),

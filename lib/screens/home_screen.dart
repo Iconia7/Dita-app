@@ -3,12 +3,16 @@ import 'dart:ui'; // Required for BackdropFilter (Glassmorphism)
 import 'package:dita_app/screens/ai_assistant_screen.dart';
 import 'package:dita_app/screens/attendance_history_screen.dart';
 import 'package:dita_app/screens/class_timetable_screen.dart';
+import 'package:dita_app/screens/community_screen.dart';
 import 'package:dita_app/screens/exam_timetable_screen.dart';
+import 'package:dita_app/screens/leaderboard_screen.dart';
+import 'package:dita_app/screens/lost_found_screen.dart';
 import 'package:dita_app/screens/profile_screen.dart';
 import 'package:dita_app/screens/qr_scanner_screen.dart';
 import 'package:dita_app/screens/search_screen.dart';
 import 'package:dita_app/screens/tasks_screen.dart';
 import 'package:dita_app/widgets/dita_loader.dart';
+import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -615,6 +619,7 @@ void _openScanner() async {
       _buildDesignerHomeTab(isPaid),
       _buildEventsTab(),
       _buildResourcesTab(isPaid),
+      const CommunityScreen(),
       _buildNewsTab(),
     ];
 
@@ -808,22 +813,34 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
   "Exams", 
   () => Navigator.push(context, MaterialPageRoute(builder: (_) => ExamTimetableScreen(user: _currentUser)))
 ),
-const SizedBox(width: 20),
+const SizedBox(width: 15),
 _buildQuickAction(
   Icons.school_rounded, 
   "Classes", 
   () => Navigator.push(context, MaterialPageRoute(builder: (_) => ClassTimetableScreen()))
 ),
-const SizedBox(width: 20),
+const SizedBox(width: 15),
                           _buildQuickAction(
          Icons.checklist_rtl_rounded, 
          "Planner", 
          () => Navigator.push(context, MaterialPageRoute(builder: (_) => TasksScreen(user: _currentUser)))
       ),
-      const SizedBox(width: 20),
+      const SizedBox(width: 15),
                           _buildQuickAction(Icons.payment, "Pay Fees", _showPaymentSheet),
-                          const SizedBox(width: 20),
+                          const SizedBox(width: 15),
                           _buildQuickAction(Icons.qr_code_scanner, "Scan", _openScanner),
+                          const SizedBox(width: 15),
+_buildQuickAction(
+  Icons.emoji_events_rounded, 
+  "Rankings", 
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaderboardScreen()))
+),
+const SizedBox(width: 15),
+_buildQuickAction(
+  Icons.luggage,
+  "Lost & Found", 
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => LostFoundScreen(currentUser: _currentUser)))
+),
                         ],
                       ),
                     ),
@@ -1165,6 +1182,7 @@ const SizedBox(width: 20),
             _buildNavItem(0, Icons.grid_view_rounded, "Home"),
             _buildNavItem(1, Icons.calendar_month_outlined, "Events"),
             _buildNavItem(2, Icons.book_outlined, "Resources"),
+            _buildNavItem(3, Icons.forum_rounded, "Community"),
             _buildNavItem(3, Icons.person_outline_rounded, "Profile"),
           ],
         ),
@@ -1230,17 +1248,14 @@ const SizedBox(width: 20),
 
           // 3. Empty State
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.event_busy_rounded, size: 80, color: Colors.grey[300]),
-                  const SizedBox(height: 20),
-                  Text("No Events Scheduled", style: TextStyle(color: Colors.grey[500], fontSize: 16)),
-                ],
-              ),
-            );
-          }
+  return EmptyStateWidget(
+    svgPath: 'assets/svgs/no_events.svg',
+    title: "No Upcoming Events",
+    message: "Looks like the calendar is clear for now. Check back later for new activities!",
+    actionLabel: "Refresh",
+    onActionPressed: () => setState(() {}),
+  );
+}
 
           // 4. Data State (The List)
           final events = snapshot.data!;
@@ -1295,8 +1310,12 @@ Widget _buildResourcesTab(bool isPaid) {
             return const Center(child: DaystarSpinner(size: 120));
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No Resources Available"));
-          }
+  return const EmptyStateWidget(
+    svgPath: 'assets/svgs/no_resources.svg',
+    title: "Library Empty",
+    message: "We couldn't find any resources. Please check your internet connection.",
+  );
+}
 
           return ListView.builder(
             padding: const EdgeInsets.all(20),

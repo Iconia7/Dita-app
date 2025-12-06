@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dita_app/widgets/dita_loader.dart';
+import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
@@ -361,18 +362,13 @@ void _showAddTaskSheet() {
       body: _isLoading && _tasks.isEmpty 
         ? const Center(child: DaystarSpinner(size: 120))
         : _tasks.isEmpty 
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.checklist_rounded, size: 100, color: Colors.grey[300]),
-                  const SizedBox(height: 20),
-                  Text("Stay Organized!", style: TextStyle(color: Colors.grey[600], fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 5),
-                  Text("Add your assignments and exams here.", style: TextStyle(color: Colors.grey[400])),
-                ],
-              ),
-            )
+          ? EmptyStateWidget(
+        svgPath: 'assets/svgs/no_task.svg', // Ensure you have this SVG!
+        title: "All Caught Up!",
+        message: "You have zero pending tasks. Enjoy your free time or plan ahead.",
+        actionLabel: "Add New Task",
+        onActionPressed: _showAddTaskSheet, 
+      )
           : ListView.builder(
               padding: const EdgeInsets.all(20),
               itemCount: _tasks.length,

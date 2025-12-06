@@ -104,6 +104,113 @@ static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remo
     return null;
   }
 
+  static Future<List<dynamic>> getLeaderboard() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/leaderboard/'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print("Leaderboard Error: $e");
+    }
+    return [];
+  }
+
+  // Get all items
+  static Future<List<dynamic>> getLostFoundItems() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/lost-found/'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print("Lost/Found Error: $e");
+    }
+    return [];
+  }
+
+  // Post a new item (Multipart request for Image)
+  static Future<bool> postLostItem(Map<String, String> fields, File? imageFile) async {
+    try {
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/lost-found/'));
+      
+      // Add Headers (Auth)
+      final headers = await _getHeaders();
+      request.headers.addAll(headers);
+
+      // Add Text Fields
+      request.fields.addAll(fields);
+
+      // Add Image
+      if (imageFile != null) {
+        final mimeTypeData = lookupMimeType(imageFile.path)!.split('/');
+        request.files.add(await http.MultipartFile.fromPath(
+          'image',
+          imageFile.path,
+          contentType: http.MediaType(mimeTypeData[0], mimeTypeData[1]),
+        ));
+      }
+
+      final response = await request.send();
+      return response.statusCode == 201;
+    } catch (e) {
+      print("Post Error: $e");
+      return false;
+    }
+  }
+
+
+
+  // --- COMMUNITY API ---
+  static Future<List<dynamic>> getCommunityPosts() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/community-posts/'));
+      if (response.statusCode == 200) return json.decode(response.body);
+    } catch (e) { print("Community Error: $e"); }
+    return [];
+  }
+
+  static Future<bool> createPost(Map<String, dynamic> data) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/community-posts/'),
+        headers: headers,
+        body: json.encode(data),
+      );
+      return response.statusCode == 201;
+    } catch (e) { return false; }
+  }
+
+  static Future<bool> likePost(int postId) async {
+    try {
+      final headers = await _getHeaders();
+      await http.post(Uri.parse('$baseUrl/community-posts/$postId/like/'), headers: headers);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  // Comments
+  static Future<List<dynamic>> getComments(int postId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/community-comments/?post_id=$postId'));
+      if (response.statusCode == 200) return json.decode(response.body);
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> postComment(int postId, String text) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/community-comments/'),
+        headers: headers,
+        body: json.encode({'post': postId, 'text': text}),
+      );
+      return response.statusCode == 201;
+    } catch (_) { return false; }
+  }
+
 static Future<bool> changePassword(int userId, String oldPass, String newPass) async { 
     try {
       final headers = await _getHeaders();
