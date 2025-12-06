@@ -51,7 +51,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         elevation: 0,
       ),
       body: _isLoading 
-        ? const Center(child: LogoSpinner())
+        ? const Center(child: DaystarSpinner(size: 120))
         : _events.isEmpty
            ? Center(
                child: Column(

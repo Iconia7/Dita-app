@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       future: _fetchAnnouncements(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: LogoSpinner());
+                          return const Center(child: DaystarSpinner(size: 120));
                         }
                         if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           return Center(
@@ -1220,7 +1220,7 @@ const SizedBox(width: 20),
         builder: (context, snapshot) {
           // 1. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: LogoSpinner());
+            return const Center(child: DaystarSpinner(size: 120));
           }
           
           // 2. Error State
@@ -1292,7 +1292,7 @@ Widget _buildResourcesTab(bool isPaid) {
         future: ApiService.getResources(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: LogoSpinner());
+            return const Center(child: DaystarSpinner(size: 120));
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text("No Resources Available"));

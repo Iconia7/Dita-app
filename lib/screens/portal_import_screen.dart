@@ -302,7 +302,7 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const LogoSpinner(),
+                    const DaystarSpinner(size: 120),
                     const SizedBox(height: 20),
                     const Text(
                       "Connecting to Portal...",

@@ -207,7 +207,7 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
             // 2. TIMELINE LIST
             Expanded(
               child: _isLoading 
-                ? Center(child: const LogoSpinner()) 
+                ? Center(child: const DaystarSpinner(size: 120)) 
                 : _buildExamList(),
             )
           ],
