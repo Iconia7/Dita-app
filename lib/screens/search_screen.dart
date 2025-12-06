@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DitaSearchDelegate extends SearchDelegate {
-  final List<dynamic> events;
-  final List<dynamic> resources;
+  // We accept Futures (Promises) instead of completed Lists
+  final Future<List<dynamic>> eventsFuture;
+  final Future<List<dynamic>> resourcesFuture;
 
-  DitaSearchDelegate(this.events, this.resources);
+  DitaSearchDelegate(this.eventsFuture, this.resourcesFuture);
 
   @override
   ThemeData appBarTheme(BuildContext context) {
     return Theme.of(context).copyWith(
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF003366), // Primary Dark
+        backgroundColor: Color(0xFF003366), 
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -24,19 +25,56 @@ class DitaSearchDelegate extends SearchDelegate {
   }
 
   @override
-  List<Widget>? buildActions(BuildContext context) => [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
+  List<Widget>? buildActions(BuildContext context) => [
+    IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')
+  ];
 
   @override
-  Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+  Widget? buildLeading(BuildContext context) => 
+    IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
 
   @override
-  Widget buildResults(BuildContext context) => _buildList(context); // <--- PASS CONTEXT HERE
+  Widget buildResults(BuildContext context) => _buildAsyncList(context);
 
   @override
-  Widget buildSuggestions(BuildContext context) => _buildList(context); // <--- PASS CONTEXT HERE
+  Widget buildSuggestions(BuildContext context) => _buildAsyncList(context);
 
-  // Updated method signature to accept context
-  Widget _buildList(BuildContext context) {
+  // --- NEW: Handle the Async Data Loading ---
+  Widget _buildAsyncList(BuildContext context) {
+    return FutureBuilder<List<List<dynamic>>>(
+      // Wait for BOTH APIs to finish
+      future: Future.wait([eventsFuture, resourcesFuture]),
+      builder: (context, snapshot) {
+        
+        // 1. Show Spinner while loading
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(color: Color(0xFF003366)),
+                const SizedBox(height: 15),
+                Text("Searching database...", style: TextStyle(color: Colors.grey[500])),
+              ],
+            ),
+          );
+        }
+
+        // 2. Handle Errors
+        if (snapshot.hasError) {
+          return const Center(child: Text("Could not load search data."));
+        }
+
+        // 3. Data is Ready! Filter it now.
+        final List<dynamic> events = snapshot.data![0];
+        final List<dynamic> resources = snapshot.data![1];
+
+        return _filterAndDisplayData(context, events, resources);
+      },
+    );
+  }
+
+  Widget _filterAndDisplayData(BuildContext context, List<dynamic> events, List<dynamic> resources) {
     final eventResults = events.where((e) => e['title'].toString().toLowerCase().contains(query.toLowerCase())).toList();
     final resourceResults = resources.where((r) => r['title'].toString().toLowerCase().contains(query.toLowerCase())).toList();
 
@@ -53,8 +91,8 @@ class DitaSearchDelegate extends SearchDelegate {
             title: Text(e['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(e['venue'] ?? "No Venue"),
             onTap: () {
-               // Now 'context' is defined!
                close(context, null); 
+               // Navigate to event details if needed
             },
           )),
         ],
@@ -65,7 +103,7 @@ class DitaSearchDelegate extends SearchDelegate {
             title: Text(r['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(r['description'] ?? ""),
             onTap: () async {
-               close(context, null); // Now 'context' is defined!
+               close(context, null);
                if (r['link'] != null) await launchUrl(Uri.parse(r['link']));
             },
           )),

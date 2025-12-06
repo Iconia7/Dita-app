@@ -767,18 +767,16 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
 
                     // Translucent Search Bar
                     GestureDetector(
-                      onTap: () async {
+                      onTap: () {
                         // 1. Show loading indicator briefly if needed, or just fetch
                         // We fetch fresh data so search is up to date
-                        final events = await ApiService.getEvents();
-                        final resources = await ApiService.getResources();
-                        
-                        if (mounted) {
-                          showSearch(
-                            context: context, 
-                            delegate: DitaSearchDelegate(events, resources)
-                          );
-                        }
+                        showSearch(
+      context: context, 
+      delegate: DitaSearchDelegate(
+        ApiService.getEvents(),     // <--- Pass the Future directly
+        ApiService.getResources()   // <--- Pass the Future directly
+      )
+    );
                       },
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),

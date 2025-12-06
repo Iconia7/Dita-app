@@ -359,7 +359,7 @@ void _showAddTaskSheet() {
         label: const Text("New Task", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading && _tasks.isEmpty 
-        ? const LogoSpinner()
+        ? const Center(child: LogoSpinner())
         : _tasks.isEmpty 
           ? Center(
               child: Column(
