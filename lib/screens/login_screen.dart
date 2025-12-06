@@ -95,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               children: [
                 Icon(Icons.error_outline, color: Colors.white),
                 SizedBox(width: 10),
-                Text('Invalid credentials.'),
+                Text('Invalid credentials. Check username or password.'),
               ],
             ),
             backgroundColor: Colors.red[800],
@@ -147,30 +147,30 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       children: [
                         // LOGO AREA
                         Hero(
-  tag: 'logo',
-  child: Container(
-    height: 100, // Slightly larger for impact
-    width: 100,
-    decoration: BoxDecoration(
-      color: Colors.white,
-      shape: BoxShape.circle,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.2),
-          blurRadius: 20,
-          offset: const Offset(0, 10),
-        )
-      ],
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(15.0), // Add padding so the logo isn't touching the edges
-      child: Image.asset(
-        'assets/icon/icon.png', // <--- YOUR NEW LOGO ASSET
-        fit: BoxFit.contain,
-      ),
-    ),
-  ),
-),
+                          tag: 'logo',
+                          child: Container(
+                            height: 100, // Slightly larger for impact
+                            width: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                )
+                              ],
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(15.0), // Add padding so the logo isn't touching the edges
+                              child: Image.asset(
+                                'assets/icon/icon.png', // <--- YOUR NEW LOGO ASSET
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         const Text(
                           "Welcome Back",
@@ -206,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   controller: _usernameController,
                                   hint: "Admission / Username",
                                   icon: Icons.person_outline_rounded,
-                                  validator: (v) => v!.isEmpty ? "Required" : null,
+                                  validator: (v) => v!.isEmpty ? "Username is required" : null, // <--- VALIDATION ADDED
                                 ),
 
                                 const SizedBox(height: 20),
@@ -217,7 +217,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   hint: "Password",
                                   icon: Icons.lock_outline_rounded,
                                   isPassword: true,
-                                  validator: (v) => v!.isEmpty ? "Required" : null,
+                                  validator: (v) => v!.isEmpty ? "Password is required" : null, // <--- VALIDATION ADDED
                                 ),
 
                                 // Forgot Password
@@ -225,10 +225,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
                                     onPressed: (){showModalBottomSheet(
-                            context: context,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) => const ForgotPasswordModal(),
-                          );},
+                                      context: context,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (context) => const ForgotPasswordModal(),
+                                    );},
                                     child: Text("Forgot Password?", style: TextStyle(color: _primaryLight, fontWeight: FontWeight.bold)),
                                   ),
                                 ),
@@ -292,6 +292,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ),
                           ],
                         ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -332,15 +333,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               )
             : null,
+        errorBorder: OutlineInputBorder( // Custom error border color
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder( // Retains error border when focused
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide.none, // Default border is hidden by fillColor
         ),
-        enabledBorder: OutlineInputBorder(
+        enabledBorder: OutlineInputBorder( // Default non-focused state
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide(color: Colors.transparent),
         ),
-        focusedBorder: OutlineInputBorder(
+        focusedBorder: OutlineInputBorder( // Blue border when focused
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide(color: _primaryLight, width: 1.5),
         ),

@@ -39,14 +39,16 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
   // --- DATA LOGIC (UNCHANGED) ---
   Future<void> _loadSavedData() async {
     final prefs = await SharedPreferences.getInstance();
+    _myCodes = prefs.getStringList('my_course_codes') ?? [];
+  
+  // Load cached exams (The most recent successful data)
+  String? cachedExams = prefs.getString('cached_exams');
     setState(() {
-      _myCodes = prefs.getStringList('my_course_codes') ?? [];
-      String? cachedExams = prefs.getString('cached_exams');
+      _myCodes = _myCodes;
       if (cachedExams != null) {
         _myExams = json.decode(cachedExams);
       }
     });
-    if (_myCodes.isNotEmpty) _fetchExamsFromBackend();
   }
 
   Future<void> _addCourseCode(String code) async {

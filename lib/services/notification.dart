@@ -50,16 +50,18 @@ static Future<void> initialize() async {
   }
 
   // --- NEW: HANDLE BACKEND MESSAGES ---
-  static void _listenToFirebaseMessages() {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('🔥 FCM Message Received: ${message.notification?.title}');
-
-      // If the message has a notification payload, show it nicely
-      if (message.notification != null) {
-        _showCustomFirebaseNotification(message);
-      }
-    });
-  }
+static void _listenToFirebaseMessages() {
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    print('🔥 FCM Message Received: ${message.data['title']}');
+    
+    // 🛑 CRITICAL FIX: Check for data['type'] instead of message.notification
+    // Since we removed the 'notification' object from the backend, 
+    // we now check if our custom announcement data is present.
+    if (message.data['type'] == 'announcement') {
+      _showCustomFirebaseNotification(message);
+    }
+  });
+}
 
   static Future<void> _showCustomFirebaseNotification(RemoteMessage message) async {
     await AwesomeNotifications().createNotification(
@@ -69,7 +71,7 @@ static Future<void> initialize() async {
         
         // 1. Map Title & Body (Description)
         title: message.notification?.title ?? 'DITA Update',
-        body: message.notification?.body ?? 'New announcement available.',
+        body: message.data['message_body'] ?? 'New announcement available.',
         
         // 2. Make it look nice
         // BigText allows for longer descriptions

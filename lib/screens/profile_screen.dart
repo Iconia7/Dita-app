@@ -1,7 +1,8 @@
 import 'package:dita_app/screens/privacy_policy_screen.dart';
+import 'package:dita_app/sheets/ChangePasswordSheet.dart';
+import 'package:dita_app/sheets/edit_profile_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/api_service.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -27,202 +28,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- 1. EDIT PROFILE LOGIC ---
-  void _showEditDialog() {
-    final admController = TextEditingController(text: _currentUser['admission_number']);
-    final programController = TextEditingController(text: _currentUser['program']);
-    final phoneController = TextEditingController(text: _currentUser['phone_number']);
-    final emailController = TextEditingController(text: _currentUser['email']);
-    
-    int selectedYear = _currentUser['year_of_study'] ?? 1;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Text("Edit Profile", style: TextStyle(color: _primaryDark, fontWeight: FontWeight.bold)),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildDialogInput(admController, "Admission No", Icons.badge_outlined),
-                  const SizedBox(height: 15),
-                  _buildDialogInput(programController, "Program", Icons.school_outlined),
-                  const SizedBox(height: 15),
-                  DropdownButtonFormField<int>(
-                    initialValue: selectedYear,
-                    decoration: InputDecoration(
-                      labelText: "Year of Study",
-                      prefixIcon: Icon(Icons.calendar_today, color: _primaryDark),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    items: [1, 2, 3, 4].map((y) => DropdownMenuItem(value: y, child: Text("Year $y"))).toList(),
-                    onChanged: (val) => setStateDialog(() => selectedYear = val!),
-                  ),
-                  const SizedBox(height: 15),
-                  _buildDialogInput(phoneController, "Phone Number", Icons.phone_iphone_rounded, isPhone: true),
-                  const SizedBox(height: 15),
-                  _buildDialogInput(emailController, "Email Address", Icons.email_outlined),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context), 
-                child: const Text("Cancel", style: TextStyle(color: Colors.grey))
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(context); 
-                  await _updateProfile(
-                    admController.text,
-                    programController.text,
-                    selectedYear,
-                    phoneController.text,
-                    emailController.text
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryDark,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                ),
-                child: const Text("Save Changes"),
-              )
-            ],
-          );
-        }
-      ),
-    );
-  }
-
-Future<void> _updateProfile(String adm, String prog, int year, String phone, String email) async {
-    setState(() => _isUpdating = true);
-
-    Map<String, dynamic> data = {
-      "admission_number": adm,
-      "program": prog,
-      "year_of_study": year,
-      "phone_number": phone,
-      "email": email,
-    };
-
-    // 1. Send update to Backend
-    bool success = await ApiService.updateUser(_currentUser['id'], data);
-
-    if (success) {
-      // 2. Fetch FRESH data from backend to ensure we have the latest state
-      final freshData = await ApiService.getUserDetails(_currentUser['id']);
-      
-      if (freshData != null) {
-        // 3. CRITICAL: Save fresh data to local storage
-        await ApiService.saveUserLocally(freshData);
-
-        setState(() => _currentUser = freshData);
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Profile Updated Successfully!"), backgroundColor: Colors.green)
-          );
-        }
-      }
-    } else {
-      if (mounted) {
+void _showEditDialog() {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true, // Crucial for keyboard and full screen height
+    backgroundColor: Colors.transparent, // Required for custom sheet shape
+    builder: (context) => EditProfileSheet(
+      user: _currentUser,
+      // Pass a callback to handle state updates after save
+      onProfileSaved: (updatedUser) {
+        setState(() {
+          _currentUser = updatedUser;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to update profile."), backgroundColor: Colors.red)
+          const SnackBar(content: Text("Profile Updated Successfully!"), backgroundColor: Colors.green)
         );
-      }
-    }
+      },
+    ),
+  );
+}
 
-    setState(() => _isUpdating = false);
-  }
 
-  void _showChangePasswordDialog() {
-    final oldController = TextEditingController();
-    final newController = TextEditingController();
-    bool isLoading = false;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Change Password", style: TextStyle(fontWeight: FontWeight.bold)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: oldController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: "Current Password", 
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
-                  ),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: newController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: "New Password", 
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
-                  ),
-                ),
-                if (isLoading) const Padding(
-                  padding: EdgeInsets.only(top: 15.0),
-                  child: CircularProgressIndicator(),
-                )
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
-              ),
-              ElevatedButton(
-                onPressed: isLoading ? null : () async {
-                  if (oldController.text.isEmpty || newController.text.isEmpty) return;
-
-                  if (newController.text.length < 6) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Password must be at least 6 characters"), 
-            backgroundColor: Colors.orange
-          )
-        );
-        return;
-    }
-                  
-                  setDialogState(() => isLoading = true);
-                  
-                  bool success = await ApiService.changePassword( 
-                    oldController.text, 
-                    newController.text
-                  );
-                  
-                  setDialogState(() => isLoading = false);
-                  
-                  if (mounted) {
-                    Navigator.pop(context); // Close dialog
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(success ? "Password changed!" : "Incorrect old password."),
-                        backgroundColor: success ? Colors.green : Colors.red,
-                      )
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: _primaryDark),
-                child: const Text("Update", style: TextStyle(color: Colors.white)),
-              )
-            ],
-          );
-        }
-      ),
-    );
-  }
+void _showChangePasswordDialog() {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true, // Crucial for keyboard
+    backgroundColor: Colors.transparent, 
+    builder: (context) => ChangePasswordSheet(
+      user: _currentUser,
+      primaryDark: _primaryDark,
+    ),
+  );
+}
 
   // --- 2. SUPPORT LOGIC ---
   Future<void> _launchContact(String scheme, String path) async {
@@ -499,16 +336,4 @@ _buildActionTile(
     );
   }
 
-  Widget _buildDialogInput(TextEditingController controller, String label, IconData icon, {bool isPhone = false}) {
-    return TextField(
-      controller: controller,
-      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: _primaryDark),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
-      ),
-    );
-  }
 }

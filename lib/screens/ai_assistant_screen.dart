@@ -28,7 +28,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     {'role': 'assistant', 'text': 'Hello! I am DITA AI. Ask me about your exams, classes, or upcoming events! 🎓'}
   ];
 
-  static const String _model = 'gemini-1.5-flash';
 
   @override
   void initState() {
@@ -41,34 +40,32 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    final message = _textController.text.trim();
-    if (message.isEmpty) return;
+Future<void> _sendMessage() async {
+  final message = _textController.text.trim();
+  if (message.isEmpty) return;
 
-    setState(() {
-      _history.add({'role': 'user', 'text': message});
-      _isLoading = true;
-      _textController.clear();
-    });
-    _scrollToBottom();
+  setState(() {
+    _history.add({'role': 'user', 'text': message});
+    _isLoading = true;
+    _textController.clear();
+  });
+  _scrollToBottom();
 
+  try {
+    // 1) Get Events Context
+    String eventContext = '';
     try {
-      // 1) Get events to include as short eventContext (optional)
-      String eventContext = '';
-      try {
-        final events = await ApiService.getEvents();
-        if (events.isNotEmpty) {
-          eventContext = events.take(3).map((e) => "- ${e['title']} on ${e['date']} @ ${e['venue']}").join("\n");
-        }
-      } catch (_) {
-        eventContext = '';
+      final events = await ApiService.getEvents();
+      if (events.isNotEmpty) {
+        eventContext = "\n\nREAL-TIME UPCOMING EVENTS:\n" + 
+            events.take(3).map((e) => "- ${e['title']} on ${e['date']} @ ${e['venue']}").join("\n");
       }
+    } catch (_) {}
 
-      // 2) Build contents array (system + chat history)
-      final systemInstruction = """
+    // 2) Define System Instruction
+    final systemText = """
 You are DITA AI, the intelligent virtual assistant for Daystar University students.
 Your persona is helpful, tech-savvy, friendly, and concise.
-
 BEHAVIOR: Keep answers short (max 3 sentences). If unknown, refer to DITA Office.
 
 Knowledge:
@@ -76,90 +73,76 @@ Knowledge:
 - ICT Building: Tech hub. DITA Office on Ground Floor between washrooms.
 - DAC: Main admin building with library.
 - Exams: Arrive 30 mins early. Must have ID & Exam Card.
-${eventContext.isNotEmpty ? '\n\nREAL-TIME UPCOMING EVENTS:\n$eventContext' : ''}
+$eventContext
 """;
 
-      // Build contents following v1 schemas: array of { role, parts: [{text}] }
-      List<Map<String, dynamic>> contents = [];
-      contents.add({
-        "role": "system",
+    // 3) Build History
+    List<Map<String, dynamic>> apiContents = [];
+    for (final m in _history) {
+      apiContents.add({
+        "role": (m['role'] == 'user') ? "user" : "model",
         "parts": [
-          {"text": systemInstruction}
+          {"text": m['text']}
         ]
       });
+    }
 
-      // Convert _history to messages (skip the initial assistant greeting if you want)
-      for (final m in _history) {
-        final role = (m['role'] == 'user') ? 'user' : 'model';
-        contents.add({
-          "role": role,
-          "parts": [
-            {"text": m['text']}
-          ]
-        });
+    // 4) Build Request Body
+    final body = {
+      "contents": apiContents,
+      "system_instruction": {
+        "parts": [
+          {"text": systemText}
+        ]
+      },
+      "generationConfig": {
+        "temperature": 0.7,
+        "maxOutputTokens": 300,
       }
+    };
 
-      // Finally, add the new user message as last (already in history but ensure latest)
-      // (We already pushed user's message into _history, so it's included.)
+    // 5) CALL API (Using v1beta + gemini-2.5-flash)
+    // Note: We use 'v1beta' here as it often supports the newest models best
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
 
-      // 3) Build request body
-      final body = {
-        "contents": contents,
-        "generationConfig": {
-          "temperature": 0.6,
-          "maxOutputTokens": 400,
+    final resp = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    if (resp.statusCode == 200) {
+      final data = jsonDecode(resp.body);
+      String assistantText = "I'm not sure.";
+      
+      if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+        final parts = data['candidates'][0]['content']['parts'];
+        if (parts != null && parts.isNotEmpty) {
+          assistantText = parts[0]['text'];
         }
-      };
-
-      // 4) Call Google Generative Language v1
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1/models/$_model:generateContent?key=$_apiKey');
-
-      final resp = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 25));
-
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
-        String assistantText = "I'm not sure.";
-
-        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
-          final parts = data['candidates'][0]?['content']?['parts'] as List<dynamic>?;
-          if (parts != null && parts.isNotEmpty) {
-            assistantText = parts.map((p) => p['text'] ?? '').join();
-          }
-        } else if (data['output'] != null && data['output'] is String) {
-          assistantText = data['output'];
-        }
-
-        setState(() {
-          _history.add({'role': 'assistant', 'text': assistantText});
-          _isLoading = false;
-        });
-      } else {
-        // Map common problems to friendlier messages
-        String msg = 'My brain is offline (Error ${resp.statusCode}).';
-        try {
-          final body = jsonDecode(resp.body);
-          if (body != null && body['error'] != null) {
-            msg = 'Error ${resp.statusCode}: ${body['error']}';
-          }
-        } catch (_) {}
-        setState(() {
-          _history.add({'role': 'assistant', 'text': msg});
-          _isLoading = false;
-        });
       }
-      _scrollToBottom();
-    } catch (e) {
+      
       setState(() {
-        _history.add({'role': 'assistant', 'text': 'Connection error.'});
+        _history.add({'role': 'model', 'text': assistantText});
+        _isLoading = false;
+      });
+    } else {
+      print("API Error: ${resp.body}");
+      setState(() {
+        _history.add({'role': 'model', 'text': "My brain is offline (Error ${resp.statusCode})."});
         _isLoading = false;
       });
     }
+    _scrollToBottom();
+  } catch (e) {
+    print("Exception: $e");
+    setState(() {
+      _history.add({'role': 'model', 'text': "Connection error."});
+      _isLoading = false;
+    });
   }
+}
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {

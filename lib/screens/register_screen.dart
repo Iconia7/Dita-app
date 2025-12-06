@@ -76,6 +76,67 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     super.dispose();
   }
 
+
+void _showRegistrationErrorDialog(String? errorMsg) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      contentPadding: EdgeInsets.zero,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 1. Colored Header (Red for Error)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            decoration: const BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: const Icon(Icons.error_outline, color: Colors.white, size: 50),
+          ),
+          
+          // 2. Body Content
+          Padding(
+            padding: const EdgeInsets.all(25.0),
+            child: Column(
+              children: [
+                const Text(
+                  "Registration Failed",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  errorMsg ?? "An unknown error occurred.",
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
+                  textAlign: TextAlign.center
+                ),
+                const SizedBox(height: 25),
+                
+                // 3. Action Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12)
+                    ),
+                    child: const Text("Got it", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                )
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}  
+
 void _handleRegister() async {
   if (!_formKey.currentState!.validate()) return;
   if (!_agreedToTerms) {
@@ -115,17 +176,62 @@ void _handleRegister() async {
     Navigator.pop(context); // Go back to login
   } else if (mounted) {
     // FAILURE - Show the specific error from backend
-    showDialog(
-      context: context, 
-      builder: (ctx) => AlertDialog(
-        title: const Text("Registration Failed", style: TextStyle(color: Colors.red)),
-        content: Text(errorMsg ?? "Unknown Error"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))
-        ],
-      )
-    );
+    _showRegistrationErrorDialog(errorMsg);
   }
+}
+
+String? _validatePhoneNumber(String? value) {
+  if (value == null || value.isEmpty) {
+    return "Phone number is required";
+  }
+  // Remove spaces, dashes, or non-digit characters for checking length
+  String cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+
+  if (cleanedValue.length != 10) {
+    return "Phone number must be exactly 10 digits";
+  }
+  
+  // Check if it starts with 07 or 01
+  if (!cleanedValue.startsWith('07') && !cleanedValue.startsWith('01')) {
+    return "Number must start with 07 or 01";
+  }
+  
+  return null;
+}
+
+String? _validateAdmission(String? value) {
+  if (value == null || value.isEmpty) {
+    return "Admission number is required";
+  }
+  // Regex matches: 00-0000, 00-0000X, where 0 is digit and X is letter.
+  final RegExp admRegex = RegExp(r'^\d{2}-\d{4}[A-Za-z]?$');
+  if (!admRegex.hasMatch(value)) {
+    return "Invalid Daystar admission format (e.g., 00-0000)";
+  }
+  return null;
+}
+
+// Basic RFC 5322 Email Validation
+String? _validateEmail(String? value) {
+  if (value == null || value.isEmpty) {
+    return "Email is required";
+  }
+  final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+  if (!emailRegex.hasMatch(value)) {
+    return "Invalid email address format";
+  }
+  return null;
+}
+
+// Confirmation check
+String? _validateConfirmPassword(String? value) {
+  if (value == null || value.isEmpty) {
+    return "Confirm password is required";
+  }
+  if (value != _passwordController.text) {
+    return "Passwords do not match";
+  }
+  return null;
 }
 
   @override
@@ -234,7 +340,8 @@ const SizedBox(height: 20),
                                 _buildStylishInput(
                                   controller: _admController, 
                                   hint: "Admission Number", 
-                                  icon: Icons.badge_outlined
+                                  icon: Icons.badge_outlined,
+                                  validator: _validateAdmission,
                                 ),
                                 const SizedBox(height: 15),
 
@@ -243,7 +350,8 @@ const SizedBox(height: 20),
                                   controller: _phoneController, 
                                   hint: "M-Pesa Number", 
                                   icon: Icons.phone_iphone_rounded, 
-                                  keyboardType: TextInputType.phone
+                                  keyboardType: TextInputType.phone,
+                                  validator: _validatePhoneNumber,
                                 ),
                                 const SizedBox(height: 15),
                                 // Real Email Address
@@ -252,6 +360,7 @@ _buildStylishInput(
   hint: "Email Address (e.g. jane@gmail.com)",
   icon: Icons.email_outlined,
   keyboardType: TextInputType.emailAddress,
+  validator: _validateEmail,
 ),
 const SizedBox(height: 15),
 
@@ -287,7 +396,8 @@ const SizedBox(height: 15),
                                   controller: _confirmPassController, 
                                   hint: "Confirm Password", 
                                   icon: Icons.lock_reset_rounded, 
-                                  isPassword: true
+                                  isPassword: true,
+                                  validator: _validateConfirmPassword,
                                 ),
 
                                 const SizedBox(height: 30),
@@ -407,13 +517,16 @@ const SizedBox(height: 10),
     required String hint,
     required IconData icon,
     bool isPassword = false,
+    String? Function(String?)? validator,
     TextInputType keyboardType = TextInputType.text,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       keyboardType: keyboardType,
-      validator: (v) => v!.isEmpty ? "Required" : null,
+      validator: (v) => validator != null 
+        ? validator(v) 
+        : (v!.isEmpty ? "Required" : null),
       style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
       decoration: InputDecoration(
         filled: true,
@@ -427,7 +540,26 @@ const SizedBox(height: 10),
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               )
             : null,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+        errorBorder: OutlineInputBorder( // Custom error border color
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder( // Retains error border when focused
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide.none, // Default border is hidden by fillColor
+        ),
+        enabledBorder: OutlineInputBorder( // Default non-focused state
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.transparent),
+        ),
+        focusedBorder: OutlineInputBorder( // Blue border when focused
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: _primaryLight, width: 1.5),
+        ),
         contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
       ),
     );

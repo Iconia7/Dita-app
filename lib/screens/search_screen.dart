@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class DitaSearchDelegate extends SearchDelegate {
   // We accept Futures (Promises) instead of completed Lists
@@ -87,27 +86,27 @@ class DitaSearchDelegate extends SearchDelegate {
         if (eventResults.isNotEmpty) ...[
           const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text("EVENTS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
           ...eventResults.map((e) => ListTile(
-            leading: const Icon(Icons.calendar_month, color: Color(0xFF003366)),
-            title: Text(e['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(e['venue'] ?? "No Venue"),
-            onTap: () {
-               close(context, null); 
-               // Navigate to event details if needed
-            },
-          )),
-        ],
+    leading: const Icon(Icons.calendar_month, color: Color(0xFF003366)),
+    title: Text(e['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+    subtitle: Text(e['venue'] ?? "No Venue"),
+    onTap: () {
+        // 🛑 CRITICAL CHANGE: Close search and pass the target index 1 (Events Tab)
+        close(context, {'tabIndex': 1, 'id': e['id']}); 
+    },
+)),
+],
         if (resourceResults.isNotEmpty) ...[
           const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text("RESOURCES", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
           ...resourceResults.map((r) => ListTile(
-            leading: Icon(r['resource_type'] == 'PDF' ? Icons.picture_as_pdf : Icons.link, color: r['resource_type'] == 'PDF' ? Colors.red : Colors.blue),
-            title: Text(r['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(r['description'] ?? ""),
-            onTap: () async {
-               close(context, null);
-               if (r['link'] != null) await launchUrl(Uri.parse(r['link']));
-            },
-          )),
-        ]
+        leading: Icon(r['resource_type'] == 'PDF' ? Icons.picture_as_pdf : Icons.link, color: r['resource_type'] == 'PDF' ? Colors.red : Colors.blue),
+        title: Text(r['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(r['description'] ?? ""),
+        onTap: () async {
+            // 🛑 CRITICAL CHANGE: Close search and pass the target index 2 (Resources Tab)
+            close(context, {'tabIndex': 2, 'id': r['id']}); 
+        },
+    )),
+],
       ],
     );
   }

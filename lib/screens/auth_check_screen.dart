@@ -4,6 +4,7 @@ import 'package:local_auth/local_auth.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'maintenance_screen.dart'; // <--- 1. IMPORT YOUR MAINTENANCE SCREEN HERE
 
 class AuthCheckScreen extends StatefulWidget {
   const AuthCheckScreen({super.key});
@@ -14,12 +15,8 @@ class AuthCheckScreen extends StatefulWidget {
 
 class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProviderStateMixin {
   final LocalAuthentication auth = LocalAuthentication();
-  
-  // Animation
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-
-  // Colors
   final Color _primaryDark = const Color(0xFF003366);
   final Color _primaryLight = const Color(0xFF004C99);
 
@@ -27,7 +24,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
   void initState() {
     super.initState();
     
-    // Setup Entrance Animation
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -36,25 +32,52 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
     _animationController.forward();
     checkForUpdate();
 
-    // Trigger Login Check
+    // 2. CHANGE THIS LINE: Call the App Status check INSTEAD of Login Status
+    _checkAppStatus(); 
+  }
+
+  // 3. ADD THIS NEW FUNCTION HERE
+  Future<void> _checkAppStatus() async {
+    // Artificial delay for splash effect (optional, moved here)
+    await Future.delayed(const Duration(seconds: 1));
+
+    try {
+      // Check Maintenance Mode
+      final status = await ApiService.getSystemStatus();
+      
+      // If widget was closed while waiting, stop
+      if (!mounted) return;
+
+      if (status != null && status['maintenance_mode'] == true) {
+        // 🛑 STOP! Go to Maintenance Screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => MaintenanceScreen(
+              title: status['maintenance_title'] ?? "System Under Maintenance",
+              message: status['maintenance_message'] ?? "We will be back shortly.",
+            )
+          )
+        );
+        return; // Important: Exit here so we don't try to login
+      }
+    } catch (e) {
+      print("Status check failed (Offline?): $e");
+      // If check fails, we assume app is online and proceed
+    }
+
+    // ✅ SYSTEM ONLINE: Now trigger the original login check
     _checkLoginStatus();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
+  // 4. UPDATE THIS FUNCTION (Remove the delay since we did it above)
   Future<void> _checkLoginStatus() async {
-    // Artificial delay so the splash screen doesn't flicker too fast
-    await Future.delayed(const Duration(seconds: 1));
+    // (Delay removed because _checkAppStatus already waited)
 
     // 1. Check if we have saved data
     final userData = await ApiService.getUserLocally();
 
     if (userData != null) {
-      // 2. User found! Attempt Biometric Unlock
+      // ... (Rest of your existing login logic stays exactly the same) ...
       bool authenticated = false;
       try {
         final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
@@ -63,7 +86,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
         if (canAuthenticate) {
           authenticated = await auth.authenticate(
             localizedReason: 'Scan to enter DITA App',
-            // --- v2 SYNTAX FIX ---
             options: const AuthenticationOptions(
               stickyAuth: true,
               biometricOnly: true,
@@ -71,7 +93,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
             ),
           );
         } else {
-          authenticated = true; // No hardware -> Pass
+          authenticated = true;
         }
       } catch (e) {
         print("Biometric Error: $e");
@@ -90,6 +112,12 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
     }
   }
 
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   void _navigateToHome(Map<String, dynamic> user) {
     Navigator.pushReplacement(
       context, 
@@ -106,11 +134,11 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    // ... (Your existing build method stays exactly the same) ...
     return Scaffold(
       backgroundColor: _primaryDark,
       body: Stack(
         children: [
-          // 1. GRADIENT BACKGROUND
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -120,48 +148,39 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
               ),
             ),
           ),
-
-          // 2. DECORATIVE ELEMENTS
           Positioned(
             right: -50, top: -50,
             child: Icon(Icons.school, size: 300, color: Colors.white.withOpacity(0.05)),
           ),
-
-          // 3. CENTER CONTENT
           Center(
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo Container
                  Container(
-  padding: const EdgeInsets.all(25),
-  decoration: BoxDecoration(
-    color: Colors.white,
-    shape: BoxShape.circle,
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.2), 
-        blurRadius: 30, 
-        offset: const Offset(0, 10)
-      )
-    ],
-  ),
-  // Replace the Icon with your Image
-  child: SizedBox(
-    height: 60,
-    width: 60,
-    child: Image.asset(
-      'assets/icon/icon.png', // <--- YOUR NEW LOGO ASSET
-      fit: BoxFit.contain,
-    ),
-  ),
-),
-                  
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2), 
+                        blurRadius: 30, 
+                        offset: const Offset(0, 10)
+                      )
+                    ],
+                  ),
+                  child: SizedBox(
+                    height: 60,
+                    width: 60,
+                    child: Image.asset(
+                      'assets/icon/icon.png', 
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
                   const SizedBox(height: 30),
-                  
-                  // App Name
                   const Text(
                     "DITA",
                     style: TextStyle(
@@ -179,10 +198,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
                       letterSpacing: 1
                     ),
                   ),
-
                   const SizedBox(height: 60),
-
-                  // Loading Indicator
                   const SizedBox(
                     width: 24, 
                     height: 24, 
@@ -195,8 +211,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
               ),
             ),
           ),
-          
-          // 4. FOOTER
           Positioned(
             bottom: 40,
             left: 0,
@@ -213,7 +227,3 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
     );
   }
 }
-
-
-
-

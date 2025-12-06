@@ -104,20 +104,33 @@ static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remo
     return null;
   }
 
-static Future<bool> changePassword(String oldPass, String newPass) async {
+static Future<bool> changePassword(int userId, String oldPass, String newPass) async { 
     try {
       final headers = await _getHeaders();
       final response = await http.post(
-        Uri.parse('$baseUrl/change-password/'), // Note: Ensure URL matches urls.py
+        Uri.parse('$baseUrl/change-password/'),
         headers: headers,
         body: json.encode({
+          // 🛑 CRITICAL FIX: Add the user_id field here
+          "user_id": userId,
           "old_password": oldPass,
           "new_password": newPass,
         }),
       );
-      return response.statusCode == 200;
-    } catch (e) { return false; }
-  } 
+
+      // Check for success (200) or authorization failure (400 if wrong password)
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        // Print the detailed error message from Django for easier debugging
+        print('Password Change Error: ${response.body}');
+        return false;
+      }
+    } catch (e) { 
+      print('Network Error: $e');
+      return false; 
+    }
+  }
 
 static Future<void> updateFcmToken(int userId, String token) async {
     try {
@@ -231,6 +244,20 @@ static Future<bool> initiatePayment(String phone) async {
       );
       return response.statusCode == 200;
     } catch (e) { return false; }
+  }
+
+
+  // Check if system is in maintenance
+  static Future<Map<String, dynamic>?> getSystemStatus() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/status/'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print("Status Check Error: $e");
+    }
+    return null;
   }
 
   static Future<Map<String, dynamic>?> getUserDetails(int userId) async {

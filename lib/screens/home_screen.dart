@@ -59,31 +59,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndPromptPayment();});
       _syncNotificationToken();
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null) {
-        // Show a SnackBar at the bottom
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: _primaryDark,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(message.notification!.title ?? "New Notification", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                Text(message.notification!.body ?? "", style: const TextStyle(color: Colors.white70)),
-              ],
-            ),
-            action: SnackBarAction(
-              label: "VIEW", 
-              textColor: _accentGold,
-              onPressed: _showNotificationsDialog, // Open your news dialog
-            ),
-          )
-        );
-      }
-    });
   }
 
   Future<void> _pickAndUploadImage() async {
@@ -767,17 +742,33 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
 
                     // Translucent Search Bar
                     GestureDetector(
-                      onTap: () {
-                        // 1. Show loading indicator briefly if needed, or just fetch
-                        // We fetch fresh data so search is up to date
-                        showSearch(
+                      onTap: () async { // 🛑 CHANGE: Made function async to await result
+    final result = await showSearch( // 🛑 CAPTURE RESULT HERE
       context: context, 
       delegate: DitaSearchDelegate(
-        ApiService.getEvents(),     // <--- Pass the Future directly
-        ApiService.getResources()   // <--- Pass the Future directly
+        ApiService.getEvents(), 
+        ApiService.getResources() 
       )
     );
-                      },
+    
+    // 🛑 NEW LOGIC: Check if the result requests a tab change
+    if (result != null && result is Map && result.containsKey('tabIndex')) {
+      final int newIndex = result['tabIndex'];
+      
+      // Update the state (and the UI)
+      setState(() {
+        _currentIndex = newIndex;
+      });
+
+      // Optional: Give feedback that the tab switched
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Switched to the ${newIndex == 1 ? 'Events' : 'Resources'} tab."),
+          duration: const Duration(seconds: 1),
+        )
+      );
+    }
+  },
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),
                         child: BackdropFilter(
