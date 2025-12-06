@@ -1,7 +1,9 @@
+// lib/screens/ai_assistant_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/api_service.dart';
 
 class AiAssistantScreen extends StatefulWidget {
@@ -12,9 +14,7 @@ class AiAssistantScreen extends StatefulWidget {
 }
 
 class _AiAssistantScreenState extends State<AiAssistantScreen> {
-  // Use a secure way to store this in production!
-  final String _apiKey = 'AIzaSyDgkPXZTJsYA8pBUVh0APIHhiC7L-6FHE0'; 
-  
+  late final String _apiKey;
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
@@ -23,37 +23,23 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final Color _accentGold = const Color(0xFFFFD700);
   final Color _bgOffWhite = const Color(0xFFF4F6F9);
 
-  // We keep the history here for the UI
+  // UI history
   final List<Map<String, String>> _history = [
-    {'role': 'model', 'text': 'Hello! I am DITA AI. Ask me about your exams, classes, or upcoming events! 🎓'}
+    {'role': 'assistant', 'text': 'Hello! I am DITA AI. Ask me about your exams, classes, or upcoming events! 🎓'}
   ];
 
-  static const String baseSystemPrompt = """
-You are DITA AI, the intelligent virtual assistant for Daystar University students.
-Your persona is helpful, tech-savvy, friendly, and concise.
+  static const String _model = 'gemini-1.5-flash';
 
-**1. YOUR KNOWLEDGE BASE (CAMPUS & LOCATIONS):**
-- **BCC Building:** Located after SBE block, before ICT. Rooms BCC 1-12.
-- **ICT Building:** Tech hub. DITA Office is on Ground Floor between washrooms.
-- **DITA Office:** ICT Building, Ground Floor.
-- **DAC:** Main admin building with library.
-- **Valley Road:** Nairobi campus.
-
-**2. ACADEMIC RULES:**
-- **Exams:** Arrive 30 mins early. Must have ID & Exam Card.
-- **Clearance:** Clear fees to get exam card.
-- **Pass Mark:** Generally 40%.
-
-**3. APP NAVIGATION:**
-- **Timetable:** Use 'Classes' tab or 'Portal Sync'.
-- **Exams:** Use 'Exams' button on dashboard.
-- **GPA:** Use 'GPA Calculator' in Quick Actions.
-- **Resources:** Past papers in 'Resources' tab.
-
-**BEHAVIOR:**
-- Keep answers short (max 3 sentences).
-- If unknown, refer to DITA Office.
-""";
+  @override
+  void initState() {
+    super.initState();
+    // Ensure you call dotenv.load() in main.dart before runApp (example below).
+    _apiKey = dotenv.env['GOOGLE_API_KEY'] ?? '';
+    if (_apiKey.isEmpty) {
+      // Fail fast in dev so you know to add the key
+      _history.insert(0, {'role': 'assistant', 'text': 'API key not found. Add GOOGLE_API_KEY in .env'});
+    }
+  }
 
   Future<void> _sendMessage() async {
     final message = _textController.text.trim();
@@ -67,78 +53,109 @@ Your persona is helpful, tech-savvy, friendly, and concise.
     _scrollToBottom();
 
     try {
-      // 1. FETCH REAL CONTEXT
-      String eventContext = "";
+      // 1) Get events to include as short eventContext (optional)
+      String eventContext = '';
       try {
         final events = await ApiService.getEvents();
         if (events.isNotEmpty) {
-           String eventList = events.take(3).map((e) => "- ${e['title']} on ${e['date']} @ ${e['venue']}").join("\n");
-           eventContext = "\n\n**REAL-TIME UPCOMING EVENTS:**\n$eventList";
-        } else {
-           eventContext = "\n\n**EVENTS:** No upcoming events found.";
+          eventContext = events.take(3).map((e) => "- ${e['title']} on ${e['date']} @ ${e['venue']}").join("\n");
         }
-      } catch (e) {
-        eventContext = ""; 
+      } catch (_) {
+        eventContext = '';
       }
 
-      // 2. PREPARE API PAYLOAD (WITH MEMORY)
-      final String systemInstruction = baseSystemPrompt + eventContext;
-      
-      List<Map<String, dynamic>> apiContents = [];
+      // 2) Build contents array (system + chat history)
+      final systemInstruction = """
+You are DITA AI, the intelligent virtual assistant for Daystar University students.
+Your persona is helpful, tech-savvy, friendly, and concise.
 
-      // Loop through history to build context (Skip the very first static greeting)
-      for (int i = 1; i < _history.length; i++) {
-        var msg = _history[i];
-        apiContents.add({
-          "role": msg['role'] == 'user' ? "user" : "model",
-          "parts": [{"text": msg['text']}]
+BEHAVIOR: Keep answers short (max 3 sentences). If unknown, refer to DITA Office.
+
+Knowledge:
+- BCC Building: Located after SBE block, before ICT. Rooms BCC 1-12.
+- ICT Building: Tech hub. DITA Office on Ground Floor between washrooms.
+- DAC: Main admin building with library.
+- Exams: Arrive 30 mins early. Must have ID & Exam Card.
+${eventContext.isNotEmpty ? '\n\nREAL-TIME UPCOMING EVENTS:\n$eventContext' : ''}
+""";
+
+      // Build contents following v1 schemas: array of { role, parts: [{text}] }
+      List<Map<String, dynamic>> contents = [];
+      contents.add({
+        "role": "system",
+        "parts": [
+          {"text": systemInstruction}
+        ]
+      });
+
+      // Convert _history to messages (skip the initial assistant greeting if you want)
+      for (final m in _history) {
+        final role = (m['role'] == 'user') ? 'user' : 'model';
+        contents.add({
+          "role": role,
+          "parts": [
+            {"text": m['text']}
+          ]
         });
       }
 
-      // 3. CALL GEMINI (1.5 Flash is faster/cheaper)
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
+      // Finally, add the new user message as last (already in history but ensure latest)
+      // (We already pushed user's message into _history, so it's included.)
 
-      final response = await http.post(
+      // 3) Build request body
+      final body = {
+        "contents": contents,
+        "generationConfig": {
+          "temperature": 0.6,
+          "maxOutputTokens": 400,
+        }
+      };
+
+      // 4) Call Google Generative Language v1
+      final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1/models/$_model:generateContent?key=$_apiKey');
+
+      final resp = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          // System Instruction is a separate field in v1beta for better adherence
-          "system_instruction": {
-            "parts": [{"text": systemInstruction}]
-          },
-          "contents": apiContents, 
-          "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 300, // Limit verbosity
-          }
-        }),
-      );
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 25));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        String text = "I'm not sure.";
-        
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        String assistantText = "I'm not sure.";
+
         if (data['candidates'] != null && data['candidates'].isNotEmpty) {
-           text = data['candidates'][0]['content']['parts'][0]['text'];
+          final parts = data['candidates'][0]?['content']?['parts'] as List<dynamic>?;
+          if (parts != null && parts.isNotEmpty) {
+            assistantText = parts.map((p) => p['text'] ?? '').join();
+          }
+        } else if (data['output'] != null && data['output'] is String) {
+          assistantText = data['output'];
         }
-        
+
         setState(() {
-          _history.add({'role': 'model', 'text': text});
+          _history.add({'role': 'assistant', 'text': assistantText});
           _isLoading = false;
         });
       } else {
-        print('Error: ${response.body}');
+        // Map common problems to friendlier messages
+        String msg = 'My brain is offline (Error ${resp.statusCode}).';
+        try {
+          final body = jsonDecode(resp.body);
+          if (body != null && body['error'] != null) {
+            msg = 'Error ${resp.statusCode}: ${body['error']}';
+          }
+        } catch (_) {}
         setState(() {
-          _history.add({'role': 'model', 'text': "My brain is offline (Error ${response.statusCode})."});
+          _history.add({'role': 'assistant', 'text': msg});
           _isLoading = false;
         });
       }
       _scrollToBottom();
-
     } catch (e) {
       setState(() {
-        _history.add({'role': 'model', 'text': "Connection error."});
+        _history.add({'role': 'assistant', 'text': 'Connection error.'});
         _isLoading = false;
       });
     }
@@ -192,15 +209,15 @@ Your persona is helpful, tech-savvy, friendly, and concise.
                       ),
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
                     ),
-                    child: isUser 
-                      ? Text(msg['text']!, style: const TextStyle(color: Colors.white))
-                      : MarkdownBody(
-                          data: msg['text']!, 
-                          styleSheet: MarkdownStyleSheet(
-                            p: const TextStyle(fontSize: 15, height: 1.4),
-                            strong: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                    child: isUser
+                        ? Text(msg['text']!, style: const TextStyle(color: Colors.white))
+                        : MarkdownBody(
+                            data: msg['text']!,
+                            styleSheet: MarkdownStyleSheet(
+                              p: const TextStyle(fontSize: 15, height: 1.4),
+                              strong: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                            ),
                           ),
-                        ), 
                   ),
                 );
               },
