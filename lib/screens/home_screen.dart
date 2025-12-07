@@ -1183,7 +1183,7 @@ _buildQuickAction(
             _buildNavItem(1, Icons.calendar_month_outlined, "Events"),
             _buildNavItem(2, Icons.book_outlined, "Resources"),
             _buildNavItem(3, Icons.forum_rounded, "Community"),
-            _buildNavItem(3, Icons.person_outline_rounded, "Profile"),
+            _buildNavItem(4, Icons.person_outline_rounded, "Profile"),
           ],
         ),
       ),

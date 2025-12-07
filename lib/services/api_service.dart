@@ -5,33 +5,86 @@ import 'package:mime/mime.dart';
 import 'dart:io';
 
 class ApiService {
-  // CRITICAL: 
-  // If using Android Emulator, use 'http://10.0.2.2:8000/api'
-  // If using Physical Device, use your Laptop's IP (e.g., 'http://192.168.100.x:8000/api')
+  // CRITICAL: Ensure this matches your running server
   static const String baseUrl = 'https://dita-app-backend.onrender.com/api';
 
-static Future<Map<String, String>> _getHeaders() async {
+  // --- 🔍 DEBUGGING HEADERS ---
+  static Future<Map<String, String>> _getHeaders() async {
+    print("\n🔍 --- DEBUG: GENERATING HEADERS ---");
+    
     final prefs = await SharedPreferences.getInstance();
-    // Retrieve the stored user object to find the token
+    
+    // 1. Check raw storage
     String? userStr = prefs.getString('user_data');
+    print("1️⃣ Raw Storage ('user_data'): $userStr");
+
     String token = "";
     
     if (userStr != null) {
-      final userData = json.decode(userStr);
-      token = userData['access'] ?? ""; // Get the JWT 'access' token
+      try {
+        final userData = json.decode(userStr);
+        // 2. Check extracted token
+        token = userData['access'] ?? ""; 
+        print("2️⃣ Extracted Token: ${token.isNotEmpty ? '${token.substring(0, 10)}...' : 'EMPTY/NULL'}");
+      } catch (e) {
+        print("❌ Error parsing user data: $e");
+      }
+    } else {
+      print("❌ CRITICAL: User data is NULL in SharedPrefs. User is likely logged out.");
     }
 
-    return {
+    final headers = {
       "Content-Type": "application/json",
-      "Authorization": "Bearer $token", // <--- THE KEY PART
+      "Authorization": "Bearer $token",
     };
+
+    print("3️⃣ Final Headers being sent: $headers");
+    print("--------------------------------------\n");
+    return headers;
   }
 
+  // --- 🔍 DEBUGGING LOGIN ---
+  static Future<Map<String, dynamic>?> login(String username, String password) async {
+    try {
+      print("🚀 Attempting Login for: $username");
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/login/'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "username": username,
+          "password": password
+        }),
+      );
 
-static Future<List<dynamic>> getEvents() async {
+      print("📡 Login Response Code: ${response.statusCode}");
+      print("📡 Login Response Body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Check if 'access' key actually exists
+        if (data.containsKey('access')) {
+           print("✅ Token found in response! Saving...");
+           await saveUserLocally(data);
+           return data;
+        } else {
+           print("⚠️ WARNING: Login successful but NO 'access' token found in response!");
+        }
+        return data;
+      }
+      return null;
+    } catch (e) {
+      print("❌ Login Network Error: $e");
+      return null;
+    }
+  }
+
+  // --- STANDARD METHODS (Unchanged but using the debug headers) ---
+
+  static Future<List<dynamic>> getEvents() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/events/'));
-      
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -43,27 +96,26 @@ static Future<List<dynamic>> getEvents() async {
     }
   }  
 
-static Future<Map<String, dynamic>?> getUserProfile(String username) async {
-  try {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/users/?username=$username'),
-      headers: {"Content-Type": "application/json"},
-    );
+  static Future<Map<String, dynamic>?> getUserProfile(String username) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/users/?username=$username'),
+        headers: {"Content-Type": "application/json"},
+      );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      if (data.isNotEmpty) {
-        return data[0]; // Return the first user found
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        if (data.isNotEmpty) {
+          return data[0]; 
+        }
       }
+    } catch (e) {
+      print("Error fetching profile: $e");
     }
-  } catch (e) {
-    print("Error fetching profile: $e");
+    return null;
   }
-  return null;
-}
 
-
-static Future<List<dynamic>> getResources() async {
+  static Future<List<dynamic>> getResources() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/resources/'));
       if (response.statusCode == 200) return json.decode(response.body);
@@ -71,30 +123,25 @@ static Future<List<dynamic>> getResources() async {
     return [];
   }
 
-  // RSVP Action
-static Future<bool> rsvpEvent(int eventId) async {
+  static Future<bool> rsvpEvent(int eventId) async {
     try {
       final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/events/$eventId/rsvp/'),
-        headers: headers, // <--- Send Token
+        headers: headers, 
       );
       return response.statusCode == 200;
     } catch (e) { return false; }
   }
 
-  // UPDATED Check-In Action
-// UPDATED Check-In Action
-static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remove userId param
+  static Future<Map<String, dynamic>?> markAttendance(int eventId) async { 
     try {
-      final headers = await _getHeaders(); // <--- Get Token
+      final headers = await _getHeaders(); 
       final response = await http.post(
         Uri.parse('$baseUrl/events/$eventId/check_in/'),
         headers: headers,
-        // No body needed anymore, token identifies the user
       );
       
-      // FIX: Accept 400 as a "valid" response so we can read the error message
       if (response.statusCode == 200 || response.statusCode == 400) {
         return json.decode(response.body);
       }
@@ -116,7 +163,6 @@ static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remo
     return [];
   }
 
-  // Get all items
   static Future<List<dynamic>> getLostFoundItems() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/lost-found/'));
@@ -129,19 +175,15 @@ static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remo
     return [];
   }
 
-  // Post a new item (Multipart request for Image)
   static Future<bool> postLostItem(Map<String, String> fields, File? imageFile) async {
     try {
       var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/lost-found/'));
       
-      // Add Headers (Auth)
       final headers = await _getHeaders();
       request.headers.addAll(headers);
 
-      // Add Text Fields
       request.fields.addAll(fields);
 
-      // Add Image
       if (imageFile != null) {
         final mimeTypeData = lookupMimeType(imageFile.path)!.split('/');
         request.files.add(await http.MultipartFile.fromPath(
@@ -159,8 +201,6 @@ static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remo
     }
   }
 
-
-
   // --- COMMUNITY API ---
   static Future<List<dynamic>> getCommunityPosts() async {
     try {
@@ -172,25 +212,64 @@ static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remo
 
   static Future<bool> createPost(Map<String, dynamic> data) async {
     try {
+      print("📝 Creating Post...");
       final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/community-posts/'),
         headers: headers,
         body: json.encode(data),
       );
+      print("📝 Create Post Response: ${response.statusCode} - ${response.body}");
       return response.statusCode == 201;
-    } catch (e) { return false; }
+    } catch (e) { 
+      print("❌ Create Post Error: $e");
+      return false; 
+    }
   }
 
-  static Future<bool> likePost(int postId) async {
+// Update Like to return the new count/status
+  static Future<Map<String, dynamic>?> likePost(int postId) async {
     try {
       final headers = await _getHeaders();
-      await http.post(Uri.parse('$baseUrl/community-posts/$postId/like/'), headers: headers);
-      return true;
+      final response = await http.post(Uri.parse('$baseUrl/community-posts/$postId/like/'), headers: headers);
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<bool> editPost(int postId, Map<String, dynamic> data) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/community-posts/$postId/'),
+        headers: headers,
+        body: json.encode(data),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Edit Error: $e");
+      return false;
+    }
+  }
+
+  static Future<bool> deletePost(int postId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.delete(Uri.parse('$baseUrl/community-posts/$postId/'), headers: headers);
+      return response.statusCode == 204;
     } catch (_) { return false; }
   }
 
-  // Comments
+  static Future<bool> deleteComment(int commentId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.delete(Uri.parse('$baseUrl/community-comments/$commentId/'), headers: headers);
+      return response.statusCode == 204;
+    } catch (_) { return false; }
+  }
+
   static Future<List<dynamic>> getComments(int postId) async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/community-comments/?post_id=$postId'));
@@ -211,25 +290,22 @@ static Future<Map<String, dynamic>?> markAttendance(int eventId) async { // Remo
     } catch (_) { return false; }
   }
 
-static Future<bool> changePassword(int userId, String oldPass, String newPass) async { 
+  static Future<bool> changePassword(int userId, String oldPass, String newPass) async { 
     try {
       final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/change-password/'),
         headers: headers,
         body: json.encode({
-          // 🛑 CRITICAL FIX: Add the user_id field here
           "user_id": userId,
           "old_password": oldPass,
           "new_password": newPass,
         }),
       );
 
-      // Check for success (200) or authorization failure (400 if wrong password)
       if (response.statusCode == 200) {
         return true;
       } else {
-        // Print the detailed error message from Django for easier debugging
         print('Password Change Error: ${response.body}');
         return false;
       }
@@ -240,29 +316,56 @@ static Future<bool> changePassword(int userId, String oldPass, String newPass) a
   }
 
 static Future<void> updateFcmToken(int userId, String token) async {
-    try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/users/$userId/'),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "fcm_token": token
-        }),
-      );
+  try {
+    // ✅ NEW: Get the headers that include the "Bearer <token>"
+    final headers = await _getHeaders(); 
 
-      if (response.statusCode == 200) {
-        print("FCM Token synced with server ✅");
-      } else {
-        print("Failed to sync FCM Token: ${response.body}");
-      }
-    } catch (e) {
-      print("Error updating FCM token: $e");
+    final response = await http.patch(
+      Uri.parse('$baseUrl/users/$userId/'),
+      headers: headers, // <--- Pass them here
+      body: json.encode({
+        "fcm_token": token
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      print("FCM Token synced with server ✅");
+    } else {
+      print("Failed to sync FCM Token: ${response.body}");
     }
-  } 
+  } catch (e) {
+    print("Error updating FCM token: $e");
+  }
+}
 
-
-static Future<void> saveUserLocally(Map<String, dynamic> user) async {
+static Future<void> saveUserLocally(Map<String, dynamic> newData) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_data', json.encode(user));
+    
+    // 1. Get the OLD data (which has the token)
+    String? oldDataStr = prefs.getString('user_data');
+    Map<String, dynamic> finalData = Map.from(newData); // Start with new data
+
+    if (oldDataStr != null) {
+      try {
+        final oldData = json.decode(oldDataStr);
+        
+        // 2. If new data is missing the token, COPY it from old data
+        if (!finalData.containsKey('access') && oldData.containsKey('access')) {
+          finalData['access'] = oldData['access'];
+          print("🛡️ Token preserved during update.");
+        }
+        
+        // (Optional) Keep refresh token too
+        if (!finalData.containsKey('refresh') && oldData.containsKey('refresh')) {
+          finalData['refresh'] = oldData['refresh'];
+        }
+      } catch (e) {
+        print("Error merging data: $e");
+      }
+    }
+
+    // 3. Save the combined result
+    await prefs.setString('user_data', json.encode(finalData));
   }
 
   static Future<Map<String, dynamic>?> getUserLocally() async {
@@ -274,50 +377,22 @@ static Future<void> saveUserLocally(Map<String, dynamic> user) async {
     return null;
   }
 
-  // 3. LOGOUT (CLEAR DATA)
   static Future<void> logout() async {
+    print("🚪 Logging out and clearing data...");
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_data');
   }  
 
-  // 1. Login Function
-// 1. Login Function (UPDATED)
-static Future<Map<String, dynamic>?> login(String username, String password) async {
+  static Future<bool> uploadProfilePicture(int userId, File imageFile) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/login/'), // Updated Endpoint
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "username": username,
-          "password": password
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        // Data now contains: { 'access': '...', 'refresh': '...', 'username': '...', 'id': ... }
-        
-        await saveUserLocally(data);
-        return data;
-      }
-      return null;
-    } catch (e) {
-      print("Login Error: $e");
-      return null;
-    }
-  }
-
-static Future<bool> uploadProfilePicture(int userId, File imageFile) async {
-    try {
+      print("📸 Uploading Profile Pic...");
       var request = http.MultipartRequest(
         'PATCH', 
         Uri.parse('$baseUrl/users/$userId/'),
       );
 
-      // --- ADD THIS BLOCK ---
       final headers = await _getHeaders(); 
-      request.headers.addAll(headers); // <--- Authenticate the upload
-      // ----------------------
+      request.headers.addAll(headers); 
 
       final mimeTypeData = lookupMimeType(imageFile.path)!.split('/');
 
@@ -330,15 +405,15 @@ static Future<bool> uploadProfilePicture(int userId, File imageFile) async {
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
       
+      print("📸 Upload Response: ${response.statusCode} - ${response.body}");
       return response.statusCode == 200;
     } catch (e) {
       print("Error uploading: $e");
       return false;
     }
-}
+  }
 
-// Update: Accept userId as a parameter
-static Future<bool> initiatePayment(String phone) async {
+  static Future<bool> initiatePayment(String phone) async {
     try {
       final headers = await _getHeaders();
       final response = await http.post(
@@ -346,15 +421,12 @@ static Future<bool> initiatePayment(String phone) async {
         headers: headers,
         body: json.encode({
           "phone": phone,
-          // No user_id needed!
         }),
       );
       return response.statusCode == 200;
     } catch (e) { return false; }
   }
 
-
-  // Check if system is in maintenance
   static Future<Map<String, dynamic>?> getSystemStatus() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/status/'));
@@ -370,7 +442,7 @@ static Future<bool> initiatePayment(String phone) async {
   static Future<Map<String, dynamic>?> getUserDetails(int userId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId/'), // Django standard detail URL
+        Uri.parse('$baseUrl/users/$userId/'),
       );
 
       if (response.statusCode == 200) {
@@ -383,45 +455,40 @@ static Future<bool> initiatePayment(String phone) async {
     }
   }
 
-// Inside ApiService class
+  static Future<String?> registerUser(Map<String, dynamic> data) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/register/'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(data),
+      );
 
-static Future<String?> registerUser(Map<String, dynamic> data) async {
-  try {
-    final response = await http.post(
-      Uri.parse('$baseUrl/register/'),
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(data),
-    );
-
-    if (response.statusCode == 201) { 
-      return null; // Success! No error message.
-    } else {
-      // Try to parse the backend error
-      try {
-        final body = json.decode(response.body);
-        // Backend might return {'username': ['Taken']} or {'error': 'Msg'}
-        // We join all values to make a readable string
-        if (body is Map) {
-          String errors = "";
-          body.forEach((key, value) {
-            if (value is List) {
-              errors += "$key: ${value.join(", ")}\n";
-            } else {
-              errors += "$value\n";
-            }
-          });
-          return errors.trim();
+      if (response.statusCode == 201) { 
+        return null;
+      } else {
+        try {
+          final body = json.decode(response.body);
+          if (body is Map) {
+            String errors = "";
+            body.forEach((key, value) {
+              if (value is List) {
+                errors += "$key: ${value.join(", ")}\n";
+              } else {
+                errors += "$value\n";
+              }
+            });
+            return errors.trim();
+          }
+          return "Registration Failed: ${response.body}";
+        } catch (_) {
+          return "Registration Failed (Status ${response.statusCode})";
         }
-        return "Registration Failed: ${response.body}";
-      } catch (_) {
-        return "Registration Failed (Status ${response.statusCode})";
       }
+    } catch (e) {
+      print("Error registering: $e");
+      return "Connection Error. Please check internet.";
     }
-  } catch (e) {
-    print("Error registering: $e");
-    return "Connection Error. Please check internet.";
   }
-}
 
   static Future<bool> updateUser(int userId, Map<String, dynamic> data) async {
     try {

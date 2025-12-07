@@ -174,10 +174,11 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar(
-              expandedHeight: 120.0,
+              expandedHeight: 100.0,
               floating: false,
               pinned: true,
               backgroundColor: _primaryBlue,
+              iconTheme: const IconThemeData(color: Colors.white),
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
                 title: const Text("Exams", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Colors.white)),
