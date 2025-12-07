@@ -134,6 +134,18 @@ class ApiService {
     } catch (e) { return false; }
   }
 
+  static Future<bool> resolveLostItem(int itemId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/lost-found/$itemId/'),
+        headers: headers,
+        body: json.encode({'is_resolved': true, 'category': 'FOUND'}), // Move to Found tab
+      );
+      return response.statusCode == 200;
+    } catch (_) { return false; }
+  }
+
   static Future<Map<String, dynamic>?> markAttendance(int eventId) async { 
     try {
       final headers = await _getHeaders(); 
@@ -202,11 +214,31 @@ class ApiService {
   }
 
   // --- COMMUNITY API ---
+// --- 1. Update Fetch Posts ---
   static Future<List<dynamic>> getCommunityPosts() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/community-posts/'));
+      // 🟢 FIX: Get headers (Token) so backend knows who "Me" is
+      final headers = await _getHeaders(); 
+      final response = await http.get(
+        Uri.parse('$baseUrl/community-posts/'),
+        headers: headers, // <--- Pass headers here
+      );
       if (response.statusCode == 200) return json.decode(response.body);
     } catch (e) { print("Community Error: $e"); }
+    return [];
+  }
+
+  // --- 2. Update Fetch Comments ---
+  static Future<List<dynamic>> getComments(int postId) async {
+    try {
+      // 🟢 FIX: Get headers here too
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/community-comments/?post_id=$postId'),
+        headers: headers, // <--- Pass headers here
+      );
+      if (response.statusCode == 200) return json.decode(response.body);
+    } catch (_) {}
     return [];
   }
 
@@ -268,14 +300,6 @@ class ApiService {
       final response = await http.delete(Uri.parse('$baseUrl/community-comments/$commentId/'), headers: headers);
       return response.statusCode == 204;
     } catch (_) { return false; }
-  }
-
-  static Future<List<dynamic>> getComments(int postId) async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/community-comments/?post_id=$postId'));
-      if (response.statusCode == 200) return json.decode(response.body);
-    } catch (_) {}
-    return [];
   }
 
   static Future<bool> postComment(int postId, String text) async {

@@ -249,34 +249,19 @@ String? _validateConfirmPassword(String? value) {
         children: [
           // 1. BACKGROUND GRADIENT
           Container(
-            height: MediaQuery.of(context).size.height * 0.4,
+            height: MediaQuery.of(context).size.height * 0.5,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: gradientColors, // 🟢
+                colors: gradientColors,
               ),
             ),
             child: Stack(
               children: [
                 Positioned(
                   right: -50, top: -50,
-                  child: Opacity(
-                    opacity: 0.1, 
-                    child: Image.asset(
-                      'assets/icon/icon.png', 
-                      height: 300, width: 300,
-                    ),
-                  ),
-                ),
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 10, top: 10),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
+                  child: Icon(Icons.hub, size: 300, color: Colors.white.withOpacity(0.05)),
                 ),
               ],
             ),

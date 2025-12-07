@@ -924,7 +924,7 @@ _buildQuickAction(
                         return Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+                          decoration: BoxDecoration(color: const Color.fromARGB(255, 46, 43, 43), borderRadius: BorderRadius.circular(15)),
                           child: const Center(child: Text("No upcoming events")),
                         );
                       }
@@ -1203,7 +1203,7 @@ _buildQuickAction(
 // --- TAB 2: EVENTS (LIVE DATA) ---
   Widget _buildEventsTab() {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,

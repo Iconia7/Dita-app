@@ -198,7 +198,7 @@ void _showChangePasswordDialog() {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: primaryColor)), // 🟢
+                                Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)), // 🟢
                                 IconButton(
                                   onPressed: _showEditDialog,
                                   icon: const Icon(Icons.edit_note_rounded, color: Colors.blue),
@@ -207,13 +207,13 @@ void _showChangePasswordDialog() {
                               ],
                             ),
                             Divider(color: isDark ? Colors.white10 : Colors.grey[200]), // 🟢 Dynamic Divider
-                            _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-", primaryColor, textColor!),
+                            _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-", Colors.blueAccent, textColor!),
                             const SizedBox(height: 25), // Replaced Dividers with spacing for cleaner dark mode look
-                            _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-", primaryColor, textColor),
+                            _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-", Colors.blueAccent, textColor),
                             const SizedBox(height: 25),
-                            _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}", primaryColor, textColor),
+                            _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}", Colors.blueAccent, textColor),
                             const SizedBox(height: 25),
-                            _buildDetailRow(Icons.phone_iphone_rounded, "Phone", _currentUser['phone_number'] ?? "-", primaryColor, textColor),
+                            _buildDetailRow(Icons.phone_iphone_rounded, "Phone", _currentUser['phone_number'] ?? "-", Colors.blueAccent, textColor),
                           ],
                         ),
                       ),
@@ -225,7 +225,7 @@ void _showChangePasswordDialog() {
                         alignment: Alignment.centerLeft,
                         child: Padding(
                           padding: const EdgeInsets.only(left: 10, bottom: 10),
-                          child: Text("Support & Help", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primaryColor)), // 🟢
+                          child: Text("Support & Help", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)), // 🟢
                         ),
                       ),
                       

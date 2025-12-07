@@ -67,7 +67,7 @@ class _LostFoundScreenState extends State<LostFoundScreen> with SingleTickerProv
         future: ApiService.getLostFoundItems(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: DaystarSpinner(size: 120)); // Use custom spinner
+            return const Center(child: DaystarSpinner(size: 120,)); // Use custom spinner
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
              return EmptyStateWidget(
@@ -189,20 +189,60 @@ class _LostFoundScreenState extends State<LostFoundScreen> with SingleTickerProv
                     
                     // CONTACT BUTTON
                     SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: isResolved ? null : () async {
-                          final Uri launchUri = Uri(scheme: 'tel', path: item['contact_phone']);
-                          await launchUrl(launchUri);
-                        },
-                        icon: const Icon(Icons.call),
-                        label: Text(isResolved ? "Item Returned" : "Contact Finder/Owner"),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: isResolved ? Colors.grey : primaryColor, // 🟢 Dynamic Color
-                          side: BorderSide(color: isResolved ? Colors.grey : primaryColor),
-                        ),
-                      ),
-                    ),
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: isResolved 
+      ? null // Already done
+      : () async {
+          // 🟢 LOGIC: Check ownership
+          bool isOwner = item['is_owner'] ?? false;
+          
+          if (isOwner) {
+             // 🟢 OWNER ACTION: Mark as Found
+             bool confirm = await showDialog(
+               context: context, 
+               builder: (ctx) => AlertDialog(
+                 title: const Text("Mark as Found?"),
+                 content: const Text("This will move the item to the 'Found' tab and mark it as resolved."),
+                 actions: [
+                   TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+                   TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Yes, I found it")),
+                 ],
+               )
+             ) ?? false;
+
+             if (confirm) {
+               bool success = await ApiService.resolveLostItem(item['id']);
+               if (success) setState(() {}); // Refresh UI
+             }
+          } else {
+             // 🟢 STRANGER ACTION: Call
+             final Uri launchUri = Uri(scheme: 'tel', path: item['contact_phone']);
+             await launchUrl(launchUri);
+          }
+      },
+    icon: Icon(
+       // 🟢 Dynamic Icon
+       (item['is_owner'] ?? false) && !isResolved ? Icons.check_circle_outline : Icons.call
+    ),
+    label: Text(
+      // 🟢 Dynamic Label
+      isResolved 
+        ? "Item Returned" 
+        : (item['is_owner'] ?? false) ? "Mark as Found" : "Contact Finder/Owner"
+    ),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: isResolved 
+          ? Colors.grey 
+          : ((item['is_owner'] ?? false) ? Colors.green : primaryColor), // Green for owner action
+      side: BorderSide(
+          color: isResolved 
+             ? Colors.grey 
+             : ((item['is_owner'] ?? false) ? Colors.green : primaryColor)
+      ),
+    ),
+  ),
+),
                   ],
                 ),
               )
