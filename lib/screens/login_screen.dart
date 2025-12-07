@@ -24,12 +24,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // --- DESIGN SYSTEM COLORS ---
-  final Color _primaryDark = const Color(0xFF003366); // DITA Blue
-  final Color _primaryLight = const Color(0xFF004C99);
-  final Color _accentGold = const Color(0xFFFFD700);
-  final Color _bgInput = const Color(0xFFF5F7FA);
-
   @override
   void initState() {
     super.initState();
@@ -110,8 +104,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // 🟢 2. DYNAMIC COLORS
+    // Light Mode: Dita Blue -> Lighter Blue
+    // Dark Mode:  Deep Slate -> Dita Blue (Subtler, darker gradient)
+    final gradientColors = isDark 
+        ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
+        : [const Color(0xFF003366), const Color(0xFF004C99)];
+
+    final scaffoldBg = isDark ? const Color(0xFF0F172A) : const Color(0xFF003366);
+    final cardColor = Theme.of(context).cardColor; // White (Light) or Slate 800 (Dark)
     return Scaffold(
-      backgroundColor: _primaryDark,
+      backgroundColor: scaffoldBg,
       body: Stack(
         children: [
           // 1. BACKGROUND GRADIENT
@@ -121,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [_primaryDark, _primaryLight],
+                colors: gradientColors,
               ),
             ),
             child: Stack(
@@ -187,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         Container(
                           padding: const EdgeInsets.all(50),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: cardColor,
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
@@ -207,6 +212,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   hint: "Admission / Username",
                                   icon: Icons.person_outline_rounded,
                                   validator: (v) => v!.isEmpty ? "Username is required" : null, // <--- VALIDATION ADDED
+                                  isDark: isDark,
                                 ),
 
                                 const SizedBox(height: 20),
@@ -218,6 +224,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   icon: Icons.lock_outline_rounded,
                                   isPassword: true,
                                   validator: (v) => v!.isEmpty ? "Password is required" : null, // <--- VALIDATION ADDED
+                                  isDark: isDark,
                                 ),
 
                                 // Forgot Password
@@ -229,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                       backgroundColor: Colors.transparent,
                                       builder: (context) => const ForgotPasswordModal(),
                                     );},
-                                    child: Text("Forgot Password?", style: TextStyle(color: _primaryLight, fontWeight: FontWeight.bold)),
+                                    child: Text("Forgot Password?", style: TextStyle(color: isDark ? Colors.blue[200] : const Color(0xFF004C99), fontWeight: FontWeight.bold)),
                                   ),
                                 ),
 
@@ -242,8 +249,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   child: ElevatedButton(
                                     onPressed: _isLoading ? null : _handleLogin,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: _primaryDark,
-                                      foregroundColor: Colors.white,
+                                     backgroundColor: isDark ? const Color(0xFFFFD700) : const Color(0xFF003366),
+                                      foregroundColor: isDark ? const Color(0xFF003366) : Colors.white,
                                       elevation: 5,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(15),
@@ -283,10 +290,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               child: Text(
                                 "Create Account",
                                 style: TextStyle(
-                                  color: _accentGold,
+                                  color: Color(0xFFFFD700),
                                   fontWeight: FontWeight.bold,
                                   decoration: TextDecoration.underline,
-                                  decorationColor: _accentGold,
+                                  decorationColor:Color(0xFFFFD700),
                                 ),
                               ),
                             ),
@@ -311,48 +318,40 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     required IconData icon,
     bool isPassword = false,
     String? Function(String?)? validator,
+    required bool isDark,
   }) {
+    final fillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA); // Dark Navy or Light Grey
+    final iconColor = isDark ? Colors.white54 : Colors.grey[500];
+    final textColor = isDark ? Colors.white : Colors.black87;
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       validator: validator,
-      style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+      style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
       decoration: InputDecoration(
         filled: true,
-        fillColor: _bgInput,
+        fillColor: fillColor,
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-        prefixIcon: Icon(icon, color: Colors.grey[500]),
+        hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey[400], fontSize: 14),
+        prefixIcon: Icon(icon, color: iconColor),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  color: Colors.grey[400],
+                  color: iconColor,
                   size: 20,
                 ),
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               )
             : null,
-        errorBorder: OutlineInputBorder( // Custom error border color
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.transparent)),
+        focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+          // 🟢 Focus color: Gold in dark mode, Blue in light mode
+          borderSide: BorderSide(color: isDark ? const Color(0xFFFFD700) : const Color(0xFF004C99), width: 1.5),
         ),
-        focusedErrorBorder: OutlineInputBorder( // Retains error border when focused
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Colors.red, width: 1.5),
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none, // Default border is hidden by fillColor
-        ),
-        enabledBorder: OutlineInputBorder( // Default non-focused state
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: Colors.transparent),
-        ),
-        focusedBorder: OutlineInputBorder( // Blue border when focused
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: _primaryLight, width: 1.5),
-        ),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.red, width: 1.5)),  
         contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
       ),
     );

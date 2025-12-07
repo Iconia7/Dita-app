@@ -19,10 +19,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
 
-  final Color _primaryDark = const Color(0xFF003366);
-  final Color _accentGold = const Color(0xFFFFD700);
-  final Color _bgOffWhite = const Color(0xFFF4F6F9);
-
   // UI history
   final List<Map<String, String>> _history = [
     {'role': 'assistant', 'text': 'Hello! I am DITA AI. Ask me about your exams, classes, or upcoming events! 🎓'}
@@ -200,13 +196,24 @@ $eventContext
     });
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    
+    // Dynamic message bubble colors
+    final userBubbleColor = isDark ? primaryColor : const Color(0xFF003366);
+    final botBubbleColor = isDark ? const Color(0xFF1E293B) : Colors.white; // Slate 800 vs White
+    final inputFillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F6F9); // Dark Navy vs Light Grey
+
     return Scaffold(
-      backgroundColor: _bgOffWhite,
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
         title: const Text("DITA Assistant 🤖", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: _primaryDark,
+        backgroundColor: primaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
       ),
@@ -227,22 +234,25 @@ $eventContext
                     padding: const EdgeInsets.all(12),
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
                     decoration: BoxDecoration(
-                      color: isUser ? _primaryDark : Colors.white,
+                      color: isUser ? userBubbleColor : botBubbleColor, // 🟢 Dynamic Bubbles
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(15),
                         topRight: const Radius.circular(15),
                         bottomLeft: isUser ? const Radius.circular(15) : Radius.zero,
                         bottomRight: isUser ? Radius.zero : const Radius.circular(15),
                       ),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))
+                      ],
                     ),
                     child: isUser
                         ? Text(msg['text']!, style: const TextStyle(color: Colors.white))
                         : MarkdownBody(
                             data: msg['text']!,
                             styleSheet: MarkdownStyleSheet(
-                              p: const TextStyle(fontSize: 15, height: 1.4),
-                              strong: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                              p: TextStyle(fontSize: 15, height: 1.4, color: textColor), // 🟢 Dynamic Text
+                              strong: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.blueAccent : Colors.blue),
+                              listBullet: TextStyle(color: textColor),
                             ),
                           ),
                   ),
@@ -251,22 +261,26 @@ $eventContext
             ),
           ),
           if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
             ),
+          
+          // INPUT AREA
           Container(
             padding: const EdgeInsets.all(15),
-            color: Colors.white,
+            color: isDark ? botBubbleColor : Colors.white, // 🟢 Input Bar Background
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _textController,
+                    style: TextStyle(color: textColor), // 🟢 Dynamic Input Text
                     decoration: InputDecoration(
                       hintText: "Ask about events, exams...",
+                      hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
                       filled: true,
-                      fillColor: _bgOffWhite,
+                      fillColor: inputFillColor, // 🟢 Dynamic Input Field BG
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                     ),
@@ -275,9 +289,9 @@ $eventContext
                 ),
                 const SizedBox(width: 10),
                 CircleAvatar(
-                  backgroundColor: _accentGold,
+                  backgroundColor: const Color(0xFFFFD700), // Keep Gold
                   child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.black),
+                    icon: const Icon(Icons.send, color: Colors.black), // Black arrow on Gold is always readable
                     onPressed: _sendMessage,
                   ),
                 )

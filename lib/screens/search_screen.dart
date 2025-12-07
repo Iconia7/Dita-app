@@ -2,7 +2,6 @@ import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 
 class DitaSearchDelegate extends SearchDelegate {
-  // We accept Futures (Promises) instead of completed Lists
   final Future<List<dynamic>> eventsFuture;
   final Future<List<dynamic>> resourcesFuture;
 
@@ -10,28 +9,45 @@ class DitaSearchDelegate extends SearchDelegate {
 
   @override
   ThemeData appBarTheme(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+
     return Theme.of(context).copyWith(
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF003366), 
-        foregroundColor: Colors.white,
+      appBarTheme: AppBarTheme(
+        backgroundColor: scaffoldBg, // 🟢 Match the rest of the app background
+        foregroundColor: textColor,  // 🟢 Dynamic Text/Icon color
         elevation: 0,
       ),
-      inputDecorationTheme: const InputDecorationTheme(
+      inputDecorationTheme: InputDecorationTheme(
         border: InputBorder.none,
-        hintStyle: TextStyle(color: Colors.white54),
+        hintStyle: TextStyle(color: isDark ? Colors.grey : Colors.grey[400]),
       ),
-      textTheme: const TextTheme(titleLarge: TextStyle(color: Colors.white, fontSize: 18)),
+      textTheme: TextTheme(
+        titleLarge: TextStyle(
+          color: textColor, // 🟢 Input text color
+          fontSize: 18,
+          fontWeight: FontWeight.normal, // Standard search input weight
+        ),
+      ),
     );
   }
 
   @override
   List<Widget>? buildActions(BuildContext context) => [
-    IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')
+    IconButton(
+      icon: const Icon(Icons.clear), 
+      onPressed: () => query = ''
+    )
   ];
 
   @override
   Widget? buildLeading(BuildContext context) => 
-    IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+    IconButton(
+      icon: const Icon(Icons.arrow_back), 
+      onPressed: () => close(context, null)
+    );
 
   @override
   Widget buildResults(BuildContext context) => _buildAsyncList(context);
@@ -39,33 +55,31 @@ class DitaSearchDelegate extends SearchDelegate {
   @override
   Widget buildSuggestions(BuildContext context) => _buildAsyncList(context);
 
-  // --- NEW: Handle the Async Data Loading ---
   Widget _buildAsyncList(BuildContext context) {
+    // 🟢 Theme Helpers
+    final primaryColor = Theme.of(context).primaryColor;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     return FutureBuilder<List<List<dynamic>>>(
-      // Wait for BOTH APIs to finish
       future: Future.wait([eventsFuture, resourcesFuture]),
       builder: (context, snapshot) {
-        
-        // 1. Show Spinner while loading
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const CircularProgressIndicator(color: Color(0xFF003366)),
+                CircularProgressIndicator(color: primaryColor), // 🟢 Dynamic Loader
                 const SizedBox(height: 15),
-                Text("Searching database...", style: TextStyle(color: Colors.grey[500])),
+                Text("Searching database...", style: TextStyle(color: subTextColor)),
               ],
             ),
           );
         }
 
-        // 2. Handle Errors
         if (snapshot.hasError) {
-          return const Center(child: Text("Could not load search data."));
+          return Center(child: Text("Could not load search data.", style: TextStyle(color: subTextColor)));
         }
 
-        // 3. Data is Ready! Filter it now.
         final List<dynamic> events = snapshot.data![0];
         final List<dynamic> resources = snapshot.data![1];
 
@@ -75,48 +89,104 @@ class DitaSearchDelegate extends SearchDelegate {
   }
 
   Widget _filterAndDisplayData(BuildContext context, List<dynamic> events, List<dynamic> resources) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+    final cardColor = Theme.of(context).cardColor;
+
     final eventResults = events.where((e) => e['title'].toString().toLowerCase().contains(query.toLowerCase())).toList();
     final resourceResults = resources.where((r) => r['title'].toString().toLowerCase().contains(query.toLowerCase())).toList();
 
-    if (query.isEmpty) return const Center(child: Text("Search events or resources...", style: TextStyle(color: Colors.grey)));
-    if (eventResults.isEmpty && resourceResults.isEmpty) {
-    return const SingleChildScrollView( // ScrollView prevents overflow on small screens
-      child: EmptyStateWidget(
-        svgPath: 'assets/svgs/no_search.svg',
-        title: "No Results Found",
-        message: "We couldn't find anything matching that query. Try a different keyword.",
-      ),
-    );
-  }
+    if (query.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search, size: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
+            const SizedBox(height: 10),
+            Text("Search events or resources...", style: TextStyle(color: subTextColor)),
+          ],
+        ),
+      );
+    }
 
-    return ListView(
-      padding: const EdgeInsets.all(15),
-      children: [
-        if (eventResults.isNotEmpty) ...[
-          const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text("EVENTS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
-          ...eventResults.map((e) => ListTile(
-    leading: const Icon(Icons.calendar_month, color: Color(0xFF003366)),
-    title: Text(e['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
-    subtitle: Text(e['venue'] ?? "No Venue"),
-    onTap: () {
-        // 🛑 CRITICAL CHANGE: Close search and pass the target index 1 (Events Tab)
-        close(context, {'tabIndex': 1, 'id': e['id']}); 
-    },
-)),
-],
-        if (resourceResults.isNotEmpty) ...[
-          const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text("RESOURCES", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
-          ...resourceResults.map((r) => ListTile(
-        leading: Icon(r['resource_type'] == 'PDF' ? Icons.picture_as_pdf : Icons.link, color: r['resource_type'] == 'PDF' ? Colors.red : Colors.blue),
-        title: Text(r['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(r['description'] ?? ""),
-        onTap: () async {
-            // 🛑 CRITICAL CHANGE: Close search and pass the target index 2 (Resources Tab)
-            close(context, {'tabIndex': 2, 'id': r['id']}); 
-        },
-    )),
-],
-      ],
+    if (eventResults.isEmpty && resourceResults.isEmpty) {
+      return const SingleChildScrollView(
+        child: EmptyStateWidget(
+          svgPath: 'assets/svgs/no_search.svg',
+          title: "No Results Found",
+          message: "We couldn't find anything matching that query. Try a different keyword.",
+        ),
+      );
+    }
+
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor, // 🟢 Ensure background matches theme
+      child: ListView(
+        padding: const EdgeInsets.all(15),
+        children: [
+          if (eventResults.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10), 
+              child: Text("EVENTS", style: TextStyle(fontWeight: FontWeight.bold, color: subTextColor, fontSize: 12))
+            ),
+            ...eventResults.map((e) => Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: cardColor, // 🟢 Dynamic Item BG
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                  child: Icon(Icons.calendar_month, color: primaryColor, size: 20)
+                ),
+                title: Text(e['title'], style: TextStyle(fontWeight: FontWeight.bold, color: textColor)), // 🟢
+                subtitle: Text(e['venue'] ?? "No Venue", style: TextStyle(color: subTextColor)),
+                onTap: () {
+                  close(context, {'tabIndex': 1, 'id': e['id']}); 
+                },
+              ),
+            )),
+          ],
+
+          if (resourceResults.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10), 
+              child: Text("RESOURCES", style: TextStyle(fontWeight: FontWeight.bold, color: subTextColor, fontSize: 12))
+            ),
+            ...resourceResults.map((r) => Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: cardColor, // 🟢
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: (r['resource_type'] == 'PDF' ? Colors.red : Colors.blue).withOpacity(0.1),
+                    shape: BoxShape.circle
+                  ),
+                  child: Icon(
+                    r['resource_type'] == 'PDF' ? Icons.picture_as_pdf : Icons.link, 
+                    color: r['resource_type'] == 'PDF' ? Colors.red : Colors.blue, 
+                    size: 20
+                  )
+                ),
+                title: Text(r['title'], style: TextStyle(fontWeight: FontWeight.bold, color: textColor)), // 🟢
+                subtitle: Text(r['description'] ?? "", style: TextStyle(color: subTextColor)),
+                onTap: () async {
+                  close(context, {'tabIndex': 2, 'id': r['id']}); 
+                },
+              ),
+            )),
+          ]
+        ],
+      ),
     );
   }
 }

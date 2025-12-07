@@ -1,7 +1,7 @@
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-import '../widgets/dita_loader.dart'; // Assuming you have this
+import '../widgets/dita_loader.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -11,16 +11,26 @@ class LeaderboardScreen extends StatefulWidget {
 }
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
-  final Color _primaryDark = const Color(0xFF003366);
-  final Color _accentGold = const Color(0xFFFFD700);
+  // 🟢 Colors moved to Theme (Only keeping medal colors)
+  final Color _gold = const Color(0xFFFFD700);
+  final Color _silver = const Color(0xFFC0C0C0);
+  final Color _bronze = const Color(0xFFCD7F32);
   
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
         title: const Text("Top Students 🏆", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryDark,
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
@@ -29,19 +39,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         future: ApiService.getLeaderboard(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: DaystarSpinner(size: 120,)); // Your custom loader
+            return const Center(child: DaystarSpinner(size: 120)); 
           }
           
-          // In LeaderboardScreen (inside FutureBuilder)
-if (!snapshot.hasData || snapshot.data!.isEmpty) {
-  return EmptyStateWidget(
-    svgPath: 'assets/svgs/no_ranks.svg',
-    title: " The Throne is Empty!",
-    message: "No one has earned points yet. Be the first to attend an event and claim the top spot!",
-    actionLabel: "Find Events",
-    onActionPressed: () => Navigator.pop(context), // Go back to Home/Events
-  );
-}
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return EmptyStateWidget(
+              svgPath: 'assets/svgs/no_ranks.svg', // Ensure this SVG exists
+              title: "The Throne is Empty!",
+              message: "No one has earned points yet. Be the first to attend an event and claim the top spot!",
+              actionLabel: "Find Events",
+              onActionPressed: () => Navigator.pop(context), 
+            );
+          }
 
           final users = snapshot.data!;
 
@@ -58,22 +67,23 @@ if (!snapshot.hasData || snapshot.data!.isEmpty) {
               final bool isThird = rank == 3;
               
               Color? trophyColor;
-              if (isFirst) trophyColor = const Color(0xFFFFD700); // Gold
-              if (isSecond) trophyColor = const Color(0xFFC0C0C0); // Silver
-              if (isThird) trophyColor = const Color(0xFFCD7F32); // Bronze
+              if (isFirst) trophyColor = _gold;
+              if (isSecond) trophyColor = _silver;
+              if (isThird) trophyColor = _bronze;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardColor, // 🟢 Dynamic Card BG
                   borderRadius: BorderRadius.circular(15),
-                  border: isFirst ? Border.all(color: _accentGold, width: 2) : null,
+                  border: isFirst ? Border.all(color: _gold, width: 2) : null,
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
                   ]
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  
                   // Rank Number or Trophy
                   leading: SizedBox(
                     width: 40,
@@ -81,7 +91,7 @@ if (!snapshot.hasData || snapshot.data!.isEmpty) {
                       ? Icon(Icons.emoji_events_rounded, color: trophyColor, size: 30)
                       : Text(
                           "#$rank", 
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[600]),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: subTextColor), // 🟢 Dynamic Grey
                           textAlign: TextAlign.center,
                         ),
                   ),
@@ -91,9 +101,9 @@ if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     children: [
                       CircleAvatar(
                         radius: 20,
-                        backgroundColor: _primaryDark.withOpacity(0.1),
+                        backgroundColor: primaryColor.withOpacity(0.1), // 🟢 Dynamic tint
                         backgroundImage: user['avatar'] != null ? NetworkImage(user['avatar']) : null,
-                        child: user['avatar'] == null ? Icon(Icons.person, color: _primaryDark) : null,
+                        child: user['avatar'] == null ? Icon(Icons.person, color: primaryColor) : null, // 🟢
                       ),
                       const SizedBox(width: 15),
                       Expanded(
@@ -102,12 +112,12 @@ if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           children: [
                             Text(
                               user['username'] ?? "Unknown", 
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor), // 🟢 Dynamic Text
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               user['program'] ?? "Student", 
-                              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                              style: TextStyle(color: subTextColor, fontSize: 12), // 🟢 Dynamic Subtext
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
@@ -120,17 +130,20 @@ if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _primaryDark.withOpacity(0.1),
+                      color: isDark ? Colors.white10 : primaryColor.withOpacity(0.1), // 🟢 Lighter badge in dark mode
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.stars_rounded, color: _primaryDark, size: 16),
+                        Icon(Icons.stars_rounded, color: isDark ? _gold : primaryColor, size: 16), // 🟢 Gold star on dark looks better
                         const SizedBox(width: 5),
                         Text(
                           "${user['points']}", 
-                          style: TextStyle(fontWeight: FontWeight.bold, color: _primaryDark)
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold, 
+                            color: isDark ? Colors.white : primaryColor // 🟢 Dynamic Text
+                          )
                         ),
                       ],
                     ),

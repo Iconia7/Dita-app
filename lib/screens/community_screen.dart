@@ -12,9 +12,7 @@ class CommunityScreen extends StatefulWidget {
 }
 
 class _CommunityScreenState extends State<CommunityScreen> {
-  // Instagram/Threads Style Colors
-  final Color _primaryDark = const Color(0xFF003366);
-  
+  // 🟢 Removed hardcoded _primaryDark (Use Theme instead)
   String _selectedCategory = 'ALL';
 
   void _showCreatePostSheet() {
@@ -30,24 +28,34 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final borderColor = isDark ? Colors.white10 : Colors.grey[200]!;
+
     return Scaffold(
-      backgroundColor: Colors.white, // Clean white background
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
-        // Instagram Style Header
         title: Text(
           "Community", 
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: _primaryDark, letterSpacing: -0.5)
+          style: TextStyle(
+            fontWeight: FontWeight.w900, 
+            fontSize: 24, 
+            color: textColor, // 🟢 Dynamic Text
+            letterSpacing: -0.5
+          )
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: _primaryDark,
+        backgroundColor: scaffoldBg, // 🟢 Matches Body
+        foregroundColor: textColor,
         elevation: 0,
-        surfaceTintColor: Colors.white,
-        centerTitle: false, // Left align title
+        surfaceTintColor: scaffoldBg,
+        centerTitle: false, 
         actions: [
-          // 🚀 SOLVED: "New Post" button moved here to avoid AI button conflict
           IconButton(
             onPressed: _showCreatePostSheet,
-            icon: const Icon(Icons.add_box_outlined, size: 28),
+            icon: Icon(Icons.add_box_outlined, size: 28, color: textColor), // 🟢 Dynamic Icon
             tooltip: "New Post",
           ),
           const SizedBox(width: 10),
@@ -59,7 +67,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
           Container(
             height: 60,
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[100]!))
+              border: Border(bottom: BorderSide(color: borderColor)) // 🟢 Dynamic Border
             ),
             child: ListView(
               scrollDirection: Axis.horizontal,
@@ -82,7 +90,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
               future: ApiService.getCommunityPosts(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: DaystarSpinner()); // Your loader
+                  return const Center(child: DaystarSpinner(size: 100)); 
                 }
                 
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -104,15 +112,17 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
                 return RefreshIndicator(
                   onRefresh: () async { setState(() {}); },
-                  color: _primaryDark,
+                  color: primaryColor,
                   child: ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 100), // Space for bottom nav
+                    padding: const EdgeInsets.only(bottom: 100), 
                     itemCount: posts.length,
-                    separatorBuilder: (c, i) => Divider(height: 1, color: Colors.grey[100]),
+                    separatorBuilder: (c, i) => Divider(height: 1, color: borderColor), // 🟢 Dynamic Divider
                     itemBuilder: (context, index) {
-                      return _PostItem(post: posts[index], primaryDark: _primaryDark,onPostDeleted: () {
-    setState(() {}); // Refresh the list to remove the deleted post
-  },);
+                      return _PostItem(
+                        post: posts[index], 
+                        primaryDark: primaryColor,
+                        onPostDeleted: () => setState((){}),
+                      );
                     },
                   ),
                 );
@@ -121,26 +131,32 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ),
         ],
       ),
-      // NO FLOATING ACTION BUTTON HERE (It's now in AppBar)
     );
   }
 
   Widget _buildFilterChip(String key, String label) {
     bool isSelected = _selectedCategory == key;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+
     return GestureDetector(
       onTap: () => setState(() => _selectedCategory = key),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? _primaryDark : Colors.grey[100],
+          color: isSelected 
+              ? primaryColor 
+              : (isDark ? Colors.white10 : Colors.grey[100]), // 🟢 Dynamic Chip BG
           borderRadius: BorderRadius.circular(20),
-          border: isSelected ? null : Border.all(color: Colors.grey[300]!),
+          border: isSelected ? null : Border.all(color: isDark ? Colors.transparent : Colors.grey[300]!),
         ),
         child: Center(
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : Colors.black87,
+              color: isSelected 
+                  ? Colors.white 
+                  : (isDark ? Colors.white70 : Colors.black87), // 🟢 Dynamic Text
               fontWeight: FontWeight.bold,
               fontSize: 13
             ),
@@ -151,14 +167,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 }
 
-// --- INSTAGRAM STYLE POST ITEM ---
-// ... Imports ...
-
-// --- INSTAGRAM STYLE POST ITEM (STATEFUL FOR OPTIMISTIC LIKE) ---
+// --- POST ITEM ---
 class _PostItem extends StatefulWidget {
   final Map<String, dynamic> post;
   final Color primaryDark;
-  final VoidCallback onPostDeleted; // Callback to refresh list
+  final VoidCallback onPostDeleted;
 
   const _PostItem({
     required this.post, 
@@ -179,7 +192,6 @@ class _PostItemState extends State<_PostItem> {
   @override
   void initState() {
     super.initState();
-    // Initialize local state from API data
     isLiked = widget.post['is_liked'] ?? false;
     likeCount = widget.post['likes'] ?? 0;
     displayContent = widget.post['content'];
@@ -187,16 +199,12 @@ class _PostItemState extends State<_PostItem> {
   }
 
   void _handleLike() async {
-    // 1. Optimistic Update (Instant feedback)
     setState(() {
       isLiked = !isLiked;
       likeCount += isLiked ? 1 : -1;
     });
 
-    // 2. Network Request
     final result = await ApiService.likePost(widget.post['id']);
-
-    // 3. Correction (if server disagrees)
     if (result != null) {
       setState(() {
         likeCount = result['likes'];
@@ -206,7 +214,6 @@ class _PostItemState extends State<_PostItem> {
   }
 
   void _editPost() async {
-    // Open the sheet and wait for the result (the new text/category)
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -218,7 +225,6 @@ class _PostItemState extends State<_PostItem> {
       ),
     );
 
-    // If the user saved changes, update the UI instantly
     if (result != null && mounted) {
       setState(() {
         displayContent = result['content'];
@@ -231,6 +237,7 @@ class _PostItemState extends State<_PostItem> {
     bool confirm = await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         title: const Text("Delete Post?"),
         content: const Text("This cannot be undone."),
         actions: [
@@ -243,13 +250,17 @@ class _PostItemState extends State<_PostItem> {
     if (confirm) {
       bool success = await ApiService.deletePost(widget.post['id']);
       if (success) {
-        widget.onPostDeleted(); // Tell parent to remove from list
+        widget.onPostDeleted();
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     bool isAnon = widget.post['is_anonymous'] ?? false;
     
     Color badgeColor;
@@ -282,7 +293,7 @@ class _PostItemState extends State<_PostItem> {
                   children: [
                     Row(
                       children: [
-                        Text(widget.post['username'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text(widget.post['username'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)), // 🟢
                         const SizedBox(width: 5),
                         if (widget.post['category'] != 'GENERAL')
                           Text("• $displayCategory", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor)),
@@ -290,28 +301,22 @@ class _PostItemState extends State<_PostItem> {
                     ),
                     Text(
                       DateFormat('MMM d').format(DateTime.parse(widget.post['created_at'])),
-                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      style: TextStyle(color: subTextColor, fontSize: 11), // 🟢
                     ),
                   ],
                 ),
               ),
-              // DELETE OPTION (Only for Owner)
-              if (widget.post['is_owner'] ?? false) // Check ownership
+              if (widget.post['is_owner'] ?? false)
                 PopupMenuButton(
-                  icon: const Icon(Icons.more_horiz, color: Colors.grey),
+                  icon: Icon(Icons.more_horiz, color: subTextColor),
+                  color: Theme.of(context).cardColor, // 🟢 Dynamic Menu
                   onSelected: (val) {
                     if (val == 'delete') _deletePost();
-                    if (val == 'edit') _editPost(); // 🟢 HANDLE EDIT
+                    if (val == 'edit') _editPost(); 
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(children: [Icon(Icons.edit, color: Colors.blue), SizedBox(width: 10), Text("Edit")]),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 10), Text("Delete", style: TextStyle(color: Colors.red))]),
-                    ),
+                    const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, color: Colors.blue), SizedBox(width: 10), Text("Edit")])),
+                    const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 10), Text("Delete", style: TextStyle(color: Colors.red))])),
                   ],
                 )
             ],
@@ -322,7 +327,7 @@ class _PostItemState extends State<_PostItem> {
             padding: const EdgeInsets.only(top: 10, bottom: 10),
             child: Text(
               displayContent, 
-              style: const TextStyle(fontSize: 15, height: 1.4, color: Color(0xFF262626)),
+              style: TextStyle(fontSize: 15, height: 1.4, color: textColor), // 🟢
             ),
           ),
 
@@ -333,10 +338,10 @@ class _PostItemState extends State<_PostItem> {
                 onTap: _handleLike,
                 child: Row(
                   children: [
-                    Icon(isLiked ? Icons.favorite : Icons.favorite_border_rounded, size: 26, color: isLiked ? Colors.red : Colors.black87),
+                    Icon(isLiked ? Icons.favorite : Icons.favorite_border_rounded, size: 26, color: isLiked ? Colors.red : textColor), // 🟢
                     const SizedBox(width: 6),
                     if (likeCount > 0) 
-                      Text("$likeCount", style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      Text("$likeCount", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)), // 🟢
                   ],
                 ),
               ),
@@ -344,6 +349,7 @@ class _PostItemState extends State<_PostItem> {
               _IconAction(
                 icon: Icons.chat_bubble_outline_rounded, 
                 label: "${widget.post['comment_count']}",
+                color: textColor!, // 🟢
                 onTap: () {
                   showModalBottomSheet(
                     context: context, 
@@ -354,7 +360,7 @@ class _PostItemState extends State<_PostItem> {
                 },
               ),
               const Spacer(),
-              const Icon(Icons.bookmark_border_rounded, size: 24, color: Colors.black54),
+              Icon(Icons.bookmark_border_rounded, size: 24, color: subTextColor), // 🟢
             ],
           ),
         ],
@@ -367,8 +373,9 @@ class _IconAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final Color color; // 🟢 Added Color
 
-  const _IconAction({required this.icon, required this.label, required this.onTap});
+  const _IconAction({required this.icon, required this.label, required this.onTap, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -376,10 +383,10 @@ class _IconAction extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, size: 26, color: Colors.black87),
+          Icon(icon, size: 26, color: color),
           const SizedBox(width: 6),
           if (label != "0") 
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: color)),
         ],
       ),
     );
@@ -412,29 +419,38 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (success) Navigator.pop(context, true); // Return true to refresh
+      if (success) Navigator.pop(context, true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetColor = Theme.of(context).cardColor;
+    final inputColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      decoration: BoxDecoration(color: sheetColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(25))), // 🟢
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("New Post", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text("New Post", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 15),
           TextField(
             controller: _contentController,
             maxLines: 4,
+            style: TextStyle(color: textColor),
             decoration: InputDecoration(
               hintText: "What's on your mind?",
+              hintStyle: TextStyle(color: Colors.grey[400]),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
               filled: true,
-              fillColor: const Color(0xFFF5F7FA)
+              fillColor: inputColor, // 🟢
             ),
           ),
           const SizedBox(height: 15),
@@ -442,6 +458,8 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
             children: [
               DropdownButton<String>(
                 value: _category,
+                dropdownColor: sheetColor, // 🟢
+                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
                 items: const [
                   DropdownMenuItem(value: 'GENERAL', child: Text("General 📢")),
                   DropdownMenuItem(value: 'ACADEMIC', child: Text("Academic 📚")),
@@ -452,8 +470,12 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
               const Spacer(),
               Row(
                 children: [
-                  Checkbox(value: _isAnon, onChanged: (v) => setState(() => _isAnon = v!)),
-                  const Text("Anonymous")
+                  Checkbox(
+                    value: _isAnon, 
+                    activeColor: primaryColor,
+                    onChanged: (v) => setState(() => _isAnon = v!)
+                  ),
+                  Text("Anonymous", style: TextStyle(color: textColor))
                 ],
               )
             ],
@@ -463,7 +485,7 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF003366), foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
               child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("POST"),
             ),
           )
@@ -473,7 +495,8 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
   }
 }
 
-
+// --- EDIT POST SHEET ---
+// (Very similar to CreatePostSheet, just add the Theme logic for colors)
 class EditPostSheet extends StatefulWidget {
   final String initialContent;
   final String initialCategory;
@@ -516,7 +539,6 @@ class _EditPostSheetState extends State<EditPostSheet> {
     if (mounted) {
       setState(() => _isLoading = false);
       if (success) {
-        // Return the new data to the parent so it can update the UI
         Navigator.pop(context, data); 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Post updated!"), backgroundColor: Colors.green)
@@ -527,30 +549,37 @@ class _EditPostSheetState extends State<EditPostSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetColor = Theme.of(context).cardColor;
+    final inputColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
+      decoration: BoxDecoration(color: sheetColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(25))),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Edit Post", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text("Edit Post", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 15),
           TextField(
             controller: _contentController,
             maxLines: 4,
+            style: TextStyle(color: textColor),
             decoration: InputDecoration(
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
               filled: true,
-              fillColor: const Color(0xFFF5F7FA),
+              fillColor: inputColor,
             ),
           ),
           const SizedBox(height: 15),
           DropdownButton<String>(
             value: _category,
+            dropdownColor: sheetColor,
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
             items: const [
               DropdownMenuItem(value: 'GENERAL', child: Text("General 📢")),
               DropdownMenuItem(value: 'ACADEMIC', child: Text("Academic 📚")),
@@ -563,7 +592,7 @@ class _EditPostSheetState extends State<EditPostSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF003366), foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
               child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("SAVE CHANGES"),
             ),
           )
@@ -610,21 +639,28 @@ class _CommentsSheetState extends State<CommentsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetColor = Theme.of(context).cardColor;
+    final inputColor = isDark ? const Color(0xFF0F172A) : Colors.grey[100];
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      decoration: BoxDecoration(color: sheetColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(25))),
       child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(15.0),
-            child: Text("Comments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: widget.primaryDark)),
+            child: Text("Comments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
           ),
           const Divider(height: 1),
           Expanded(
             child: _loading 
-              ? const Center(child: DaystarSpinner())
+              ? const Center(child: DaystarSpinner(size: 100))
               : _comments.isEmpty 
-                ? const Center(child: Text("No comments yet."))
+                ? Center(child: Text("No comments yet.", style: TextStyle(color: subTextColor)))
                 : ListView.builder(
                     itemCount: _comments.length,
                     itemBuilder: (context, index) {
@@ -635,19 +671,18 @@ class _CommentsSheetState extends State<CommentsSheet> {
                           backgroundImage: c['avatar'] != null ? NetworkImage(c['avatar']) : null,
                           child: c['avatar'] == null ? const Icon(Icons.person) : null,
                         ),
-                        title: Text(c['username'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        subtitle: Text(c['text']),
+                        title: Text(c['username'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textColor)),
+                        subtitle: Text(c['text'], style: TextStyle(color: textColor)),
                         trailing: isOwner 
-      ? IconButton(
-          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
-          onPressed: () async {
-             // Delete Logic
-             bool success = await ApiService.deleteComment(c['id']);
-             if (success) _loadComments(); // Refresh list
-          },
-        )
-      : Text(DateFormat('h:mm a').format(DateTime.parse(c['created_at'])), style: const TextStyle(fontSize: 10, color: Colors.grey)),
-  );
+                          ? IconButton(
+                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                              onPressed: () async {
+                                 bool success = await ApiService.deleteComment(c['id']);
+                                 if (success) _loadComments(); 
+                              },
+                            )
+                          : Text(DateFormat('h:mm a').format(DateTime.parse(c['created_at'])), style: TextStyle(fontSize: 10, color: subTextColor)),
+                      );
                     },
                   ),
           ),
@@ -658,10 +693,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 Expanded(
                   child: TextField(
                     controller: _commentController,
+                    style: TextStyle(color: textColor),
                     decoration: InputDecoration(
                       hintText: "Write a comment...",
+                      hintStyle: TextStyle(color: subTextColor),
                       filled: true,
-                      fillColor: Colors.grey[100],
+                      fillColor: inputColor,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 15)
                     ),

@@ -11,18 +11,14 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProviderStateMixin {
   final MobileScannerController controller = MobileScannerController();
   bool _isFlashOn = false;
-  
-  // Animation for the scanning line
   late AnimationController _animationController;
 
-  // Design Colors
-  final Color _primaryDark = const Color(0xFF003366);
+  // 🟢 Colors moved to Theme (Only keeping Gold for scanner UI)
   final Color _accentGold = const Color(0xFFFFD700);
 
   @override
   void initState() {
     super.initState();
-    // Setup the up-down animation
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -38,15 +34,17 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    // Size of the cut-out square
+    // 🟢 Theme Helpers
+    // In Dark Mode, we use black for the camera background.
+    // The overlay color should match the primary brand color but semi-transparent.
+    final overlayColor = Theme.of(context).primaryColor.withOpacity(0.7); 
+
     final double scanArea = 260.0;
-    // Calculate side padding to center the square
     final double sidePadding = (MediaQuery.of(context).size.width - scanArea) / 2;
-    // Calculate top/bottom padding
     final double verticalPadding = (MediaQuery.of(context).size.height - scanArea) / 2;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.black, // Camera needs black background
       body: Stack(
         children: [
           // 1. THE CAMERA LAYER
@@ -64,29 +62,26 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
           ),
 
           // 2. THE THEMED OVERLAY (Dark Blue Cutout)
-          // Top
+          // 🟢 Switched _primaryDark to dynamic overlayColor
           Positioned(
             top: 0, left: 0, right: 0, 
             height: verticalPadding, 
-            child: Container(color: _primaryDark.withOpacity(0.7))
+            child: Container(color: overlayColor)
           ),
-          // Bottom
           Positioned(
             bottom: 0, left: 0, right: 0, 
             height: verticalPadding, 
-            child: Container(color: _primaryDark.withOpacity(0.7))
+            child: Container(color: overlayColor)
           ),
-          // Left
           Positioned(
             top: verticalPadding, bottom: verticalPadding, left: 0, 
             width: sidePadding, 
-            child: Container(color: _primaryDark.withOpacity(0.7))
+            child: Container(color: overlayColor)
           ),
-          // Right
           Positioned(
             top: verticalPadding, bottom: verticalPadding, right: 0, 
             width: sidePadding, 
-            child: Container(color: _primaryDark.withOpacity(0.7))
+            child: Container(color: overlayColor)
           ),
 
           // 3. THE GOLD SCANNING FRAME & ANIMATION
@@ -115,7 +110,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                       return Stack(
                         children: [
                           Positioned(
-                            top: _animationController.value * (scanArea - 10), // Move from 0 to height
+                            top: _animationController.value * (scanArea - 10),
                             left: 10,
                             right: 10,
                             child: Container(
@@ -133,7 +128,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> with SingleTickerProv
                     },
                   ),
                 ),
-                // Corner Decor (Optional: Makes it look techy)
+                // Corner Decor
                 Positioned(top: 0, left: 0, child: _buildCorner(true, true)),
                 Positioned(top: 0, right: 0, child: _buildCorner(true, false)),
                 Positioned(bottom: 0, left: 0, child: _buildCorner(false, true)),

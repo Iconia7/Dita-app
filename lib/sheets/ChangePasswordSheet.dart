@@ -56,38 +56,31 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
     );
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+    final primaryColor = Theme.of(context).primaryColor;
+    final inputFill = isDark ? Colors.white10 : Colors.white;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF5F7FA), // 🟢 Dynamic BG
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Change Password", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: widget.primaryDark)),
+          Text("Change Password", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryColor)), // 🟢
           const Divider(),
           
-          TextField(
-            controller: _oldController,
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: "Current Password", 
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
-            ),
-          ),
+          _buildInput(_oldController, "Current Password", inputFill, textColor, subTextColor),
           const SizedBox(height: 15),
-          TextField(
-            controller: _newController,
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: "New Password", 
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
-            ),
-          ),
+          _buildInput(_newController, "New Password", inputFill, textColor, subTextColor),
           
           const SizedBox(height: 30),
           
@@ -96,7 +89,7 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
             child: ElevatedButton(
               onPressed: _isLoading ? null : _changePassword,
               style: ElevatedButton.styleFrom(
-                backgroundColor: widget.primaryDark,
+                backgroundColor: primaryColor, // 🟢
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 padding: const EdgeInsets.symmetric(vertical: 15)
@@ -107,6 +100,21 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInput(TextEditingController ctrl, String label, Color fill, Color? text, Color? hint) {
+    return TextField(
+      controller: ctrl,
+      obscureText: true,
+      style: TextStyle(color: text), // 🟢
+      decoration: InputDecoration(
+        labelText: label, 
+        labelStyle: TextStyle(color: hint), // 🟢
+        filled: true,
+        fillColor: fill, // 🟢
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
       ),
     );
   }

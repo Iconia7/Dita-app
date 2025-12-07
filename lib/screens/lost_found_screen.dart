@@ -17,7 +17,6 @@ class LostFoundScreen extends StatefulWidget {
 
 class _LostFoundScreenState extends State<LostFoundScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final Color _primaryDark = const Color(0xFF003366);
   final Color _accentGold = const Color(0xFFFFD700);
 
   @override
@@ -40,11 +39,15 @@ class _LostFoundScreenState extends State<LostFoundScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
         title: const Text("Lost & Found 🕵️", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryDark,
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -64,10 +67,16 @@ class _LostFoundScreenState extends State<LostFoundScreen> with SingleTickerProv
         future: ApiService.getLostFoundItems(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: DaystarSpinner(size: 120));
+            return const Center(child: DaystarSpinner(size: 120)); // Use custom spinner
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No items reported yet."));
+             return EmptyStateWidget(
+                svgPath: 'assets/svgs/safe.svg',
+                title: "Nothing to see here",
+                message: "No items have been reported recently. That is great news!",
+                actionLabel: "Report an Item",
+                onActionPressed: _showAddItemSheet,
+              );
           }
 
           final allItems = snapshot.data!;
@@ -86,7 +95,7 @@ class _LostFoundScreenState extends State<LostFoundScreen> with SingleTickerProv
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddItemSheet,
         backgroundColor: _accentGold,
-        foregroundColor: _primaryDark,
+        foregroundColor: primaryColor, // 🟢 Dynamic Text Color
         icon: const Icon(Icons.add_a_photo),
         label: const Text("Post Item"),
       ),
@@ -94,16 +103,21 @@ class _LostFoundScreenState extends State<LostFoundScreen> with SingleTickerProv
   }
 
   Widget _buildList(List<dynamic> items) {
-    // In LostFoundScreen (inside _buildList)
-if (items.isEmpty) {
-  return EmptyStateWidget(
-    svgPath: 'assets/svgs/no_lost.svg',
-    title: "Nothing to see here",
-    message: "No items have been reported in this category recently. That is great news!",
-    actionLabel: "Report an Item",
-    onActionPressed: _showAddItemSheet, // Opens your add sheet
-  );
-}
+    // 🟢 Theme Helpers
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    if (items.isEmpty) {
+      return EmptyStateWidget(
+        svgPath: 'assets/svgs/safe.svg',
+        title: "Nothing here",
+        message: "No items found in this category.",
+        actionLabel: "Report an Item",
+        onActionPressed: _showAddItemSheet,
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(15),
@@ -116,6 +130,7 @@ if (items.isEmpty) {
           margin: const EdgeInsets.only(bottom: 15),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           elevation: 2,
+          color: cardColor, // 🟢 Dynamic Card BG
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -128,7 +143,7 @@ if (items.isEmpty) {
                     height: 180, 
                     width: double.infinity, 
                     fit: BoxFit.cover,
-                    errorBuilder: (c,e,s) => Container(height: 180, color: Colors.grey[200], child: const Icon(Icons.broken_image)),
+                    errorBuilder: (c,e,s) => Container(height: 180, color: Colors.grey[800], child: const Icon(Icons.broken_image, color: Colors.grey)),
                   ),
                 ),
               
@@ -143,7 +158,7 @@ if (items.isEmpty) {
                         Expanded(
                           child: Text(
                             item['item_name'], 
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor), // 🟢 Dynamic Text
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -156,20 +171,20 @@ if (items.isEmpty) {
                         else
                           Text(
                             DateFormat('MMM d').format(DateTime.parse(item['created_at'])),
-                            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                            style: TextStyle(color: subTextColor, fontSize: 12), // 🟢 Dynamic Subtext
                           ),
                       ],
                     ),
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                        Icon(Icons.location_on, size: 14, color: subTextColor),
                         const SizedBox(width: 4),
-                        Text(item['location'], style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                        Text(item['location'], style: TextStyle(color: subTextColor, fontSize: 13)), // 🟢
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Text(item['description'], style: TextStyle(color: Colors.grey[800])),
+                    Text(item['description'], style: TextStyle(color: textColor)), // 🟢
                     const SizedBox(height: 15),
                     
                     // CONTACT BUTTON
@@ -183,8 +198,8 @@ if (items.isEmpty) {
                         icon: const Icon(Icons.call),
                         label: Text(isResolved ? "Item Returned" : "Contact Finder/Owner"),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: isResolved ? Colors.grey : _primaryDark,
-                          side: BorderSide(color: isResolved ? Colors.grey : _primaryDark),
+                          foregroundColor: isResolved ? Colors.grey : primaryColor, // 🟢 Dynamic Color
+                          side: BorderSide(color: isResolved ? Colors.grey : primaryColor),
                         ),
                       ),
                     ),
@@ -211,12 +226,13 @@ class AddLostItemSheet extends StatefulWidget {
 }
 
 class _AddLostItemSheetState extends State<AddLostItemSheet> {
+  // ... (Controllers and Submit logic stay the same) ...
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
   final _locController = TextEditingController();
   late TextEditingController _phoneController;
   
-  String _category = 'LOST'; // Default
+  String _category = 'LOST'; 
   File? _selectedImage;
   bool _isLoading = false;
 
@@ -225,7 +241,8 @@ class _AddLostItemSheetState extends State<AddLostItemSheet> {
     super.initState();
     _phoneController = TextEditingController(text: widget.currentUser['phone_number']);
   }
-
+  
+  // ... (pickImage and submit methods) ...
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
@@ -250,7 +267,7 @@ class _AddLostItemSheetState extends State<AddLostItemSheet> {
     setState(() => _isLoading = false);
 
     if (success && mounted) {
-      widget.onPosted(); // Refresh parent
+      widget.onPosted(); 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Item Posted!"), backgroundColor: Colors.green));
     }
@@ -258,25 +275,32 @@ class _AddLostItemSheetState extends State<AddLostItemSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final inputColor = isDark ? const Color(0xFF0F172A) : Colors.grey[100];
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      decoration: BoxDecoration(
+        color: sheetColor, // 🟢 Dynamic BG
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Post New Item", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text("Post New Item", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)), // 🟢
             const Divider(),
             
             // Category Switch
             Row(
               children: [
-                Expanded(child: _buildRadio("Lost 🛑", 'LOST')),
-                Expanded(child: _buildRadio("Found ✅", 'FOUND')),
+                Expanded(child: _buildRadio("Lost 🛑", 'LOST', textColor!, primaryColor)),
+                Expanded(child: _buildRadio("Found ✅", 'FOUND', textColor, primaryColor)),
               ],
             ),
             const SizedBox(height: 15),
@@ -288,7 +312,7 @@ class _AddLostItemSheetState extends State<AddLostItemSheet> {
                 height: 150,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: inputColor, // 🟢 Dynamic Picker BG
                   borderRadius: BorderRadius.circular(15),
                   border: Border.all(color: Colors.grey[300]!),
                   image: _selectedImage != null 
@@ -308,10 +332,14 @@ class _AddLostItemSheetState extends State<AddLostItemSheet> {
             ),
             const SizedBox(height: 15),
 
-            TextField(controller: _titleController, decoration: const InputDecoration(labelText: "Item Name (e.g. Blue Wallet)")),
-            TextField(controller: _locController, decoration: const InputDecoration(labelText: "Location (e.g. BCC Lab 3)")),
-            TextField(controller: _phoneController, decoration: const InputDecoration(labelText: "Contact Phone"), keyboardType: TextInputType.phone),
-            TextField(controller: _descController, decoration: const InputDecoration(labelText: "Description"), maxLines: 2),
+            // Inputs
+            _buildInput(_titleController, "Item Name (e.g. Blue Wallet)", inputColor, textColor),
+            const SizedBox(height: 10),
+            _buildInput(_locController, "Location (e.g. BCC Lab 3)", inputColor, textColor),
+            const SizedBox(height: 10),
+            _buildInput(_phoneController, "Contact Phone", inputColor, textColor, isPhone: true),
+            const SizedBox(height: 10),
+            _buildInput(_descController, "Description", inputColor, textColor, maxLines: 2),
             
             const SizedBox(height: 25),
             
@@ -321,7 +349,7 @@ class _AddLostItemSheetState extends State<AddLostItemSheet> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _submit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF003366),
+                  backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
                 ),
@@ -336,14 +364,30 @@ class _AddLostItemSheetState extends State<AddLostItemSheet> {
     );
   }
 
-  Widget _buildRadio(String label, String val) {
+  Widget _buildRadio(String label, String val, Color textColor, Color activeColor) {
     return RadioListTile(
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+      title: Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)), // 🟢
       value: val,
       groupValue: _category,
-      activeColor: const Color(0xFF003366),
+      activeColor: activeColor, // 🟢
       contentPadding: EdgeInsets.zero,
       onChanged: (v) => setState(() => _category = v.toString()),
     );
+  }
+
+  Widget _buildInput(TextEditingController ctrl, String hint, Color? fill, Color? text, {bool isPhone = false, int maxLines = 1}) {
+      return TextField(
+        controller: ctrl,
+        keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+        maxLines: maxLines,
+        style: TextStyle(color: text),
+        decoration: InputDecoration(
+          labelText: hint,
+          labelStyle: TextStyle(color: Colors.grey[500]),
+          filled: true,
+          fillColor: fill,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
+        ),
+      );
   }
 }

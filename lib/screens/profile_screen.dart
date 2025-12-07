@@ -18,9 +18,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Map<String, dynamic> _currentUser;
   bool _isUpdating = false;
 
-  // Daystar Brand Colors
-  final Color _primaryDark = const Color(0xFF003366);
-
   @override
   void initState() {
     super.initState();
@@ -56,7 +53,7 @@ void _showChangePasswordDialog() {
     backgroundColor: Colors.transparent, 
     builder: (context) => ChangePasswordSheet(
       user: _currentUser,
-      primaryDark: _primaryDark,
+      primaryDark: Theme.of(context).primaryColor,
     ),
   );
 }
@@ -83,14 +80,21 @@ void _showChangePasswordDialog() {
   }
 
   // --- 3. UI BUILD ---
-  @override
+ @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).primaryColor;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+
     return Scaffold(
-      backgroundColor: _primaryDark, 
+      backgroundColor: primaryColor, // 🟢 Matches the top blue area (Header)
       appBar: AppBar(
         title: const Text("My Profile", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: _primaryDark,
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -101,13 +105,12 @@ void _showChangePasswordDialog() {
              )
         ],
       ),
-      // KEY CHANGE: The entire body is a Stack, but the scrolling happens inside the bottom layer
       body: Stack(
         children: [
           // 1. FIXED BACKGROUND (Top Blue Area)
           Container(
-            height: MediaQuery.of(context).size.height * 0.3, // Takes top 30%
-            color: _primaryDark,
+            height: MediaQuery.of(context).size.height * 0.3,
+            color: primaryColor,
           ),
 
           // 2. SCROLLABLE CONTENT
@@ -136,7 +139,7 @@ void _showChangePasswordDialog() {
                                   ? NetworkImage(_currentUser['avatar']) 
                                   : null,
                               child: _currentUser['avatar'] == null 
-                                  ? Icon(Icons.person_rounded, size: 60, color: _primaryDark)
+                                  ? Icon(Icons.person_rounded, size: 60, color: primaryColor)
                                   : null,
                             ),
                           ),
@@ -147,7 +150,7 @@ void _showChangePasswordDialog() {
                               decoration: BoxDecoration(
                                 color: Colors.orange,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: _primaryDark, width: 2), 
+                                border: Border.all(color: primaryColor, width: 2), 
                               ),
                               child: const Icon(Icons.edit, color: Colors.white, size: 16),
                             ),
@@ -167,17 +170,16 @@ void _showChangePasswordDialog() {
                   ),
                 ),
 
-                // --- WHITE SHEET CONTENT ---
+                // --- SHEET CONTENT (White/Dark) ---
                 Container(
                   width: double.infinity,
-                  // This minHeight ensures it pushes the scroll view enough
                   constraints: BoxConstraints(
                     minHeight: MediaQuery.of(context).size.height * 0.7
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF5F7FA), 
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  decoration: BoxDecoration(
+                    color: scaffoldBg, // 🟢 Dynamic: Light Grey or Dark Navy
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                   ),
                   child: Column(
                     children: [
@@ -187,7 +189,7 @@ void _showChangePasswordDialog() {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cardColor, // 🟢 Dynamic: White or Slate 800
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
                         ),
@@ -196,7 +198,7 @@ void _showChangePasswordDialog() {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _primaryDark)),
+                                Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: primaryColor)), // 🟢
                                 IconButton(
                                   onPressed: _showEditDialog,
                                   icon: const Icon(Icons.edit_note_rounded, color: Colors.blue),
@@ -204,14 +206,14 @@ void _showChangePasswordDialog() {
                                 )
                               ],
                             ),
-                            const Divider(),
-                            _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-"),
-                            const Divider(height: 25),
-                            _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-"),
-                            const Divider(height: 25),
-                            _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}"),
-                            const Divider(height: 25),
-                            _buildDetailRow(Icons.phone_iphone_rounded, "Phone", _currentUser['phone_number'] ?? "-"),
+                            Divider(color: isDark ? Colors.white10 : Colors.grey[200]), // 🟢 Dynamic Divider
+                            _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-", primaryColor, textColor!),
+                            const SizedBox(height: 25), // Replaced Dividers with spacing for cleaner dark mode look
+                            _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-", primaryColor, textColor),
+                            const SizedBox(height: 25),
+                            _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}", primaryColor, textColor),
+                            const SizedBox(height: 25),
+                            _buildDetailRow(Icons.phone_iphone_rounded, "Phone", _currentUser['phone_number'] ?? "-", primaryColor, textColor),
                           ],
                         ),
                       ),
@@ -223,37 +225,27 @@ void _showChangePasswordDialog() {
                         alignment: Alignment.centerLeft,
                         child: Padding(
                           padding: const EdgeInsets.only(left: 10, bottom: 10),
-                          child: Text("Support & Help", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primaryDark)),
+                          child: Text("Support & Help", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primaryColor)), // 🟢
                         ),
                       ),
                       
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cardColor, // 🟢
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
                         ),
                         child: Column(
                           children: [
-                            _buildActionTile(
-  Icons.lock_outline, 
-  "Change Password", 
-  Colors.redAccent, 
-  _showChangePasswordDialog // Call the function above
-),
-const Divider(height: 1, indent: 60),
-                            _buildActionTile(Icons.chat_bubble_outline_rounded, "Chat on WhatsApp", Colors.green, _openWhatsApp),
-                            const Divider(height: 1, indent: 60),
-                            _buildActionTile(Icons.call_outlined, "Call Support", Colors.blue, () => _launchContact('tel', '0115332870')),
-                            const Divider(height: 1, indent: 60),
-                            _buildActionTile(Icons.email_outlined, "Email Issues", Colors.orange, () => _launchContact('mailto', 'dita@daystar.ac.ke')),
-                            const Divider(height: 1, indent: 60),
-_buildActionTile(
-  Icons.privacy_tip_outlined, 
-  "Privacy & Terms", 
-  Colors.purple, 
-  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()))
-),
+                            _buildActionTile(Icons.lock_outline, "Change Password", Colors.redAccent, _showChangePasswordDialog, textColor),
+                            Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
+                            _buildActionTile(Icons.chat_bubble_outline_rounded, "Chat on WhatsApp", Colors.green, _openWhatsApp, textColor),
+                            Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
+                            _buildActionTile(Icons.call_outlined, "Call Support", Colors.blue, () => _launchContact('tel', '0115332870'), textColor),
+                            Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
+                            _buildActionTile(Icons.email_outlined, "Email Issues", Colors.orange, () => _launchContact('mailto', 'dita@daystar.ac.ke'), textColor),
+                            Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
+                            _buildActionTile(Icons.privacy_tip_outlined, "Privacy & Terms", Colors.purple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())), textColor),
                           ],
                         ),
                       ),
@@ -275,12 +267,12 @@ _buildActionTile(
                           label: const Text("Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 15),
-                            backgroundColor: Colors.red.withOpacity(0.05),
+                            backgroundColor: Colors.red.withOpacity(0.1), // 🟢 0.1 works on both dark/light
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
                           ),
                         ),
                       ),
-                      const SizedBox(height: 100), // Extra padding for bottom safety
+                      const SizedBox(height: 100), 
                     ],
                   ),
                 ),
@@ -294,16 +286,17 @@ _buildActionTile(
 
   // --- WIDGET HELPERS ---
 
-  Widget _buildDetailRow(IconData icon, String title, String value) {
+  Widget _buildDetailRow(IconData icon, String title, String value, Color iconColor, Color textColor) {
+    // 🟢 Passed colors in
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: _primaryDark.withOpacity(0.05),
+            color: iconColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: _primaryDark, size: 20),
+          child: Icon(icon, color: iconColor, size: 20),
         ),
         const SizedBox(width: 15),
         Expanded(
@@ -312,7 +305,7 @@ _buildActionTile(
             children: [
               Text(title, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
               const SizedBox(height: 2),
-              Text(value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87)),
+              Text(value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: textColor)), // 🟢 Dynamic Text
             ],
           ),
         ),
@@ -320,7 +313,7 @@ _buildActionTile(
     );
   }
 
-  Widget _buildActionTile(IconData icon, String title, Color color, VoidCallback onTap) {
+  Widget _buildActionTile(IconData icon, String title, Color color, VoidCallback onTap, Color textColor) {
     return ListTile(
       onTap: onTap,
       leading: Container(
@@ -331,9 +324,8 @@ _buildActionTile(
         ),
         child: Icon(icon, color: color, size: 20),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-      trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[300]),
+      title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)), // 🟢 Dynamic Text
+      trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[500]),
     );
   }
-
 }

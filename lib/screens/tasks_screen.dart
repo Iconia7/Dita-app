@@ -17,10 +17,7 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  // Colors
-  final Color _primaryDark = const Color(0xFF003366);
   final Color _accentGold = const Color(0xFFFFD700);
-  final Color _bgOffWhite = const Color(0xFFF4F6F9);
   
   bool _isLoading = true;
   List<dynamic> _tasks = [];
@@ -185,23 +182,29 @@ class _TasksScreenState extends State<TasksScreen> {
   // --- UI DIALOG ---
 void _showAddTaskSheet() {
     final titleController = TextEditingController();
-    // Default to 1 hour from now
     DateTime selectedDate = DateTime.now().add(const Duration(hours: 1));
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Allows keyboard to push sheet up
+      isScrollControlled: true, 
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) {
+          // 🟢 Theme Helpers (Inside Builder)
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final sheetColor = Theme.of(context).cardColor;
+          final primaryColor = Theme.of(context).primaryColor;
+          final inputFill = isDark ? Colors.white10 : const Color(0xFFF4F6F9);
+          final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+
           return Container(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom + 20,
               top: 25, left: 25, right: 25
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            decoration: BoxDecoration(
+              color: sheetColor, // 🟢 Dynamic BG
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -209,9 +212,9 @@ void _showAddTaskSheet() {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.edit_note_rounded, color: _primaryDark, size: 28),
+                    Icon(Icons.edit_note_rounded, color: primaryColor, size: 28), // 🟢
                     const SizedBox(width: 10),
-                    Text("New Assignment", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _primaryDark)),
+                    Text("New Assignment", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryColor)), // 🟢
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -220,14 +223,14 @@ void _showAddTaskSheet() {
                 TextField(
                   controller: titleController,
                   autofocus: true,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(fontWeight: FontWeight.w600, color: textColor), // 🟢
                   decoration: InputDecoration(
                     hintText: "What needs to be done?",
                     hintStyle: TextStyle(color: Colors.grey[400]),
                     prefixIcon: Icon(Icons.task_alt_rounded, color: Colors.grey[500]),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
                     filled: true,
-                    fillColor: _bgOffWhite,
+                    fillColor: inputFill, // 🟢
                     contentPadding: const EdgeInsets.all(18),
                   ),
                 ),
@@ -237,7 +240,7 @@ void _showAddTaskSheet() {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
                   decoration: BoxDecoration(
-                    color: _bgOffWhite,
+                    color: inputFill, // 🟢
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(color: Colors.grey.withOpacity(0.1))
                   ),
@@ -248,7 +251,7 @@ void _showAddTaskSheet() {
                         children: [
                           Icon(Icons.alarm_rounded, color: _accentGold),
                           const SizedBox(width: 10),
-                          const Text("Due Date", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                          Text("Due Date", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.grey[400] : Colors.black54)), // 🟢
                         ],
                       ),
                       TextButton(
@@ -258,7 +261,7 @@ void _showAddTaskSheet() {
                             firstDate: DateTime.now(), 
                             initialDate: selectedDate, 
                             lastDate: DateTime(2030),
-                            builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: _primaryDark, onPrimary: Colors.white)), child: child!)
+                            builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: Theme.of(context).primaryColor, onPrimary: Colors.white)), child: child!)
                           );
                           if (date != null) {
                             final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(selectedDate));
@@ -269,8 +272,13 @@ void _showAddTaskSheet() {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]),
-                          child: Text(DateFormat('MMM d, h:mm a').format(selectedDate), style: TextStyle(fontWeight: FontWeight.bold, color: _primaryDark)),
+                          decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.white, // 🟢
+                              borderRadius: BorderRadius.circular(10), 
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]
+                          ),
+                          child: Text(DateFormat('MMM d, h:mm a').format(selectedDate), 
+                              style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : primaryColor)), // 🟢
                         ),
                       )
                     ],
@@ -279,7 +287,7 @@ void _showAddTaskSheet() {
 
                 const SizedBox(height: 30),
                 
-                // --- SAVE BUTTON WITH VALIDATION ---
+                // --- SAVE BUTTON ---
                 SizedBox(
                   width: double.infinity,
                   height: 55,
@@ -311,8 +319,8 @@ void _showAddTaskSheet() {
                       _addTask(titleController.text, selectedDate);
                       Navigator.pop(context);
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryDark, 
+                   style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor, // 🟢
                       foregroundColor: Colors.white,
                       elevation: 5,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
@@ -330,45 +338,51 @@ void _showAddTaskSheet() {
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+
     return Scaffold(
-      backgroundColor: _bgOffWhite,
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
-        title: const Text("Student Planner", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryDark,
+        title: const Text("Student Planner", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white), // Ensure back button is white
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.sync),
+            icon: const Icon(Icons.sync, color: Colors.white),
             onPressed: () {
               setState(() => _isLoading = true);
               _fetchTasks();
             },
-            tooltip: "Sync Tasks",
           )
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddTaskSheet,
         backgroundColor: _accentGold,
-        icon: const Icon(Icons.add_task_rounded, color: Colors.black),
+        icon: const Icon(Icons.add_task_rounded, color: Colors.black), // Gold BG -> Black Icon
         label: const Text("New Task", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading && _tasks.isEmpty 
         ? const Center(child: DaystarSpinner(size: 120))
         : _tasks.isEmpty 
           ? EmptyStateWidget(
-        svgPath: 'assets/svgs/no_task.svg', // Ensure you have this SVG!
-        title: "All Caught Up!",
-        message: "You have zero pending tasks. Enjoy your free time or plan ahead.",
-        actionLabel: "Add New Task",
-        onActionPressed: _showAddTaskSheet, 
-      )
+              svgPath: 'assets/svgs/no_task.svg', 
+              title: "All Caught Up!",
+              message: "You have zero pending tasks. Enjoy your free time or plan ahead.",
+              actionLabel: "Add New Task",
+              onActionPressed: _showAddTaskSheet, 
+            )
           : ListView.builder(
               padding: const EdgeInsets.all(20),
               itemCount: _tasks.length,
@@ -376,7 +390,6 @@ void _showAddTaskSheet() {
                 final task = _tasks[index];
                 bool isDone = task['is_completed'] ?? false;
                 
-                // Key change: Swiping still works for delete, but now we add a visible button too
                 return Dismissible(
                   key: Key(task['id'].toString()),
                   direction: DismissDirection.endToStart,
@@ -393,7 +406,7 @@ void _showAddTaskSheet() {
                     margin: const EdgeInsets.only(bottom: 15),
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor, // 🟢 Dynamic Card Color
                       borderRadius: BorderRadius.circular(15),
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
                       border: Border.all(color: isDone ? Colors.green.withOpacity(0.3) : Colors.transparent),
@@ -407,7 +420,7 @@ void _showAddTaskSheet() {
                             duration: const Duration(milliseconds: 200),
                             width: 28, height: 28,
                             decoration: BoxDecoration(
-                              color: isDone ? Colors.green : _bgOffWhite,
+                              color: isDone ? Colors.green : (isDark ? Colors.white10 : const Color(0xFFF4F6F9)), // 🟢 Dynamic Checkbox BG
                               shape: BoxShape.circle,
                               border: Border.all(color: isDone ? Colors.green : Colors.grey[300]!, width: 2)
                             ),
@@ -419,7 +432,6 @@ void _showAddTaskSheet() {
                         // 2. TEXT INFO
                         Expanded(
                           child: GestureDetector(
-                            // Allow tapping text to toggle too
                             onTap: () => _toggleTask(task['id'], isDone),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,7 +442,7 @@ void _showAddTaskSheet() {
                                     fontSize: 16, 
                                     fontWeight: FontWeight.bold,
                                     decoration: isDone ? TextDecoration.lineThrough : null,
-                                    color: isDone ? Colors.grey[400] : Colors.black87
+                                    color: isDone ? Colors.grey[400] : textColor // 🟢 Dynamic Text
                                   )
                                 ),
                                 const SizedBox(height: 6),
@@ -440,7 +452,7 @@ void _showAddTaskSheet() {
                                     const SizedBox(width: 5),
                                     Text(
                                       DateFormat('MMM d, h:mm a').format(DateTime.parse(task['due_date'])),
-                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDone ? Colors.grey[400] : Colors.grey[600]),
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDone ? Colors.grey[400] : Colors.grey[600]), // Grey is fine here
                                     )
                                   ],
                                 )

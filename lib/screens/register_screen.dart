@@ -44,11 +44,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  // Colors
-  final Color _primaryDark = const Color(0xFF003366);
   final Color _primaryLight = const Color(0xFF004C99);
-  final Color _bgInput = const Color(0xFFF5F7FA);
-  final Color _accentGold = const Color(0xFFFFD700);
 
   // Animations
   late AnimationController _animationController;
@@ -78,64 +74,63 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
 
 
 void _showRegistrationErrorDialog(String? errorMsg) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      contentPadding: EdgeInsets.zero,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 1. Colored Header (Red for Error)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            decoration: const BoxDecoration(
-              color: Colors.red,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    // 🟢 Update Dialog Theme
+    final cardColor = Theme.of(context).cardColor;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardColor, // 🟢
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: EdgeInsets.zero,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: const Icon(Icons.error_outline, color: Colors.white, size: 50),
             ),
-            child: const Icon(Icons.error_outline, color: Colors.white, size: 50),
-          ),
-          
-          // 2. Body Content
-          Padding(
-            padding: const EdgeInsets.all(25.0),
-            child: Column(
-              children: [
-                const Text(
-                  "Registration Failed",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  errorMsg ?? "An unknown error occurred.",
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
-                  textAlign: TextAlign.center
-                ),
-                const SizedBox(height: 25),
-                
-                // 3. Action Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12)
-                    ),
-                    child: const Text("Got it", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Padding(
+              padding: const EdgeInsets.all(25.0),
+              child: Column(
+                children: [
+                  const Text(
+                    "Registration Failed",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
+                    textAlign: TextAlign.center,
                   ),
-                )
-              ],
+                  const SizedBox(height: 10),
+                  Text(
+                    errorMsg ?? "An unknown error occurred.",
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
+                    textAlign: TextAlign.center
+                  ),
+                  const SizedBox(height: 25),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12)
+                      ),
+                      child: const Text("Got it", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  )
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}  
+    );
+  }
 
 void _handleRegister() async {
   if (!_formKey.currentState!.validate()) return;
@@ -234,10 +229,22 @@ String? _validateConfirmPassword(String? value) {
   return null;
 }
 
-  @override
+@override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = Theme.of(context).cardColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final inputFill = isDark ? Colors.white10 : const Color(0xFFF5F7FA);
+
+    // 🟢 Dynamic Gradient
+    final gradientColors = isDark 
+        ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
+        : [const Color(0xFF003366), const Color(0xFF004C99)];
+    
     return Scaffold(
-      backgroundColor: _primaryDark,
+      backgroundColor: gradientColors[0], // Match top gradient
       body: Stack(
         children: [
           // 1. BACKGROUND GRADIENT
@@ -247,27 +254,28 @@ String? _validateConfirmPassword(String? value) {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [_primaryDark, _primaryLight],
+                colors: gradientColors, // 🟢
               ),
             ),
             child: Stack(
               children: [
                 Positioned(
-  right: -50, 
-  top: -50,
-  child: Opacity( // Use Opacity to make it subtle like the icon was
-    opacity: 0.1, 
-    child: Image.asset(
-      'assets/icon/icon.png', // <--- YOUR LOGO
-      height: 300,
-      width: 300,
-    ),
-  ),
-),
-                // Back Button positioned safely
+                  right: -50, top: -50,
+                  child: Opacity(
+                    opacity: 0.1, 
+                    child: Image.asset(
+                      'assets/icon/icon.png', 
+                      height: 300, width: 300,
+                    ),
+                  ),
+                ),
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.only(left: 10, top: 10),
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ),
                 ),
               ],
@@ -287,22 +295,19 @@ String? _validateConfirmPassword(String? value) {
                       children: [
                         const SizedBox(height: 40),
                         Hero(
-  tag: 'logo', // Smooth transition from Login screen!
-  child: Container(
-    height: 60, 
-    width: 60,
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      shape: BoxShape.circle,
-      boxShadow: [
-        BoxShadow(color: Colors.black12, blurRadius: 10)
-      ]
-    ),
-    child: Image.asset('assets/icon/icon.png'),
-  ),
-),
-const SizedBox(height: 20),
+                          tag: 'logo',
+                          child: Container(
+                            height: 60, width: 60,
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]
+                            ),
+                            child: Image.asset('assets/icon/icon.png'),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                         const Text(
                           "Create Account",
                           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
@@ -314,11 +319,11 @@ const SizedBox(height: 20),
                         
                         const SizedBox(height: 30),
 
-                        // WHITE CARD FORM
+                        // CARD FORM
                         Container(
                           padding: const EdgeInsets.all(25),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: cardColor, // 🟢 Dynamic BG
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30, offset: const Offset(0, 15))
@@ -328,68 +333,63 @@ const SizedBox(height: 20),
                             key: _formKey,
                             child: Column(
                               children: [
-                                // Username (Display Name)
                                 _buildStylishInput(
                                   controller: _usernameController, 
                                   hint: "Username (e.g. Newton)", 
-                                  icon: Icons.person_outline_rounded
+                                  icon: Icons.person_outline_rounded,
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
-
-                                // Admission Number
                                 _buildStylishInput(
                                   controller: _admController, 
                                   hint: "Admission Number", 
                                   icon: Icons.badge_outlined,
                                   validator: _validateAdmission,
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
-
-                                // Phone Number
                                 _buildStylishInput(
                                   controller: _phoneController, 
                                   hint: "M-Pesa Number", 
                                   icon: Icons.phone_iphone_rounded, 
                                   keyboardType: TextInputType.phone,
                                   validator: _validatePhoneNumber,
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
-                                // Real Email Address
-_buildStylishInput(
-  controller: _emailController,
-  hint: "Email Address (e.g. jane@gmail.com)",
-  icon: Icons.email_outlined,
-  keyboardType: TextInputType.emailAddress,
-  validator: _validateEmail,
-),
-const SizedBox(height: 15),
-
-                                // --- PROGRAM DROPDOWN ---
+                                _buildStylishInput(
+                                  controller: _emailController,
+                                  hint: "Email Address",
+                                  icon: Icons.email_outlined,
+                                  keyboardType: TextInputType.emailAddress,
+                                  validator: _validateEmail,
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark
+                                ),
+                                const SizedBox(height: 15),
                                 _buildDropdown(
                                   hint: "Select Program",
                                   icon: Icons.school_outlined,
                                   value: _selectedProgram,
                                   items: _programs,
                                   onChanged: (val) => setState(() => _selectedProgram = val as String?),
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark, primaryColor: primaryColor
                                 ),
                                 const SizedBox(height: 15),
-
-                                // --- YEAR DROPDOWN ---
                                 _buildDropdown(
                                   hint: "Year of Study",
                                   icon: Icons.calendar_today_outlined,
                                   value: _selectedYear,
                                   items: [1, 2, 3, 4],
                                   onChanged: (val) => setState(() => _selectedYear = val as int?),
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark, primaryColor: primaryColor
                                 ),
                                 const SizedBox(height: 15),
-
-                                // Passwords
                                 _buildStylishInput(
                                   controller: _passwordController, 
                                   hint: "Password", 
                                   icon: Icons.lock_outline_rounded, 
-                                  isPassword: true
+                                  isPassword: true,
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
                                 _buildStylishInput(
@@ -398,62 +398,47 @@ const SizedBox(height: 15),
                                   icon: Icons.lock_reset_rounded, 
                                   isPassword: true,
                                   validator: _validateConfirmPassword,
+                                  inputFill: inputFill, textColor: textColor, isDark: isDark
                                 ),
 
                                 const SizedBox(height: 30),
+                                
+                                // Terms Checkbox
                                 Row(
-  crossAxisAlignment: CrossAxisAlignment.start, // Aligns checkbox with top of text
-  children: [
-    SizedBox(
-      height: 24, 
-      width: 24,
-      child: Checkbox(
-        value: _agreedToTerms,
-        activeColor: _primaryDark, // Your blue color
-        onChanged: (bool? value) {
-          setState(() {
-            _agreedToTerms = value ?? false;
-          });
-        },
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      ),
-    ),
-    const SizedBox(width: 10),
-    Expanded( // Prevents overflow errors
-      child: GestureDetector(
-        onTap: () {
-          // Allow tapping the text to toggle checkbox too!
-          setState(() => _agreedToTerms = !_agreedToTerms);
-        },
-        child: Wrap(
-          children: [
-            const Text(
-              "I agree to the ",
-              style: TextStyle(color: Colors.black54, fontSize: 14),
-            ),
-            GestureDetector(
-              onTap: () {
-                // Navigate to Privacy Policy
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
-              },
-              child: Text(
-                "Terms & Privacy Policy",
-                style: TextStyle(
-                  color: _primaryDark,
-                  fontWeight: FontWeight.bold,
-                  decoration: TextDecoration.underline,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  ],
-),
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      height: 24, width: 24,
+                                      child: Checkbox(
+                                        value: _agreedToTerms,
+                                        activeColor: primaryColor, // 🟢
+                                        onChanged: (bool? value) {
+                                          setState(() => _agreedToTerms = value ?? false);
+                                        },
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+                                        child: Wrap(
+                                          children: [
+                                            Text("I agree to the ", style: TextStyle(color: isDark ? Colors.grey[400] : Colors.black54, fontSize: 14)), // 🟢
+                                            GestureDetector(
+                                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
+                                              child: Text("Terms & Privacy Policy", 
+                                                style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, decoration: TextDecoration.underline, fontSize: 14)
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
 
-const SizedBox(height: 10),
+                                const SizedBox(height: 10),
 
                                 // SIGN UP BUTTON
                                 SizedBox(
@@ -462,14 +447,14 @@ const SizedBox(height: 10),
                                   child: ElevatedButton(
                                     onPressed: _isLoading ? null : _handleRegister,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: _primaryDark,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: isDark ? const Color(0xFFFFD700) : primaryColor, // 🟢 Gold on Dark
+                                      foregroundColor: isDark ? primaryColor : Colors.white,
                                       elevation: 5,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                                     ),
                                     child: _isLoading
-                                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                        : const Text("SIGN UP", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                      : const Text("SIGN UP", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                                   ),
                                 ),
                               ],
@@ -486,15 +471,7 @@ const SizedBox(height: 10),
                             const Text("Already a member? ", style: TextStyle(color: Colors.white70)),
                             GestureDetector(
                               onTap: () => Navigator.pop(context),
-                              child: Text(
-                                "Login",
-                                style: TextStyle(
-                                  color: _accentGold,
-                                  fontWeight: FontWeight.bold,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: _accentGold
-                                ),
-                              ),
+                              child: const Text("Login", style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
                             ),
                           ],
                         ),
@@ -511,11 +488,13 @@ const SizedBox(height: 10),
     );
   }
 
-  // Helper for Text Inputs
   Widget _buildStylishInput({
     required TextEditingController controller,
     required String hint,
     required IconData icon,
+    required Color inputFill,
+    required Color? textColor,
+    required bool isDark,
     bool isPassword = false,
     String? Function(String?)? validator,
     TextInputType keyboardType = TextInputType.text,
@@ -524,15 +503,13 @@ const SizedBox(height: 10),
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       keyboardType: keyboardType,
-      validator: (v) => validator != null 
-        ? validator(v) 
-        : (v!.isEmpty ? "Required" : null),
-      style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+      validator: validator ?? (v) => v!.isEmpty ? "Required" : null,
+      style: TextStyle(fontWeight: FontWeight.w600, color: textColor), // 🟢
       decoration: InputDecoration(
         filled: true,
-        fillColor: _bgInput,
+        fillColor: inputFill, // 🟢
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+        hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey[400], fontSize: 14), // 🟢
         prefixIcon: Icon(icon, color: Colors.grey[500]),
         suffixIcon: isPassword
             ? IconButton(
@@ -540,6 +517,7 @@ const SizedBox(height: 10),
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               )
             : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
         errorBorder: OutlineInputBorder( // Custom error border color
           borderRadius: BorderRadius.circular(15),
           borderSide: const BorderSide(color: Colors.red, width: 1.5),
@@ -547,10 +525,6 @@ const SizedBox(height: 10),
         focusedErrorBorder: OutlineInputBorder( // Retains error border when focused
           borderRadius: BorderRadius.circular(15),
           borderSide: const BorderSide(color: Colors.red, width: 1.5),
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none, // Default border is hidden by fillColor
         ),
         enabledBorder: OutlineInputBorder( // Default non-focused state
           borderRadius: BorderRadius.circular(15),
@@ -566,27 +540,33 @@ const SizedBox(height: 10),
   }
 
   // Helper for Dropdowns
-  Widget _buildDropdown({
+Widget _buildDropdown({
     required String hint,
     required IconData icon,
     required dynamic value,
     required List<dynamic> items,
     required Function(dynamic) onChanged,
+    required Color inputFill,
+    required Color? textColor,
+    required bool isDark,
+    required Color primaryColor,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: _bgInput, borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(color: inputFill, borderRadius: BorderRadius.circular(15)), // 🟢
       child: DropdownButtonFormField(
-        initialValue: value,
+        value: value,
+        dropdownColor: Theme.of(context).cardColor, // 🟢
+        style: TextStyle(fontWeight: FontWeight.w600, color: textColor), // 🟢
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: Colors.grey[500]),
           border: InputBorder.none,
           hintText: hint,
-          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey[400], fontSize: 14), // 🟢
         ),
-        icon: Icon(Icons.arrow_drop_down_circle, color: _primaryDark),
+        icon: Icon(Icons.arrow_drop_down_circle, color: primaryColor),
         items: items.map((item) {
-          return DropdownMenuItem(value: item, child: Text(item.toString(), style: const TextStyle(fontWeight: FontWeight.w600)));
+          return DropdownMenuItem(value: item, child: Text(item.toString()));
         }).toList(),
         onChanged: onChanged,
         validator: (v) => v == null ? "Required" : null,

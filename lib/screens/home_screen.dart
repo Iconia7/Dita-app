@@ -39,12 +39,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // Animation
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-
-  // --- DESIGN SYSTEM COLORS ---
-  final Color _primaryDark = const Color(0xFF003366); // DITA Blue
-  final Color _primaryLight = const Color(0xFF004C99); // Lighter Blue for gradients
-  final Color _accentGold = const Color(0xFFFFD700); // Gold
-  final Color _bgOffWhite = const Color(0xFFF4F6F9); // Clean Grey-White
   
 
   @override
@@ -158,7 +152,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
 // --- 1. STYLISH ANNOUNCEMENT DIALOG ---
-  void _showNotificationsDialog() {
+void _showNotificationsDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = Theme.of(context).cardColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -173,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               height: MediaQuery.of(context).size.height * 0.6,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor, // 🟢 Dynamic BG
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))
@@ -182,11 +180,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("📢 Announcements", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _primaryDark)),
+                      Text("📢 Announcements", 
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, 
+                          color: isDark ? Colors.white : primaryColor)), // 🟢 Dynamic Text
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.grey),
                         onPressed: () => Navigator.pop(context),
@@ -194,15 +193,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     ],
                   ),
                   const Divider(),
-                  
-                  // Content
                   Expanded(
                     child: FutureBuilder<List<dynamic>>(
                       future: _fetchAnnouncements(),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: DaystarSpinner(size: 120));
-                        }
+                        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: DaystarSpinner(size: 120));
                         if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           return Center(
                             child: Column(
@@ -224,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               margin: const EdgeInsets.only(bottom: 15),
                               padding: const EdgeInsets.all(15),
                               decoration: BoxDecoration(
-                                color: _bgOffWhite,
+                                color: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF4F6F9), // 🟢 Dynamic Item BG
                                 borderRadius: BorderRadius.circular(15),
                                 border: Border.all(color: Colors.grey.withOpacity(0.1)),
                               ),
@@ -236,13 +231,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: _primaryDark.withOpacity(0.1),
+                                          color: isDark ? Colors.white10 : primaryColor.withOpacity(0.1),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
-                                        child: Text(
-                                          "NEWS", 
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _primaryDark)
-                                        ),
+                                        child: Text("NEWS", 
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, 
+                                            color: isDark ? Colors.white : primaryColor)),
                                       ),
                                       const Spacer(),
                                       Text(
@@ -252,15 +246,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    item['title'],
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                  ),
+                                  Text(item['title'],
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, 
+                                      color: Theme.of(context).textTheme.bodyLarge?.color)),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    item['message'],
-                                    style: TextStyle(color: Colors.grey[700], fontSize: 13, height: 1.4),
-                                  ),
+                                  Text(item['message'],
+                                      style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700], fontSize: 13, height: 1.4)),
                                 ],
                               ),
                             );
@@ -276,10 +267,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return ScaleTransition(
-          scale: CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-          child: child,
-        );
+        return ScaleTransition(scale: CurvedAnimation(parent: animation, curve: Curves.easeOutBack), child: child);
       },
     );
   }
@@ -319,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 // Title
                 Text(
                   isJoining ? "RSVP Confirmed!" : "RSVP Cancelled",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryDark),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
                 ),
                 const SizedBox(height: 10),
                 
@@ -340,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryDark,
+                      backgroundColor: Theme.of(context).primaryColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -356,7 +344,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   // --- 2. ATTRACTIVE SUCCESS DIALOG (REPLACES OLD DIALOG) ---
-  void _showSuccessDialog(String title, String msg) {
+void _showSuccessDialog(String title, String msg) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = Theme.of(context).cardColor;
+    
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -367,12 +358,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         return ScaleTransition(
           scale: CurvedAnimation(parent: a1, curve: Curves.elasticOut),
           child: AlertDialog(
+            backgroundColor: cardColor, // 🟢 Dynamic BG
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
             contentPadding: EdgeInsets.zero,
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Top Green Area
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 20),
@@ -382,42 +373,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                   child: const Icon(Icons.check_circle_outline, color: Colors.white, size: 60),
                 ),
-                
                 Padding(
                   padding: const EdgeInsets.all(25.0),
                   child: Column(
                     children: [
-                      Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _primaryDark), textAlign: TextAlign.center),
+                      Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, 
+                          color: isDark ? Colors.white : Theme.of(context).primaryColor), textAlign: TextAlign.center), // 🟢
                       const SizedBox(height: 10),
                       Text(msg, style: TextStyle(color: Colors.grey[600], fontSize: 14), textAlign: TextAlign.center),
                       const SizedBox(height: 25),
-                      
-                      // Animated Points Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _accentGold.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: _accentGold)
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.stars_rounded, color: Colors.orange, size: 20),
-                            const SizedBox(width: 8),
-                            Text("+20 Points Added", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[800])),
-                          ],
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 25),
-                      
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: () => Navigator.pop(context),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _primaryDark,
+                            backgroundColor: Theme.of(context).primaryColor,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                             padding: const EdgeInsets.symmetric(vertical: 12)
                           ),
@@ -436,7 +406,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   // --- 4. STYLISH ERROR/WARNING DIALOG ---
-  void _showResponseDialog({required bool isError, required String title, required String msg}) {
+void _showResponseDialog({required bool isError, required String title, required String msg}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color headerColor = isError ? Colors.red : Colors.orange;
     IconData icon = isError ? Icons.error_outline : Icons.warning_amber_rounded;
 
@@ -450,12 +421,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         return ScaleTransition(
           scale: CurvedAnimation(parent: a1, curve: Curves.elasticOut),
           child: AlertDialog(
+            backgroundColor: Theme.of(context).cardColor, // 🟢 Dynamic BG
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             contentPadding: EdgeInsets.zero,
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Colored Header
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 20),
@@ -465,25 +436,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                   child: Icon(icon, color: Colors.white, size: 50),
                 ),
-                
                 Padding(
                   padding: const EdgeInsets.all(25.0),
                   child: Column(
                     children: [
-                      Text(
-                        title, 
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _primaryDark),
-                        textAlign: TextAlign.center,
-                      ),
+                      Text(title, 
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, 
+                        color: isDark ? Colors.white : Theme.of(context).primaryColor), textAlign: TextAlign.center), // 🟢
                       const SizedBox(height: 10),
-                      Text(
-                        msg, 
-                        style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5), 
-                        textAlign: TextAlign.center
-                      ),
-                      
+                      Text(msg, style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5), textAlign: TextAlign.center),
                       const SizedBox(height: 25),
-                      
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -615,6 +577,11 @@ void _openScanner() async {
   Widget build(BuildContext context) {
     bool isPaid = _currentUser['is_paid_member'] ?? false;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+  final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+  final primaryDark = Theme.of(context).primaryColor;
+  final accentGold = const Color(0xFFFFD700);
+
     final List<Widget> pages = [
       _buildDesignerHomeTab(isPaid),
       _buildEventsTab(),
@@ -624,15 +591,15 @@ void _openScanner() async {
     ];
 
     return Scaffold(
-      backgroundColor: _bgOffWhite,
+      backgroundColor: scaffoldBg,
       // extendBody allows the content to flow behind the floating nav bar
       extendBody: true, 
       body: pages[_currentIndex],
       bottomNavigationBar: _buildFloatingBottomNav(),
       floatingActionButton: FloatingActionButton(
     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantScreen())),
-    backgroundColor: _primaryDark,
-    child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+    backgroundColor: isDark ? accentGold : primaryDark,
+    child: Icon(Icons.chat_bubble_outline, color: isDark ? primaryDark : Colors.white),
   ),
   // Adjust location so it doesn't overlap with bottom nav
   floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, 
@@ -641,6 +608,11 @@ void _openScanner() async {
 
   // --- 1. DESIGNER HOME TAB ---
   Widget _buildDesignerHomeTab(bool isPaid) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+  // 🟢 Dark Mode Gradient: Deeper/Darker
+  final gradientColors = isDark 
+      ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
+      : [const Color(0xFF003366), const Color(0xFF004C99)];
     bool isExpiringSoon = false;
 if (isPaid && _currentUser['membership_expiry'] != null) {
   final expiry = DateTime.parse(_currentUser['membership_expiry']);
@@ -661,7 +633,7 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [_primaryDark, _primaryLight],
+                  colors: gradientColors,
                 ),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(35)),
               ),
@@ -855,7 +827,7 @@ _buildQuickAction(
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refreshData,
-            color: _primaryDark,
+            color: Theme.of(context).primaryColor,
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: ListView(
@@ -866,7 +838,7 @@ _buildQuickAction(
                   // Membership Section Header
                   Row(
                     children: [
-                      const Text("My Membership", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      Text("My Membership", style: Theme.of(context).textTheme.titleLarge),
                       const Spacer(),
                       if(!isPaid) 
                         Container(
@@ -903,7 +875,7 @@ _buildQuickAction(
                   const SizedBox(height: 30),
 
                   // Analytics Grid
-                  const Text("Dashboard", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                   Text("Dashboard", style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 15),
 
                   Row(
@@ -925,7 +897,7 @@ _buildQuickAction(
   ),
 ),
                       const SizedBox(width: 15),
-                      Expanded(child: _buildStatCard("Points", "${_currentUser['points'] ?? 0}", Icons.stars, _accentGold)),
+                      Expanded(child: _buildStatCard("Points", "${_currentUser['points'] ?? 0}", Icons.stars, const Color(0xFFFFD700))),
                     ],
                   ),
 
@@ -935,7 +907,7 @@ _buildQuickAction(
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("Upcoming Events", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text("Upcoming Events", style: Theme.of(context).textTheme.titleLarge),
                     TextButton(
                       onPressed: () => setState(() => _currentIndex = 1), // Switch to Events Tab
                       child: const Text("View All"),
@@ -971,7 +943,7 @@ _buildQuickAction(
                               width: 200,
                               margin: const EdgeInsets.only(right: 15),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: Theme.of(context).cardColor,
                                 borderRadius: BorderRadius.circular(15),
                                 image: event['image'] != null 
                                   ? DecorationImage(image: NetworkImage(event['image']), fit: BoxFit.cover, opacity: 0.2)
@@ -987,12 +959,12 @@ _buildQuickAction(
                                       event['title'], 
                                       maxLines: 2, 
                                       overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _primaryDark)
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color)
                                     ),
                                     const SizedBox(height: 5),
                                     Row(
                                       children: [
-                                        Icon(Icons.calendar_today, size: 12, color: _accentGold),
+                                        Icon(Icons.calendar_today, size: 12, color: const Color(0xFFFFD700)),
                                         const SizedBox(width: 5),
                                         Text(
                                           DateFormat('MMM d').format(DateTime.parse(event['date'])),
@@ -1035,7 +1007,7 @@ _buildQuickAction(
               borderRadius: BorderRadius.circular(15),
               border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
-            child: Icon(icon, color: _accentGold, size: 26),
+            child: Icon(icon, color: Color(0xFFFFD700), size: 26),
           ),
           const SizedBox(height: 8),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
@@ -1045,6 +1017,7 @@ _buildQuickAction(
   }
 
   Widget _buildPremiumIDCard(bool isPaid) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: 200,
       width: double.infinity,
@@ -1054,12 +1027,13 @@ _buildQuickAction(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isPaid 
-            ? [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)] // Deep tech gradient
-            : [Colors.grey[400]!, Colors.grey[600]!],
+            ? [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)] 
+          // 🟢 Inactive card: Darker grey in dark mode so it doesn't blind the user
+          : (isDark ? [Colors.grey[800]!, Colors.grey[900]!] : [Colors.grey[400]!, Colors.grey[600]!]),
         ),
         boxShadow: [
           BoxShadow(
-            color: isPaid ? const Color(0xFF2C5364).withOpacity(0.4) : Colors.grey.withOpacity(0.4),
+            color: isPaid ? const Color(0xFF2C5364).withOpacity(0.4) : Colors.black.withOpacity(0.2),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1104,7 +1078,7 @@ _buildQuickAction(
                           const SizedBox(height: 4),
                           Text(
                             _currentUser['admission_number'] ?? "00-0000", 
-                            style: TextStyle(color: _accentGold, fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 1.5),
+                            style: TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 1.5),
                           ),
                         ],
                       ),
@@ -1137,7 +1111,7 @@ _buildQuickAction(
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
@@ -1152,25 +1126,26 @@ _buildQuickAction(
             child: Icon(icon, color: accentColor, size: 20),
           ),
           const SizedBox(height: 15),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(value, style:  TextStyle(fontSize: 22, fontWeight: FontWeight.bold,color: Theme.of(context).textTheme.bodyLarge?.color)),
           const SizedBox(height: 5),
-          Text(title, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+          Text(title, style: Theme.of(context).textTheme.labelSmall),
         ],
       ),
     );
   }
 
   Widget _buildFloatingBottomNav() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color:Colors.black.withOpacity(0.1),
               blurRadius: 30,
               offset: const Offset(0, 10),
             ),
@@ -1192,20 +1167,23 @@ _buildQuickAction(
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     bool isSelected = _currentIndex == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+  final primaryColor = Theme.of(context).primaryColor;
+  final goldColor = const Color(0xFFFFD700);
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 10, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? _primaryDark : Colors.transparent,
+          color: isSelected ? primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
             Icon(
               icon, 
-              color: isSelected ? _accentGold : Colors.grey[400], 
+              color: isSelected ? goldColor : (isDark ? Colors.grey[400] : Colors.grey[400]), 
               size: 24
             ),
             if (isSelected) ...[
@@ -1227,7 +1205,7 @@ _buildQuickAction(
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: _primaryDark,
+        backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
         title: const Text("Upcoming Events", style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white)),
         centerTitle: true,
@@ -1267,7 +1245,7 @@ _buildQuickAction(
               return EventCard(
                 event: snapshot.data![index],
                 userId: _currentUser['id'],
-                primaryDark: _primaryDark,
+                primaryDark: Theme.of(context).primaryColor,
                 onRsvpChanged: (bool isJoining, String title) {
                   _showRSVPDialog(isJoining, title);
                 },
@@ -1280,13 +1258,16 @@ _buildQuickAction(
   }
 
 Widget _buildResourcesTab(bool isPaid) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final cardColor = Theme.of(context).cardColor;
+  final primaryDark = Theme.of(context).primaryColor;
     if (!isPaid) {
       return Center(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Icon(Icons.lock_outline, size: 60, color: Colors.grey[400]),
         const SizedBox(height: 20),
-        const Text("Resources Locked",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        Text("Resources Locked",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).textTheme.bodyLarge?.color)),
         const SizedBox(height: 10),
         TextButton(
             onPressed: _showPaymentSheet, child: const Text("Pay to Unlock"))
@@ -1294,11 +1275,11 @@ Widget _buildResourcesTab(bool isPaid) {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9), // _bgOffWhite
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // _bgOffWhite
       appBar: AppBar(
         title: const Text("Resources",
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: const Color(0xFF003366), // _primaryDark
+        backgroundColor: primaryDark, // _primaryDark
         elevation: 0,
         centerTitle: true,
         automaticallyImplyLeading: false,
@@ -1374,7 +1355,7 @@ Widget _buildResourcesTab(bool isPaid) {
                 margin: const EdgeInsets.only(bottom: 15),
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
@@ -1399,15 +1380,15 @@ Widget _buildResourcesTab(bool isPaid) {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(res['title'],
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16)),
+                              style:  TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16,color: Theme.of(context).textTheme.bodyLarge?.color)),
                           if (res['description'] != null &&
                               res['description'].toString().isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 4.0),
                               child: Text(res['description'],
                                   style: TextStyle(
-                                      color: Colors.grey[600], fontSize: 12),
+                                      color: isDark ? Colors.grey[400] :Colors.grey[600], fontSize: 12),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis),
                             ),
@@ -1436,8 +1417,8 @@ Widget _buildResourcesTab(bool isPaid) {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF4F6F9), // Matches bg
-                          foregroundColor: const Color(0xFF003366), // Dark text
+                          backgroundColor: isDark ? Colors.white10 : const Color(0xFFF4F6F9), // 🟢 Lighter bg in dark mode
+                        foregroundColor: isDark ? Colors.white : const Color(0xFF003366), // Dark text
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8),
@@ -1493,10 +1474,11 @@ class _EventCardState extends State<EventCard> {
     final String day = DateFormat('dd').format(date);
     final String month = DateFormat('MMM').format(date).toUpperCase();
     final String time = DateFormat('h:mm a').format(date);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))]),
+      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))]),
       child: Column(
         children: [
           Container(
@@ -1514,15 +1496,15 @@ class _EventCardState extends State<EventCard> {
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                  decoration: BoxDecoration(color: widget.primaryDark.withOpacity(0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: widget.primaryDark.withOpacity(0.1))),
-                  child: Column(children: [Text(day, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: widget.primaryDark)), Text(month, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.primaryDark.withOpacity(0.6)))]),
+                  decoration: BoxDecoration(color: isDark ? Colors.white10 : widget.primaryDark.withOpacity(0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: widget.primaryDark.withOpacity(0.1))),
+                  child: Column(children: [Text(day, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : widget.primaryDark)), Text(month, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.primaryDark.withOpacity(0.6)))]),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.event['title'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(widget.event['title'], style:  TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color), maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 5),
                       Row(children: [Icon(Icons.location_on, size: 14, color: Colors.grey[500]), const SizedBox(width: 4), Text(widget.event['venue'], style: TextStyle(fontSize: 12, color: Colors.grey[500]))]),
                       const SizedBox(height: 4),

@@ -17,7 +17,6 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
   Timer? _statusCheckTimer;
 
   // --- DESIGN SYSTEM COLORS ---
-  final Color _primaryDark = const Color(0xFF003366);
   final Color _mpesaGreen = const Color(0xFF4CAF50);
 
   @override
@@ -59,15 +58,17 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
     });
   }
 
-  void _showInstructionDialog() {
-    // minimize the sheet slightly or show dialog on top
+void _showInstructionDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor, // 🟢 Dynamic BG
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Check your Phone 📲", textAlign: TextAlign.center),
-        content: const Text("Enter your M-Pesa PIN to complete the transaction.", textAlign: TextAlign.center),
+        title: Text("Check your Phone 📲", textAlign: TextAlign.center, 
+            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)), // 🟢
+        content: Text("Enter your M-Pesa PIN to complete the transaction.", textAlign: TextAlign.center,
+            style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)), // 🟢
         actions: [
           TextButton(
             onPressed: () {
@@ -83,16 +84,22 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // This makes the sheet respect the keyboard height
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetColor = Theme.of(context).cardColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final inputFill = isDark ? Colors.white10 : Colors.grey[100];
+
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        decoration: BoxDecoration(
+          color: sheetColor, // 🟢 Dynamic BG
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min, // Wrap content height
+          mainAxisSize: MainAxisSize.min, 
           children: [
             // --- HANDLE BAR ---
             const SizedBox(height: 15),
@@ -108,15 +115,15 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: _primaryDark.withOpacity(0.1), shape: BoxShape.circle),
-                    child: Icon(Icons.wallet, color: _primaryDark),
+                    decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                    child: Icon(Icons.wallet, color: primaryColor), // 🟢
                   ),
                   const SizedBox(width: 15),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Membership Payment", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("Secure M-Pesa Checkout", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text("Membership Payment", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)), // 🟢
+                      Text("Secure M-Pesa Checkout", style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                     ],
                   ),
                   const Spacer(),
@@ -136,7 +143,7 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
               child: Column(
                 children: [
                   // Price Tag
-                  Text("KES 200", style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: _primaryDark)),
+                  Text("KES 200", style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: primaryColor)), // 🟢
                   const Text("Semester Membership Fee", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
                   
                   const SizedBox(height: 30),
@@ -144,18 +151,19 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
                   // Phone Input
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
+                      color: inputFill, // 🟢 Dynamic Input BG
                       borderRadius: BorderRadius.circular(15),
                     ),
                     child: TextField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.phone_android),
+                      style: TextStyle(fontWeight: FontWeight.bold, color: textColor), // 🟢
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(Icons.phone_android, color: Colors.grey[500]),
                         hintText: "M-Pesa Number",
+                        hintStyle: TextStyle(color: Colors.grey[400]),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                       ),
                     ),
                   ),
@@ -175,8 +183,8 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                       ),
                       child: _isLoading 
-                       ? const CircularProgressIndicator(color: Colors.white)
-                       : const Text("PAY NOW", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text("PAY NOW", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   

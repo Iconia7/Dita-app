@@ -16,14 +16,6 @@ class ClassTimetableScreen extends StatefulWidget {
 class _ClassTimetableScreenState extends State<ClassTimetableScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   Timer? _timer;
-  
-  // --- MODERN COLOR PALETTE ---
-  final Color _primaryDark = const Color(0xFF0F172A); // Midnight Blue (Modern Dark)
-  final Color _primaryBlue = const Color(0xFF003366); // Daystar Blue
-  final Color _accentGold = const Color(0xFFFFD700);
-  final Color _bgLight = const Color(0xFFF1F5F9);     // Slate 100
-  final Color _textMain = const Color(0xFF1E293B);    // Slate 800
-  final Color _textSub = const Color(0xFF64748B);     // Slate 500
   final Color _liveGreen = const Color(0xFF10B981);   // Emerald 500
 
   final List<String> _days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -90,10 +82,16 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
     }
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final accentGold = const Color(0xFFFFD700);
+
     return Scaffold(
-      backgroundColor: _bgLight,
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
@@ -101,13 +99,13 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
               expandedHeight: 100.0,
               floating: false,
               pinned: true,
-              backgroundColor: _primaryBlue,
+              backgroundColor: primaryColor,
               iconTheme: const IconThemeData(color: Colors.white),
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
                 title: const Text(
                   "Timetable",
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18,color: Colors.white),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Colors.white),
                 ),
                 background: Stack(
                   fit: StackFit.expand,
@@ -117,17 +115,18 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [_primaryDark, _primaryBlue],
+                          // 🟢 Dark Mode Gradient check (optional, or keep blue for brand)
+                          colors: isDark 
+                              ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
+                              : [const Color(0xFF003366), const Color(0xFF003366)], 
                         ),
                       ),
                     ),
-                    // Decorative Circle
                     Positioned(
                       right: -30,
                       top: -50,
                       child: Container(
-                        width: 150,
-                        height: 150,
+                        width: 150, height: 150,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
@@ -139,7 +138,8 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
               ),
               actions: [
                  PopupMenuButton<String>(
-                  icon: const Icon(Icons.tune, color: Colors.white), // Settings/Tune icon
+                  icon: const Icon(Icons.tune, color: Colors.white),
+                  color: Theme.of(context).cardColor, // 🟢 Dynamic Menu BG
                   onSelected: (value) {
                     if (value == 'manual') Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualClassEntryScreen())).then((_) => _loadClasses());
                     else if (value == 'sync') Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses());
@@ -161,14 +161,14 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                   isScrollable: true,
                   indicatorSize: TabBarIndicatorSize.label,
                   indicator: BoxDecoration(
-                    color: _accentGold,
+                    color: accentGold,
                     borderRadius: BorderRadius.circular(50),
                     boxShadow: [
-                      BoxShadow(color: _accentGold.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))
+                      BoxShadow(color: accentGold.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))
                     ]
                   ),
-                  labelColor: _primaryDark,
-                  unselectedLabelColor: _textSub,
+                  labelColor: const Color(0xFF003366), // Selected text always Dark Blue (on Gold)
+                  unselectedLabelColor: isDark ? Colors.grey[400] : Colors.grey[600], // 🟢 Dynamic Unselected
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                   tabs: _days.map((d) => Tab(
@@ -178,6 +178,7 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                     ),
                   )).toList(),
                 ),
+                scaffoldBg, // 🟢 Pass the background color to the delegate
               ),
               pinned: true,
             ),
@@ -191,8 +192,8 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
     );
   }
 
-  // --- EMPTY STATE WIDGET ---
   Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40.0),
@@ -201,20 +202,24 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
           children: [
             Container(
               padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, spreadRadius: 5)]),
-              child: Icon(Icons.calendar_month_outlined, size: 50, color: _primaryBlue.withOpacity(0.5)),
+              decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : Colors.white, // 🟢 Dynamic Circle
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, spreadRadius: 5)]
+              ),
+              child: Icon(Icons.calendar_month_outlined, size: 50, color: isDark ? Colors.white54 : const Color(0xFF003366).withOpacity(0.5)),
             ),
             const SizedBox(height: 25),
-            Text("No Classes Yet", style: TextStyle(color: _primaryDark, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text("No Classes Yet", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)), // 🟢
             const SizedBox(height: 10),
-            Text("Sync your portal or add classes manually to get started.", textAlign: TextAlign.center, style: TextStyle(color: _textSub)),
+            Text("Sync your portal or add classes manually to get started.", textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).textTheme.labelSmall?.color)), // 🟢
             const SizedBox(height: 30),
             ElevatedButton.icon(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses()),
               icon: const Icon(Icons.cloud_download_outlined),
               label: const Text("Sync Now"),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryBlue,
+                backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -226,8 +231,12 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
     );
   }
 
-  // --- TIMELINE BUILDER ---
   Widget _buildDayTimeline(String day) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     if (_classes.isEmpty) return _buildEmptyState();
 
     final dayClasses = _classes.where((c) => c['day'] == day).toList();
@@ -240,7 +249,7 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
           children: [
             Icon(Icons.weekend_outlined, size: 60, color: Colors.grey[300]),
             const SizedBox(height: 15),
-            Text("Free Day!", style: TextStyle(color: _textSub, fontSize: 16, fontWeight: FontWeight.w600)),
+            Text("Free Day!", style: TextStyle(color: subTextColor, fontSize: 16, fontWeight: FontWeight.w600)),
           ],
         ),
       );
@@ -265,12 +274,12 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                   children: [
                     Text(
                       c['startTime'], 
-                      style: TextStyle(fontWeight: FontWeight.bold, color: isLive ? _liveGreen : _textMain)
+                      style: TextStyle(fontWeight: FontWeight.bold, color: isLive ? _liveGreen : textColor) // 🟢
                     ),
                     const SizedBox(height: 4),
                     Text(
                       c['endTime'], 
-                      style: TextStyle(fontSize: 12, color: _textSub)
+                      style: TextStyle(fontSize: 12, color: subTextColor) // 🟢
                     ),
                   ],
                 ),
@@ -284,14 +293,14 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: isLive ? _liveGreen : Colors.white,
-                      border: Border.all(color: isLive ? _liveGreen : Colors.grey[300]!, width: 2),
+                      color: isLive ? _liveGreen : (isDark ? Colors.grey[700] : Colors.white), // 🟢 Darker dot for dark mode
+                      border: Border.all(color: isLive ? _liveGreen : (isDark ? Colors.grey[600]! : Colors.grey[300]!), width: 2),
                       shape: BoxShape.circle,
                       boxShadow: isLive ? [BoxShadow(color: _liveGreen.withOpacity(0.5), blurRadius: 6, spreadRadius: 1)] : null
                     ),
                   ),
                   if (!isLast) 
-                    Expanded(child: Container(width: 2, color: Colors.grey[200])),
+                    Expanded(child: Container(width: 2, color: isDark ? Colors.grey[800] : Colors.grey[200])), // 🟢 Darker line
                 ],
               ),
 
@@ -310,9 +319,15 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
   }
 
   Widget _buildClassCard(Map<String, dynamic> c, bool isLive) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     return Container(
       decoration: BoxDecoration(
-        color: isLive ? Colors.white : Colors.white,
+        color: cardColor, // 🟢 Dynamic Card BG
         borderRadius: BorderRadius.circular(16),
         border: isLive ? Border.all(color: _liveGreen, width: 1.5) : Border.all(color: Colors.transparent),
         boxShadow: [
@@ -322,14 +337,18 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
             offset: const Offset(0, 5),
           )
         ],
-        gradient: isLive ? LinearGradient(colors: [Colors.white, _liveGreen.withOpacity(0.05)]) : null,
+        gradient: isLive ? LinearGradient(
+            colors: isDark 
+              ? [cardColor, _liveGreen.withOpacity(0.1)] 
+              : [Colors.white, _liveGreen.withOpacity(0.05)]
+        ) : null,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onLongPress: () => _deleteSingleClass(c['id']), // Long press to delete
+            onLongPress: () => _deleteSingleClass(c['id']), 
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -342,13 +361,13 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: isLive ? _liveGreen : _primaryBlue.withOpacity(0.1),
+                          color: isLive ? _liveGreen : Theme.of(context).primaryColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           c['code'], 
                           style: TextStyle(
-                            color: isLive ? Colors.white : _primaryBlue, 
+                            color: isLive ? Colors.white : Theme.of(context).primaryColor, // 🟢
                             fontWeight: FontWeight.w800,
                             fontSize: 12
                           )
@@ -364,22 +383,22 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                   ),
                   const SizedBox(height: 12),
                   
-                  // TITLE (Venue as Title for now or Code if title missing)
+                  // TITLE
                   Text(
                     "Class at ${c['venue']}",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textMain),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor), // 🟢
                   ),
                   const SizedBox(height: 8),
 
                   // DETAILS ROW
                   Row(
                     children: [
-                      Icon(Icons.person_outline, size: 16, color: _textSub),
+                      Icon(Icons.person_outline, size: 16, color: subTextColor),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           c['lecturer'] == "Unknown" ? "Lecturer N/A" : c['lecturer'], 
-                          style: TextStyle(color: _textSub, fontSize: 13),
+                          style: TextStyle(color: subTextColor, fontSize: 13), // 🟢
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -408,8 +427,9 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
 
 // --- HELPER FOR STICKY TAB BAR ---
 class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
-  _SliverAppBarDelegate(this._tabBar);
+  _SliverAppBarDelegate(this._tabBar, this._bgColor); // 🟢 Accept BG Color
   final TabBar _tabBar;
+  final Color _bgColor;
 
   @override
   double get minExtent => _tabBar.preferredSize.height;
@@ -419,13 +439,13 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      color: const Color(0xFFF1F5F9), // Match background color
+      color: _bgColor, // 🟢 Use Dynamic BG Color
       child: _tabBar,
     );
   }
 
   @override
   bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
-    return false;
+    return _bgColor != oldDelegate._bgColor; // Rebuild if color changes (Dark Mode Switch)
   }
 }

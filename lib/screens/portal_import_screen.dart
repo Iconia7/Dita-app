@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:dita_app/screens/class_timetable_screen.dart'; // Import this
 import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -16,11 +17,10 @@ class PortalImportScreen extends StatefulWidget {
 class _PortalImportScreenState extends State<PortalImportScreen> {
   late final WebViewController _controller;
   bool _isLoading = true;
-  bool _hasExtracted = false; // Prevent double extraction
+  bool _hasExtracted = false; 
   
   // URL CONSTANTS
   final String _targetUrl = 'https://student.daystar.ac.ke/Course/StudentTimetable';
-  final Color _primaryDark = const Color(0xFF0F172A);
 
   @override
   void initState() {
@@ -35,41 +35,29 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
             setState(() => _isLoading = false);
             
             // AUTOMATION LOGIC:
-            // Check if we have landed on the Timetable Page
             if (url.toLowerCase().contains("studenttimetable") && !_hasExtracted) {
               print("🎯 Target Page Detected! Starting auto-extraction...");
-              
-              // Add a small delay to ensure the table renders (JS frameworks often lag)
               await Future.delayed(const Duration(seconds: 2));
               _extractTimetable();
             }
           },
         ),
       )
-      // 1. DIRECT TARGET STRATEGY
-      // We load the Timetable URL first. The portal will redirect to Login,
-      // and then redirect BACK here automatically after login.
       ..loadRequest(Uri.parse(_targetUrl)); 
   }
 
   Future<void> _extractTimetable() async {
     setState(() {
       _isLoading = true;
-      _hasExtracted = true; // Mark as done so we don't loop
+      _hasExtracted = true;
     });
 
     try {
-      // 2. JS INJECTION: SMART FILTERING
-      // This script scans specifically for the "My Timetable" section and STOPS
-      // before it hits "Courses in Timetable".
+      // ... (Keep your JS Injection String EXACTLY the same) ...
       const String extractionScript = """
       (function() {
           var extractedData = [];
-          
-          // Try to find the specific table
           var table = document.querySelector('table.table.table-hover');
-          
-          // Fallback: If specific class not found, find any table with "Unit" and "Period"
           if (!table) {
               var tables = document.getElementsByTagName('table');
               for (var k = 0; k < tables.length; k++) {
@@ -83,44 +71,35 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
           if (!table) return "NOT_FOUND";
 
           var rows = table.querySelectorAll('tr');
-          var collecting = false; // FLAG: Are we inside 'My Timetable' yet?
+          var collecting = false; 
 
           for (var i = 0; i < rows.length; i++) {
               var rowText = rows[i].innerText || rows[i].textContent;
               rowText = rowText.trim();
 
-              // 1. START TRIGGER
-              // We start collecting ONLY after we see this specific header
               if (rowText === "My Timetable") {
                   collecting = true;
-                  continue; // Skip the header row itself
+                  continue; 
               }
 
-              // 2. STOP TRIGGER
-              // If we reach the bottom section, we STOP immediately
               if (rowText.indexOf("Courses in Timetable") > -1) {
                   break; 
               }
 
-              // 3. COLLECT DATA
               if (collecting) {
                   var cells = rows[i].querySelectorAll('td');
-                  
-                  // Ensure it's a valid data row (at least 7 cols)
                   if (cells.length >= 7) {
                       var unit = cells[0].innerText.trim();
-                      
-                      // Skip if it looks like a sub-header (e.g. repeated "Unit" header)
                       if (unit.toLowerCase() === "unit" || unit === "") continue;
 
                       extractedData.push({
-                          "unit": unit,                            // cells[0]
-                          "section": cells[1].innerText.trim(),    // cells[1]
-                          "day": cells[2].innerText.trim(),        // cells[2]
-                          "period": cells[3].innerText.trim(),     // cells[3]
-                          "campus": cells[4].innerText.trim(),     // cells[4]
-                          "room": cells[5].innerText.trim(),       // cells[5]
-                          "lecturer": cells[6].innerText.trim()    // cells[6]
+                          "unit": unit,
+                          "section": cells[1].innerText.trim(),
+                          "day": cells[2].innerText.trim(),
+                          "period": cells[3].innerText.trim(),
+                          "campus": cells[4].innerText.trim(),
+                          "room": cells[5].innerText.trim(),
+                          "lecturer": cells[6].innerText.trim()
                       });
                   }
               }
@@ -132,7 +111,6 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
 
       final result = await _controller.runJavaScriptReturningResult(extractionScript);
       
-      // Clean JSON string
       String jsonString = result.toString();
       if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
         jsonString = jsonString.substring(1, jsonString.length - 1);
@@ -140,13 +118,12 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       }
 
       if (jsonString == "NOT_FOUND") {
-        _hasExtracted = false; // Reset to try again
+        _hasExtracted = false;
         _showError("Waiting for table to load...");
         setState(() => _isLoading = false);
         return;
       }
 
-      // Decode
       List<dynamic> rawData = [];
       try {
         rawData = json.decode(jsonString);
@@ -160,7 +137,6 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
         return;
       }
 
-      // Process Data
       List<Map<String, dynamic>> finalClasses = [];
 
       for (var item in rawData) {
@@ -203,8 +179,7 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
     }
   }
 
-  // --- HELPERS (Time/Day Parsing) ---
-
+  // ... (Keep _cleanDay and _convertTo24Hour helpers unchanged) ...
   String _cleanDay(String dayRaw) {
     String d = dayRaw.toUpperCase();
     if (d.contains("MON")) return "MON";
@@ -213,7 +188,7 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
     if (d.contains("THU")) return "THU";
     if (d.contains("FRI")) return "FRI";
     if (d.contains("SAT")) return "SAT";
-    return "MON"; // Fallback
+    return "MON"; 
   }
 
   String _convertTo24Hour(String timeStr) {
@@ -235,24 +210,19 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
 
   Future<void> _saveClasses(List<Map<String, dynamic>> newClasses) async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // Merge Logic (Cancel old alarms for updated classes)
     List<dynamic> existing = [];
     if (prefs.containsKey('my_classes')) {
       existing = json.decode(prefs.getString('my_classes')!);
     }
     
     for(var cls in newClasses) {
-       // Check if this class already exists to cancel its old alarm
        var oldIndex = existing.indexWhere((e) => e['code'] == cls['code']);
        if (oldIndex != -1) {
-         // Cancel OLD alarm
          await NotificationService.cancelNotification(existing[oldIndex]['id']);
          existing.removeAt(oldIndex);
        }
        existing.add(cls);
 
-       // Schedule NEW alarm
        int dayIndex = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].indexOf(cls['day']) + 1;
        TimeOfDay t = TimeOfDay(
          hour: int.parse(cls['startTime'].split(":")[0]), 
@@ -274,7 +244,11 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Success! Imported ${newClasses.length} classes."), backgroundColor: Colors.green)
       );
-      Navigator.pop(context); 
+      
+      // 🟢 REDIRECT FIX: Go directly to ClassTimetableScreen, removing history
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const ClassTimetableScreen())
+      );
     }
   }
 
@@ -284,34 +258,45 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final overlayColor = isDark ? Colors.black.withOpacity(0.9) : Colors.white.withOpacity(0.9);
+    final primaryColor = Theme.of(context).primaryColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Syncing...", style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: _primaryDark,
+        backgroundColor: primaryColor, // 🟢 Dynamic Color
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Stack(
         children: [
+          // WebView always stays 'light' because the website is light
           WebViewWidget(controller: _controller),
           
-          // LOADING OVERLAY
+          // LOADING OVERLAY (Theme Aware)
           if (_isLoading)
             Container(
-              color: Colors.white.withOpacity(0.9),
+              color: overlayColor, // 🟢 Dynamic Overlay
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const DaystarSpinner(size: 120),
                     const SizedBox(height: 20),
-                    const Text(
+                    Text(
                       "Connecting to Portal...",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor), // 🟢
                     ),
                     const SizedBox(height: 10),
                     Text(
                       "Please Login if requested.",
-                      style: TextStyle(color: Colors.grey[600]),
+                      style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]), // 🟢
                     ),
                   ],
                 ),

@@ -4,18 +4,6 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
 // --- Widget Helper (from ProfileScreen) ---
-Widget _buildDialogInput(TextEditingController controller, String label, IconData icon, Color primaryDark, {bool isPhone = false}) {
-    return TextField(
-      controller: controller,
-      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: primaryDark),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
-      ),
-    );
-}
 
 class EditProfileSheet extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -32,7 +20,6 @@ class EditProfileSheet extends StatefulWidget {
 }
 
 class _EditProfileSheetState extends State<EditProfileSheet> {
-  final Color _primaryDark = const Color(0xFF003366); 
   bool _isSaving = false;
 
   late final TextEditingController _admController;
@@ -84,11 +71,17 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF5F7FA);
+    final primaryColor = Theme.of(context).primaryColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final inputFill = isDark ? Colors.white10 : Colors.white;
+
     return Container(
-      // Padding handles the keyboard pushing the sheet up
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA), // Light background color
+        color: sheetBg, // 🟢 Dynamic BG
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: Column(
@@ -99,36 +92,45 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Edit Profile", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _primaryDark)),
+              Text("Edit Profile", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryColor)), // 🟢
               IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
             ],
           ),
           const Divider(),
           
           SingleChildScrollView(
-            // Use Builder to allow dialog state update within the sheet
             child: StatefulBuilder(
               builder: (context, setStateDialog) {
                 return Column(
                   children: [
-                    _buildDialogInput(_admController, "Admission No", Icons.badge_outlined, _primaryDark),
+                    _buildDialogInput(_admController, "Admission No", Icons.badge_outlined, primaryColor, inputFill, textColor),
                     const SizedBox(height: 15),
-                    _buildDialogInput(_programController, "Program", Icons.school_outlined, _primaryDark),
+                    _buildDialogInput(_programController, "Program", Icons.school_outlined, primaryColor, inputFill, textColor),
                     const SizedBox(height: 15),
-                    DropdownButtonFormField<int>(
-                      initialValue: _selectedYear,
-                      decoration: InputDecoration(
-                        labelText: "Year of Study",
-                        prefixIcon: Icon(Icons.calendar_today, color: _primaryDark),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    
+                    // Dropdown
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: inputFill, borderRadius: BorderRadius.circular(10)), // 🟢
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedYear,
+                        dropdownColor: Theme.of(context).cardColor, // 🟢
+                        style: TextStyle(color: textColor, fontWeight: FontWeight.bold), // 🟢
+                        decoration: InputDecoration(
+                          labelText: "Year of Study",
+                          labelStyle: TextStyle(color: Colors.grey),
+                          prefixIcon: Icon(Icons.calendar_today, color: primaryColor),
+                          border: InputBorder.none,
+                        ),
+                        items: [1, 2, 3, 4].map((y) => DropdownMenuItem(value: y, child: Text("Year $y"))).toList(),
+                        onChanged: (val) => setStateDialog(() => _selectedYear = val!),
                       ),
-                      items: [1, 2, 3, 4].map((y) => DropdownMenuItem(value: y, child: Text("Year $y"))).toList(),
-                      onChanged: (val) => setStateDialog(() => _selectedYear = val!),
                     ),
+                    
                     const SizedBox(height: 15),
-                    _buildDialogInput(_phoneController, "Phone Number", Icons.phone_iphone_rounded, _primaryDark, isPhone: true),
+                    _buildDialogInput(_phoneController, "Phone Number", Icons.phone_iphone_rounded, primaryColor, inputFill, textColor, isPhone: true),
                     const SizedBox(height: 15),
-                    _buildDialogInput(_emailController, "Email Address", Icons.email_outlined, _primaryDark),
+                    _buildDialogInput(_emailController, "Email Address", Icons.email_outlined, primaryColor, inputFill, textColor),
                     const SizedBox(height: 30),
                   ],
                 );
@@ -142,7 +144,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
             child: ElevatedButton(
               onPressed: _isSaving ? null : _updateProfile,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryDark,
+                backgroundColor: primaryColor, // 🟢
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 padding: const EdgeInsets.symmetric(vertical: 15)
@@ -153,6 +155,23 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDialogInput(TextEditingController controller, String label, IconData icon, Color iconColor, Color fill, Color? text, {bool isPhone = false}) {
+    return TextField(
+      controller: controller,
+      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+      style: TextStyle(color: text), // 🟢
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey),
+        prefixIcon: Icon(icon, color: iconColor), // 🟢
+        filled: true,
+        fillColor: fill, // 🟢
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
       ),
     );
   }

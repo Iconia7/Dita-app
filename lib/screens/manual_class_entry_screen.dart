@@ -14,14 +14,8 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _venueController = TextEditingController();
-  
-  // --- MODERN THEME COLORS ---
-  final Color _primaryDark = const Color(0xFF0F172A); // Midnight Blue
   final Color _primaryBlue = const Color(0xFF003366); // Daystar Blue
-  final Color _accentGold = const Color(0xFFFFD700);
-  final Color _bgLight = const Color(0xFFF1F5F9);     // Slate 100
-  final Color _textMain = const Color(0xFF1E293B);    // Slate 800
-  final Color _textSub = const Color(0xFF64748B);     // Slate 500
+  final Color _accentGold = const Color(0xFFFFD700);    // Slate 500
 
   String _selectedDay = "MON";
   TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
@@ -75,10 +69,18 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
     }
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     return Scaffold(
-      backgroundColor: _bgLight,
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
         title: const Text("Add New Class", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), 
         centerTitle: true,
@@ -92,7 +94,10 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [_primaryDark, _primaryBlue],
+              // 🟢 Dynamic Gradient
+              colors: isDark 
+                  ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
+                  : [const Color(0xFF003366), const Color(0xFF003366)], 
             ),
           ),
         ),
@@ -104,7 +109,11 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
             Container(
               height: 20,
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [_primaryDark, _primaryBlue]),
+                gradient: LinearGradient(
+                    colors: isDark 
+                      ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
+                      : [const Color(0xFF003366), const Color(0xFF003366)]
+                ),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
               ),
             ),
@@ -117,15 +126,16 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // --- SECTION 1: DETAILS ---
-                    _buildSectionHeader("Class Details", Icons.class_outlined),
+                    _buildSectionHeader("Class Details", Icons.class_outlined, primaryColor, subTextColor),
                     const SizedBox(height: 15),
                     
                     // Unit Code Input
                     _buildInputCard(
+                      cardColor,
                       child: TextFormField(
                         controller: _codeController,
-                        style: TextStyle(fontWeight: FontWeight.bold, color: _textMain),
-                        decoration: _buildInputDeco("Unit Code", "e.g. ACS 401", Icons.qr_code),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: textColor), // 🟢
+                        decoration: _buildInputDeco("Unit Code", "e.g. ACS 401", Icons.qr_code, subTextColor),
                         validator: (v) => v!.isEmpty ? "Required" : null,
                       ),
                     ),
@@ -133,10 +143,11 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
 
                     // Venue Input
                     _buildInputCard(
+                      cardColor,
                       child: TextFormField(
                         controller: _venueController,
-                        style: TextStyle(fontWeight: FontWeight.bold, color: _textMain),
-                        decoration: _buildInputDeco("Venue", "e.g. DAC 201", Icons.location_on_outlined),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: textColor), // 🟢
+                        decoration: _buildInputDeco("Venue", "e.g. DAC 201", Icons.location_on_outlined, subTextColor),
                         validator: (v) => v!.isEmpty ? "Required" : null,
                       ),
                     ),
@@ -144,14 +155,14 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
                     const SizedBox(height: 30),
 
                     // --- SECTION 2: SCHEDULE ---
-                    _buildSectionHeader("Schedule", Icons.access_time),
+                    _buildSectionHeader("Schedule", Icons.access_time, primaryColor, subTextColor),
                     const SizedBox(height: 15),
 
                     // Day Selector
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: cardColor, // 🟢
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
                       ),
@@ -159,13 +170,14 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
                         child: DropdownButton<String>(
                           value: _selectedDay,
                           isExpanded: true,
-                          icon: Icon(Icons.keyboard_arrow_down, color: _primaryBlue),
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textMain),
+                          dropdownColor: cardColor, // 🟢
+                          icon: Icon(Icons.keyboard_arrow_down, color: primaryColor),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor), // 🟢
                           items: ["MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => DropdownMenuItem(
                             value: d, 
                             child: Row(
                               children: [
-                                Icon(Icons.calendar_today, size: 16, color: _textSub),
+                                Icon(Icons.calendar_today, size: 16, color: subTextColor),
                                 const SizedBox(width: 10),
                                 Text(d),
                               ],
@@ -181,11 +193,11 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildTimePickerCard("Start Time", _startTime, (t) => setState(() => _startTime = t)),
+                          child: _buildTimePickerCard("Start Time", _startTime, (t) => setState(() => _startTime = t), cardColor, primaryColor, subTextColor, textColor),
                         ),
                         const SizedBox(width: 15),
                         Expanded(
-                          child: _buildTimePickerCard("End Time", _endTime, (t) => setState(() => _endTime = t)),
+                          child: _buildTimePickerCard("End Time", _endTime, (t) => setState(() => _endTime = t), cardColor, primaryColor, subTextColor, textColor),
                         ),
                       ],
                     ),
@@ -199,10 +211,10 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
                       child: ElevatedButton(
                         onPressed: _saveClass,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _primaryBlue, 
+                          backgroundColor: primaryColor, // 🟢
                           foregroundColor: Colors.white,
                           elevation: 8,
-                          shadowColor: _primaryBlue.withOpacity(0.4),
+                          shadowColor: primaryColor.withOpacity(0.4),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
                         ),
                         child: const Row(
@@ -225,22 +237,22 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
     );
   }
 
-  // --- UI HELPERS ---
+  // --- UI HELPERS (Refactored to accept colors) ---
 
-  Widget _buildSectionHeader(String title, IconData icon) {
+  Widget _buildSectionHeader(String title, IconData icon, Color iconColor, Color? textColor) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: _primaryBlue),
+        Icon(icon, size: 18, color: iconColor),
         const SizedBox(width: 8),
-        Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: _textSub, fontSize: 14, letterSpacing: 0.5)),
+        Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 14, letterSpacing: 0.5)),
       ],
     );
   }
 
-  Widget _buildInputCard({required Widget child}) {
+  Widget _buildInputCard(Color bgColor, {required Widget child}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor, // 🟢
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
@@ -248,19 +260,19 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
     );
   }
 
-  InputDecoration _buildInputDeco(String label, String hint, IconData icon) {
+  InputDecoration _buildInputDeco(String label, String hint, IconData icon, Color? subColor) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      prefixIcon: Icon(icon, color: _textSub),
-      labelStyle: TextStyle(color: _textSub),
-      hintStyle: TextStyle(color: Colors.grey[300]),
+      prefixIcon: Icon(icon, color: subColor),
+      labelStyle: TextStyle(color: subColor),
+      hintStyle: TextStyle(color: Colors.grey[400]), // Hint can stay light grey
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
     );
   }
 
-  Widget _buildTimePickerCard(String label, TimeOfDay time, Function(TimeOfDay) onPicked) {
+  Widget _buildTimePickerCard(String label, TimeOfDay time, Function(TimeOfDay) onPicked, Color bgColor, Color accentColor, Color? labelColor, Color? timeColor) {
     return InkWell(
       onTap: () async {
         final t = await showTimePicker(context: context, initialTime: time);
@@ -269,7 +281,7 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: bgColor, // 🟢
           borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
           border: Border.all(color: Colors.transparent),
@@ -277,12 +289,12 @@ class _ManualClassEntryScreenState extends State<ManualClassEntryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(color: _textSub, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(label, style: TextStyle(color: labelColor, fontSize: 12, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(time.format(context), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _primaryDark)),
+                Text(time.format(context), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: accentColor)), // 🟢
                 Icon(Icons.access_time_filled, size: 20, color: _accentGold),
               ],
             ),

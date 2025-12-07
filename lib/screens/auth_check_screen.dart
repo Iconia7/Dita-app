@@ -17,8 +17,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
   final LocalAuthentication auth = LocalAuthentication();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  final Color _primaryDark = const Color(0xFF003366);
-  final Color _primaryLight = const Color(0xFF004C99);
 
   @override
   void initState() {
@@ -132,55 +130,71 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
     );
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
-    // ... (Your existing build method stays exactly the same) ...
+    // 🟢 1. Theme Awareness
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // 🟢 2. Dynamic Gradient (Matches Login Screen)
+    final gradientColors = isDark 
+        ? [const Color(0xFF0F172A), const Color(0xFF003366)]  // Midnight -> Navy
+        : [const Color(0xFF003366), const Color(0xFF004C99)]; // Blue -> Light Blue
+
     return Scaffold(
-      backgroundColor: _primaryDark,
+      backgroundColor: gradientColors[0], // Match top color
       body: Stack(
         children: [
+          // 1. GRADIENT BACKGROUND
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [_primaryDark, _primaryLight],
+                colors: gradientColors,
               ),
             ),
           ),
+
+          // 2. DECORATIVE ELEMENTS
           Positioned(
             right: -50, top: -50,
             child: Icon(Icons.school, size: 300, color: Colors.white.withOpacity(0.05)),
           ),
+
+          // 3. CENTER CONTENT
           Center(
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                 Container(
-                  padding: const EdgeInsets.all(25),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2), 
-                        blurRadius: 30, 
-                        offset: const Offset(0, 10)
-                      )
-                    ],
-                  ),
-                  child: SizedBox(
-                    height: 60,
-                    width: 60,
-                    child: Image.asset(
-                      'assets/icon/icon.png', 
-                      fit: BoxFit.contain,
+                  // Logo Container
+                  Container(
+                    padding: const EdgeInsets.all(25),
+                    decoration: BoxDecoration(
+                      color: Colors.white, // Keep logo white for contrast
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2), 
+                          blurRadius: 30, 
+                          offset: const Offset(0, 10)
+                        )
+                      ],
+                    ),
+                    child: SizedBox(
+                      height: 60,
+                      width: 60,
+                      child: Image.asset(
+                        'assets/icon/icon.png', 
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
-                ),
+                  
                   const SizedBox(height: 30),
+                  
+                  // App Name
                   const Text(
                     "DITA",
                     style: TextStyle(
@@ -198,7 +212,10 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
                       letterSpacing: 1
                     ),
                   ),
+
                   const SizedBox(height: 60),
+
+                  // Loading Indicator
                   const SizedBox(
                     width: 24, 
                     height: 24, 
@@ -211,6 +228,8 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
               ),
             ),
           ),
+          
+          // 4. FOOTER
           Positioned(
             bottom: 40,
             left: 0,

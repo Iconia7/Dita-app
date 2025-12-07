@@ -15,14 +15,8 @@ class ExamTimetableScreen extends StatefulWidget {
   State<ExamTimetableScreen> createState() => _ExamTimetableScreenState();
 }
 
-class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
-  // --- MODERN THEME COLORS ---
-  final Color _primaryDark = const Color(0xFF0F172A); // Midnight Blue
-  final Color _primaryBlue = const Color(0xFF003366); // Daystar Blue
+class _ExamTimetableScreenState extends State<ExamTimetableScreen> { // Daystar Blue
   final Color _accentGold = const Color(0xFFFFD700);
-  final Color _bgLight = const Color(0xFFF1F5F9);     // Slate 100
-  final Color _textMain = const Color(0xFF1E293B);    // Slate 800
-  final Color _textSub = const Color(0xFF64748B);     // Slate 500
   final Color _urgentRed = const Color(0xFFEF4444);   // Red for "Tomorrow/Today"
   
   final TextEditingController _codeController = TextEditingController();
@@ -159,26 +153,35 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
     return "in $diff Days";
   }
 
-  Color _getStatusColor(String status) {
+Color _getStatusColor(String status, Color defaultColor) {
     if (status == "Today" || status == "Tomorrow") return _urgentRed;
     if (status == "Done") return Colors.grey;
-    return _primaryBlue;
+    return defaultColor; // 🟢 Use dynamic primary color
   }
 
   // --- UI ---
   @override
   Widget build(BuildContext context) {
+    // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final primaryColor = Theme.of(context).primaryColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
+
     return Scaffold(
-      backgroundColor: _bgLight,
+      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar(
-              expandedHeight: 100.0,
+              expandedHeight: 120.0,
               floating: false,
               pinned: true,
-              backgroundColor: _primaryBlue,
-              iconTheme: const IconThemeData(color: Colors.white),
+              backgroundColor: primaryColor,
+              // 🟢 Ensure icons (back button) are white on the dark navbar
+              iconTheme: const IconThemeData(color: Colors.white), 
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
                 title: const Text("Exams", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Colors.white)),
@@ -187,7 +190,14 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_primaryDark, _primaryBlue]),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft, 
+                          end: Alignment.bottomRight, 
+                          // 🟢 Dark Mode Gradient check
+                          colors: isDark 
+                              ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
+                              : [const Color(0xFF003366), const Color(0xFF003366)],
+                        ),
                       ),
                     ),
                     Positioned(right: -30, top: -50, child: Container(width: 150, height: 150, decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle))),
@@ -202,14 +212,14 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
         },
         body: Column(
           children: [
-            // 1. INPUT AREA (Collapsible logic handled by NestedScrollView body)
-            _buildInputArea(),
+            // 1. INPUT AREA
+            _buildInputArea(isDark, cardColor, primaryColor, subTextColor),
             
             // 2. TIMELINE LIST
             Expanded(
               child: _isLoading 
-                ? Center(child: const DaystarSpinner(size: 120)) 
-                : _buildExamList(),
+                ? const Center(child: DaystarSpinner()) 
+                : _buildExamList(isDark, cardColor, primaryColor, textColor, subTextColor),
             )
           ],
         ),
@@ -217,30 +227,32 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
     );
   }
 
-  Widget _buildInputArea() {
+  Widget _buildInputArea(bool isDark, Color cardColor, Color primaryColor, Color? hintColor) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor, // 🟢 Dynamic BG
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(25)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Add Your Units", style: TextStyle(fontWeight: FontWeight.bold, color: _primaryDark, fontSize: 14)),
+          Text("Add Your Units", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : primaryColor, fontSize: 14)), // 🟢
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _codeController,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black), // 🟢 Text Input Color
                   decoration: InputDecoration(
                     hintText: "e.g. ACS401",
-                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    hintStyle: TextStyle(color: hintColor),
                     isDense: true,
                     filled: true,
-                    fillColor: _bgLight,
+                    // 🟢 Input BG: Lighter in dark mode, Light Grey in light mode
+                    fillColor: isDark ? Colors.white10 : const Color(0xFFF1F5F9), 
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     contentPadding: const EdgeInsets.all(14)
                   ),
@@ -250,7 +262,7 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
               ElevatedButton(
                 onPressed: () => _addCourseCode(_codeController.text),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
+                  backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16)
@@ -264,7 +276,7 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _myCodes.map((code) => _buildChip(code)).toList(),
+              children: _myCodes.map((code) => _buildChip(code, isDark, primaryColor)).toList(),
             ),
           ]
         ],
@@ -272,39 +284,40 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
     );
   }
 
-  Widget _buildChip(String label) {
+  Widget _buildChip(String label, bool isDark, Color primaryColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: _bgLight,
+        // 🟢 Chip Colors
+        color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey[300]!)
+        border: Border.all(color: isDark ? Colors.white24 : Colors.grey[300]!)
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _textMain)),
+          Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isDark ? Colors.white : const Color(0xFF1E293B))), // 🟢
           const SizedBox(width: 5),
           InkWell(
             onTap: () => _removeCourseCode(label),
-            child: Icon(Icons.close, size: 14, color: _textSub),
+            child: Icon(Icons.close, size: 14, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
           )
         ],
       ),
     );
   }
 
-  Widget _buildExamList() {
+  Widget _buildExamList(bool isDark, Color cardColor, Color primaryColor, Color? textColor, Color? subTextColor) {
     if (_myExams.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.assignment_late_outlined, size: 60, color: Colors.grey[300]),
+            Icon(Icons.assignment_late_outlined, size: 60, color: isDark ? Colors.white24 : Colors.grey[300]),
             const SizedBox(height: 15),
             Text(
               _myCodes.isEmpty ? "Add units above to see exams." : "No exams found for these codes.", 
-              style: TextStyle(color: _textSub),
+              style: TextStyle(color: subTextColor),
             ),
           ],
         ),
@@ -316,13 +329,12 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
       itemCount: _myExams.length,
       itemBuilder: (context, index) {
         final exam = _myExams[index];
-        // Parse Date safely
         String rawDate = exam['date'];
         if (rawDate.endsWith('Z')) rawDate = rawDate.substring(0, rawDate.length - 1);
         final DateTime date = DateTime.parse(rawDate);
         
         final String status = _getDaysRemaining(date);
-        final Color statusColor = _getStatusColor(status);
+        final Color statusColor = _getStatusColor(status, primaryColor); // 🟢 Pass primaryColor
         final bool isLast = index == _myExams.length - 1;
 
         return IntrinsicHeight(
@@ -334,8 +346,8 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
                 width: 50,
                 child: Column(
                   children: [
-                    Text(DateFormat('MMM').format(date).toUpperCase(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _textSub)),
-                    Text(DateFormat('dd').format(date), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _textMain)),
+                    Text(DateFormat('MMM').format(date).toUpperCase(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: subTextColor)),
+                    Text(DateFormat('dd').format(date), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)), // 🟢
                   ],
                 ),
               ),
@@ -348,13 +360,13 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isDark ? Colors.white10 : Colors.white, // 🟢
                       border: Border.all(color: statusColor, width: 3),
                       shape: BoxShape.circle,
                     ),
                   ),
                   if (!isLast) 
-                    Expanded(child: Container(width: 2, color: Colors.grey[200])),
+                    Expanded(child: Container(width: 2, color: isDark ? Colors.white10 : Colors.grey[200])), // 🟢
                 ],
               ),
 
@@ -364,7 +376,7 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
                   padding: const EdgeInsets.only(bottom: 20),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor, // 🟢 Dynamic BG
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
                     ),
@@ -380,10 +392,11 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: _primaryBlue.withOpacity(0.1),
+                                  color: isDark ? Colors.white10 : primaryColor.withOpacity(0.1), // 🟢
                                   borderRadius: BorderRadius.circular(6)
                                 ),
-                                child: Text(exam['course_code'], style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: _primaryBlue)),
+                                child: Text(exam['course_code'], style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, 
+                                   color: isDark ? Colors.white : primaryColor)), // 🟢
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -396,19 +409,19 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text(exam['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _textMain)),
+                          Text(exam['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)), // 🟢
                           const SizedBox(height: 8),
                           
                           // DETAILS
                           Row(
                             children: [
-                              Icon(Icons.access_time, size: 14, color: _textSub),
+                              Icon(Icons.access_time, size: 14, color: subTextColor),
                               const SizedBox(width: 4),
-                              Text(DateFormat('h:mm a').format(date), style: TextStyle(fontSize: 13, color: _textSub)),
+                              Text(DateFormat('h:mm a').format(date), style: TextStyle(fontSize: 13, color: subTextColor)),
                               const SizedBox(width: 15),
                               Icon(Icons.location_on, size: 14, color: _accentGold),
                               const SizedBox(width: 4),
-                              Text(exam['venue'], style: TextStyle(fontSize: 13, color: _textSub, fontWeight: FontWeight.w500)),
+                              Text(exam['venue'], style: TextStyle(fontSize: 13, color: subTextColor, fontWeight: FontWeight.w500)),
                             ],
                           )
                         ],
