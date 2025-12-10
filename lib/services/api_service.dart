@@ -16,7 +16,7 @@ class ApiService {
     
     // 1. Check raw storage
     String? userStr = prefs.getString('user_data');
-    print("1️⃣ Raw Storage ('user_data'): $userStr");
+    // print("1️⃣ Raw Storage ('user_data'): $userStr"); // Reduced noise
 
     String token = "";
     
@@ -25,7 +25,7 @@ class ApiService {
         final userData = json.decode(userStr);
         // 2. Check extracted token
         token = userData['access'] ?? ""; 
-        print("2️⃣ Extracted Token: ${token.isNotEmpty ? '${token.substring(0, 10)}...' : 'EMPTY/NULL'}");
+        // print("2️⃣ Extracted Token: ${token.isNotEmpty ? '${token.substring(0, 10)}...' : 'EMPTY/NULL'}");
       } catch (e) {
         print("❌ Error parsing user data: $e");
       }
@@ -38,8 +38,8 @@ class ApiService {
       "Authorization": "Bearer $token",
     };
 
-    print("3️⃣ Final Headers being sent: $headers");
-    print("--------------------------------------\n");
+    // print("3️⃣ Final Headers being sent: $headers");
+    // print("--------------------------------------\n");
     return headers;
   }
 
@@ -80,7 +80,7 @@ class ApiService {
     }
   }
 
-  // --- STANDARD METHODS (Unchanged but using the debug headers) ---
+  // --- STANDARD METHODS ---
 
   static Future<List<dynamic>> getEvents() async {
     try {
@@ -98,9 +98,11 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> getUserProfile(String username) async {
     try {
+      // FIX: Added headers here in case profile is protected
+      final headers = await _getHeaders();
       final response = await http.get(
         Uri.parse('$baseUrl/api/users/?username=$username'),
-        headers: {"Content-Type": "application/json"},
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -242,20 +244,41 @@ class ApiService {
     return [];
   }
 
-  static Future<bool> createPost(Map<String, dynamic> data) async {
+// Updated createPost to handle Media (Images/Videos)
+  static Future<bool> createPost(Map<String, String> fields, File? file) async {
     try {
-      print("📝 Creating Post...");
+      print("📝 Creating Post with Media...");
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/community-posts/'));
+      
       final headers = await _getHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/community-posts/'),
-        headers: headers,
-        body: json.encode(data),
-      );
-      print("📝 Create Post Response: ${response.statusCode} - ${response.body}");
+      request.headers.addAll(headers);
+
+      // Add text fields (content, category, is_anonymous)
+      request.fields.addAll(fields);
+
+      // Add File if present
+      if (file != null) {
+        // You might need to import 'package:mime/mime.dart';
+        final mimeTypeData = lookupMimeType(file.path)?.split('/') ?? ['application', 'octet-stream'];
+        
+        request.files.add(await http.MultipartFile.fromPath(
+          'image', // Ensure this key matches your Django model field (e.g., 'image' or 'file')
+          file.path,
+          contentType: http.MediaType(mimeTypeData[0], mimeTypeData[1]),
+        ));
+      }
+
+      final response = await request.send();
+      print("📝 Create Post Response Code: ${response.statusCode}");
+      
+      // Optional: Read response body for debugging
+      // final respStr = await response.stream.bytesToString();
+      // print(respStr);
+
       return response.statusCode == 201;
-    } catch (e) { 
+    } catch (e) {
       print("❌ Create Post Error: $e");
-      return false; 
+      return false;
     }
   }
 
@@ -339,30 +362,30 @@ class ApiService {
     }
   }
 
-static Future<void> updateFcmToken(int userId, String token) async {
-  try {
-    // ✅ NEW: Get the headers that include the "Bearer <token>"
-    final headers = await _getHeaders(); 
+  static Future<void> updateFcmToken(int userId, String token) async {
+    try {
+      // ✅ NEW: Get the headers that include the "Bearer <token>"
+      final headers = await _getHeaders(); 
 
-    final response = await http.patch(
-      Uri.parse('$baseUrl/users/$userId/'),
-      headers: headers, // <--- Pass them here
-      body: json.encode({
-        "fcm_token": token
-      }),
-    );
+      final response = await http.patch(
+        Uri.parse('$baseUrl/users/$userId/'),
+        headers: headers, // <--- Pass them here
+        body: json.encode({
+          "fcm_token": token
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      print("FCM Token synced with server ✅");
-    } else {
-      print("Failed to sync FCM Token: ${response.body}");
+      if (response.statusCode == 200) {
+        print("FCM Token synced with server ✅");
+      } else {
+        print("Failed to sync FCM Token: ${response.body}");
+      }
+    } catch (e) {
+      print("Error updating FCM token: $e");
     }
-  } catch (e) {
-    print("Error updating FCM token: $e");
   }
-}
 
-static Future<void> saveUserLocally(Map<String, dynamic> newData) async {
+  static Future<void> saveUserLocally(Map<String, dynamic> newData) async {
     final prefs = await SharedPreferences.getInstance();
     
     // 1. Get the OLD data (which has the token)
@@ -463,10 +486,15 @@ static Future<void> saveUserLocally(Map<String, dynamic> newData) async {
     return null;
   }
 
+  // --- CRITICAL FIX: getUserDetails was missing Auth Headers ---
   static Future<Map<String, dynamic>?> getUserDetails(int userId) async {
     try {
+      // 🟢 FIX: Added headers so server accepts request
+      final headers = await _getHeaders(); 
+      
       final response = await http.get(
         Uri.parse('$baseUrl/users/$userId/'),
+        headers: headers, // <--- Added here
       );
 
       if (response.statusCode == 200) {
@@ -514,15 +542,21 @@ static Future<void> saveUserLocally(Map<String, dynamic> newData) async {
     }
   }
 
+  // --- CRITICAL FIX: updateUser was missing Auth Headers ---
   static Future<bool> updateUser(int userId, Map<String, dynamic> data) async {
     try {
+      // 🟢 FIX: Added headers so we have "Bearer <token>"
+      final headers = await _getHeaders(); 
+      
       final response = await http.patch(
         Uri.parse('$baseUrl/users/$userId/'),
-        headers: {"Content-Type": "application/json"},
+        headers: headers, // <--- Added here (replaces manual Content-Type)
         body: json.encode(data),
       );
 
       if (response.statusCode == 200) {
+        // Optional: If you want to sync local storage here, you could parse the response
+        saveUserLocally(json.decode(response.body));
         return true;
       } else {
         print("Update Failed: ${response.body}");

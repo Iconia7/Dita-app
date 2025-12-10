@@ -5,8 +5,8 @@ import 'package:dita_app/screens/attendance_history_screen.dart';
 import 'package:dita_app/screens/class_timetable_screen.dart';
 import 'package:dita_app/screens/community_screen.dart';
 import 'package:dita_app/screens/exam_timetable_screen.dart';
+import 'package:dita_app/screens/gamelist_screen.dart';
 import 'package:dita_app/screens/leaderboard_screen.dart';
-import 'package:dita_app/screens/lost_found_screen.dart';
 import 'package:dita_app/screens/profile_screen.dart';
 import 'package:dita_app/screens/qr_scanner_screen.dart';
 import 'package:dita_app/screens/search_screen.dart';
@@ -802,17 +802,18 @@ const SizedBox(width: 15),
                           const SizedBox(width: 15),
                           _buildQuickAction(Icons.qr_code_scanner, "Scan", _openScanner),
                           const SizedBox(width: 15),
-_buildQuickAction(
-  Icons.emoji_events_rounded, 
-  "Rankings", 
-  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaderboardScreen()))
-),
-const SizedBox(width: 15),
-_buildQuickAction(
-  Icons.luggage,
-  "Lost & Found", 
-  () => Navigator.push(context, MaterialPageRoute(builder: (_) => LostFoundScreen(currentUser: _currentUser)))
-),
+                          _buildQuickAction(
+                              Icons.videogame_asset_rounded, 
+                              "Play Games", 
+                              () async {
+                                // 1. Wait for the user to finish playing
+                                await Navigator.push(context, MaterialPageRoute(builder: (_) => GamesListScreen(user: _currentUser)));
+                                
+                                // 2. Refresh the profile data (points) when they return
+                                _refreshData(); 
+                              }
+                          ),
+
                         ],
                       ),
                     ),
@@ -897,7 +898,13 @@ _buildQuickAction(
   ),
 ),
                       const SizedBox(width: 15),
-                      Expanded(child: _buildStatCard("Points", "${_currentUser['points'] ?? 0}", Icons.stars, const Color(0xFFFFD700))),
+                      Expanded(child: GestureDetector( // <--- Wrap in GestureDetector
+    onTap: () {
+        Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (_) => LeaderboardScreen())
+        );
+    },child: _buildStatCard("Points", "${_currentUser['points'] ?? 0}", Icons.stars, const Color(0xFFFFD700))),)
                     ],
                   ),
 
@@ -924,7 +931,7 @@ _buildQuickAction(
                         return Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(color: const Color.fromARGB(255, 46, 43, 43), borderRadius: BorderRadius.circular(15)),
+                          decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(15)),
                           child: const Center(child: Text("No upcoming events")),
                         );
                       }

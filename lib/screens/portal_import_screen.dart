@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:dita_app/screens/class_timetable_screen.dart'; // Import this
+import 'package:dita_app/screens/class_timetable_screen.dart';
+import 'package:dita_app/services/notification.dart'; 
 import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/notification.dart';
 
 class PortalImportScreen extends StatefulWidget {
   const PortalImportScreen({super.key});
@@ -29,17 +29,46 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (url) => setState(() => _isLoading = true),
+          onPageStarted: (url) {
+             // Always show loader when a page starts loading
+             setState(() => _isLoading = true);
+          },
           
           onPageFinished: (url) async {
-            setState(() => _isLoading = false);
-            
-            // AUTOMATION LOGIC:
-            if (url.toLowerCase().contains("studenttimetable") && !_hasExtracted) {
-              print("🎯 Target Page Detected! Starting auto-extraction...");
-              await Future.delayed(const Duration(seconds: 2));
-              _extractTimetable();
+            final String lowerUrl = url.toLowerCase();
+            final Uri uri = Uri.parse(url);
+
+            // LOGIC 1: WE ARE ON THE TIMETABLE PAGE
+            if (lowerUrl.contains("studenttimetable")) {
+                if (!_hasExtracted) {
+                   print("🎯 Target Page Detected! Starting auto-extraction...");
+                   // Keep loader ON while we extract
+                   await Future.delayed(const Duration(seconds: 1)); // Wait for table render
+                   _extractTimetable();
+                } else {
+                   setState(() => _isLoading = false);
+                }
+                return;
             }
+
+            // LOGIC 2: WE ARE ON THE LOGIN PAGE OR HOME PAGE
+            // FIX: Added check for root path ("/" or "") which is the login screen at student.daystar.ac.ke
+            bool isRootPage = uri.path.isEmpty || uri.path == "/";
+            
+            if (lowerUrl.contains("login") || 
+                lowerUrl.contains("account") || 
+                isRootPage) {
+                
+                print("🔐 Login/Home Page Detected ($url). Waiting for user input.");
+                setState(() => _isLoading = false); // <--- HIDE LOADER HERE
+                return;
+            }
+
+            // LOGIC 3: WE ARE SOMEWHERE ELSE (Likely Dashboard after successful login)
+            // If we are logged in (not login page) but not on the timetable, force redirect.
+            print("🔄 Post-Login Page Detected ($url). Redirecting to Timetable...");
+            setState(() => _isLoading = true); // Show loader while redirecting
+            _controller.loadRequest(Uri.parse(_targetUrl));
           },
         ),
       )
@@ -47,17 +76,20 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
   }
 
   Future<void> _extractTimetable() async {
+    // Flag to prevent double extraction
     setState(() {
-      _isLoading = true;
       _hasExtracted = true;
     });
 
     try {
-      // ... (Keep your JS Injection String EXACTLY the same) ...
+      // JS Injection to scrape the table
       const String extractionScript = """
       (function() {
           var extractedData = [];
+          // Try specific class first
           var table = document.querySelector('table.table.table-hover');
+          
+          // Fallback: Search all tables for 'Unit' and 'Period' headers
           if (!table) {
               var tables = document.getElementsByTagName('table');
               for (var k = 0; k < tables.length; k++) {
@@ -77,11 +109,13 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
               var rowText = rows[i].innerText || rows[i].textContent;
               rowText = rowText.trim();
 
+              // Start collecting after "My Timetable" header
               if (rowText === "My Timetable") {
                   collecting = true;
                   continue; 
               }
 
+              // Stop if we hit the next section
               if (rowText.indexOf("Courses in Timetable") > -1) {
                   break; 
               }
@@ -111,6 +145,7 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
 
       final result = await _controller.runJavaScriptReturningResult(extractionScript);
       
+      // Parse the result (WebView returns a JSON string, sometimes wrapped in quotes)
       String jsonString = result.toString();
       if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
         jsonString = jsonString.substring(1, jsonString.length - 1);
@@ -118,9 +153,9 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       }
 
       if (jsonString == "NOT_FOUND") {
-        _hasExtracted = false;
-        _showError("Waiting for table to load...");
+        _hasExtracted = false; // Allow retry
         setState(() => _isLoading = false);
+        _showError("Could not find timetable. Please navigate to the correct page.");
         return;
       }
 
@@ -132,11 +167,12 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       }
 
       if (rawData.isEmpty) {
-        _showError("Found 'My Timetable', but it looks empty.");
+        _showError("Found the table, but it looks empty.");
         setState(() => _isLoading = false);
         return;
       }
 
+      // Process Data
       List<Map<String, dynamic>> finalClasses = [];
 
       for (var item in rawData) {
@@ -175,11 +211,12 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
     } catch (e) {
       print("Extraction Error: $e");
       setState(() => _isLoading = false);
-      _showError("Something went wrong. Please try again.");
+      _showError("Extraction failed. Please try again.");
+      _hasExtracted = false;
     }
   }
 
-  // ... (Keep _cleanDay and _convertTo24Hour helpers unchanged) ...
+  // --- HELPERS ---
   String _cleanDay(String dayRaw) {
     String d = dayRaw.toUpperCase();
     if (d.contains("MON")) return "MON";
@@ -200,8 +237,10 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       List<String> parts = cleanTime.split(":");
       int hour = int.parse(parts[0]);
       int minute = parts.length > 1 ? int.parse(parts[1]) : 0;
+      
       if (isPM && hour != 12) hour += 12;
       if (isAM && hour == 12) hour = 0;
+      
       return "${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}";
     } catch (e) {
       return "08:00";
@@ -216,13 +255,16 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
     }
     
     for(var cls in newClasses) {
+       // Remove duplicates based on ID
        var oldIndex = existing.indexWhere((e) => e['code'] == cls['code']);
        if (oldIndex != -1) {
+         // Cancel old notification
          await NotificationService.cancelNotification(existing[oldIndex]['id']);
          existing.removeAt(oldIndex);
        }
        existing.add(cls);
 
+       // Schedule Notification
        int dayIndex = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].indexOf(cls['day']) + 1;
        TimeOfDay t = TimeOfDay(
          hour: int.parse(cls['startTime'].split(":")[0]), 
@@ -245,7 +287,7 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
         SnackBar(content: Text("Success! Imported ${newClasses.length} classes."), backgroundColor: Colors.green)
       );
       
-      // 🟢 REDIRECT FIX: Go directly to ClassTimetableScreen, removing history
+      // Navigate to Timetable Screen
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const ClassTimetableScreen())
       );
@@ -267,7 +309,7 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Syncing...", style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: primaryColor, // 🟢 Dynamic Color
+        backgroundColor: primaryColor,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),
@@ -276,13 +318,12 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       ),
       body: Stack(
         children: [
-          // WebView always stays 'light' because the website is light
           WebViewWidget(controller: _controller),
           
           // LOADING OVERLAY (Theme Aware)
           if (_isLoading)
             Container(
-              color: overlayColor, // 🟢 Dynamic Overlay
+              color: overlayColor,
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -291,12 +332,12 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
                     const SizedBox(height: 20),
                     Text(
                       "Connecting to Portal...",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor), // 🟢
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
                     ),
                     const SizedBox(height: 10),
                     Text(
                       "Please Login if requested.",
-                      style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]), // 🟢
+                      style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
                     ),
                   ],
                 ),

@@ -7,15 +7,31 @@ import 'package:intl/intl.dart';
 class NotificationService {
   // 1. Firebase Instance
   static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  
+  // --- NEW: GLOBAL TOGGLE STATE ---
+  static bool _notificationsEnabled = true;
+  static bool get isEnabled => _notificationsEnabled;
+
+  static Future<void> toggleNotifications(bool isEnabled) async {
+    _notificationsEnabled = isEnabled;
+    if (!isEnabled) {
+      // If turning off, cancel all pending schedules immediately
+      await AwesomeNotifications().cancelAllSchedules();
+      print("🚫 All scheduled notifications cancelled.");
+    } else {
+      print("✅ Notifications enabled.");
+    }
+  }
 
   // --- INITIALIZATION ---
-static Future<void> initialize() async {
+  static Future<void> initialize() async {
     // A. Initialize Awesome Notifications
     await AwesomeNotifications().initialize(
       'resource://drawable/ic_notification', 
       [
         NotificationChannel(
-          channelKey: 'dita_planner_channel_v3',
+          // CHANGED: Version 4 to force update settings on device
+          channelKey: 'dita_planner_channel_v4', 
           channelName: 'Student Planner',
           channelDescription: 'Reminders for upcoming tasks',
           defaultColor: const Color(0xFF003366),
@@ -23,6 +39,8 @@ static Future<void> initialize() async {
           channelShowBadge: true,
           playSound: true,
           enableVibration: true,
+          // CHANGED: Defines a standard single long vibration (Wait 0ms, Vibrate 1000ms)
+          vibrationPattern: highVibrationPattern, 
         ),
         // Add a separate channel for backend announcements
         NotificationChannel(
@@ -50,38 +68,28 @@ static Future<void> initialize() async {
   }
 
   // --- NEW: HANDLE BACKEND MESSAGES ---
-static void _listenToFirebaseMessages() {
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    print('🔥 FCM Message Received: ${message.data['title']}');
-    
-    // 🛑 CRITICAL FIX: Check for data['type'] instead of message.notification
-    // Since we removed the 'notification' object from the backend, 
-    // we now check if our custom announcement data is present.
-    if (message.data['type'] == 'announcement') {
-      _showCustomFirebaseNotification(message);
-    }
-  });
-}
+  static void _listenToFirebaseMessages() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('🔥 FCM Message Received: ${message.data['title']}');
+      
+      if (message.data['type'] == 'announcement') {
+        _showCustomFirebaseNotification(message);
+      }
+    });
+  }
 
   static Future<void> _showCustomFirebaseNotification(RemoteMessage message) async {
+    // Always show backend announcements even if planner reminders are off? 
+    // Usually yes, but if you want to silence EVERYTHING, check _notificationsEnabled here too.
+    
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
-        id: message.messageId.hashCode, // Unique ID based on Firebase ID
+        id: message.messageId.hashCode,
         channelKey: 'dita_announcements',
-        
-        // 1. Map Title & Body (Description)
-        title: message.notification?.title ?? 'DITA Update',
+        title: message.data['title'] ?? 'DITA Update', 
         body: message.data['message_body'] ?? 'New announcement available.',
-        
-        // 2. Make it look nice
-        // BigText allows for longer descriptions
         notificationLayout: NotificationLayout.BigText, 
-        
-        // 3. Optional: Add a big image if sent from backend
-        // (Backend must send "image" key in the data payload)
         bigPicture: message.data['image'], 
-        
-        // 4. Styling
         color: const Color(0xFF003366),
         backgroundColor: Colors.white,
         wakeUpScreen: true,
@@ -92,48 +100,54 @@ static void _listenToFirebaseMessages() {
 
   // --- HELPER: REQUEST PERMISSIONS ---
   static Future<void> requestLocalPermissions() async {
-    // Awesome Notifications handles the "Android 13+" check internally
     bool isAllowed = await AwesomeNotifications().isNotificationAllowed();
     if (!isAllowed) {
-      // This opens a nice dialog asking the user
       await AwesomeNotifications().requestPermissionToSendNotifications();
     }
   }
 
   // --- FEATURE: SCHEDULE TASK REMINDER ---
-// --- FEATURE: SCHEDULE TASK REMINDER ---
-static Future<void> scheduleTaskNotification({
+  static Future<void> scheduleTaskNotification({
     required int id,
     required String title,
     required DateTime deadline,
-    String? venue, // <--- NEW PARAMETER
+    String? venue, 
   }) async {
+    // 🛑 CHECK TOGGLE BEFORE SCHEDULING
+    if (!_notificationsEnabled) {
+      print("🔕 Notification skipped: User has disabled reminders.");
+      return;
+    }
     
     // 1. Determine Type
     bool isExam = title.toLowerCase().contains("exam");
     
-    DateTime reminderTime;
+    // --- EXISTING LOGIC: Evening Before (or 15 min for tasks) ---
+    DateTime primaryReminderTime;
     
-    // 2. Calculate Reminder Time
     if (isExam) {
         // STRATEGY: "Evening Before" -> 8:00 PM (20:00) the previous day
         DateTime dayBefore = deadline.subtract(const Duration(days: 1));
-        reminderTime = DateTime(dayBefore.year, dayBefore.month, dayBefore.day, 19, 0);
+        primaryReminderTime = DateTime(dayBefore.year, dayBefore.month, dayBefore.day, 20, 0);
     } else {
         // STRATEGY: "Urgency" -> 15 minutes before the task
-        reminderTime = deadline.subtract(const Duration(minutes: 15));
+        primaryReminderTime = deadline.subtract(const Duration(minutes: 15));
     }
 
-    bool isShortNotice = false;
+    // --- NEW LOGIC: 1 Hour Before Exam ---
+    DateTime? secondaryReminderTime;
+    if (isExam) {
+       secondaryReminderTime = deadline.subtract(const Duration(hours: 1));
+    }
 
-    // 3. Safety Check: If the calculated time has passed, ring in 5 seconds
-    // (e.g. You added the exam on the morning of the paper, so you missed the 8 PM reminder)
-    if (reminderTime.isBefore(DateTime.now())) {
-       reminderTime = DateTime.now().add(const Duration(seconds: 5));
+    // 3. Safety Check: If the calculated time has passed, ring in 5 seconds (Only for primary)
+    bool isShortNotice = false;
+    if (primaryReminderTime.isBefore(DateTime.now())) {
+       primaryReminderTime = DateTime.now().add(const Duration(seconds: 5));
        isShortNotice = true;
     }
 
-    // 4. Tailor the Message
+    // 4. Tailor the Message (Primary)
     String bodyText;
     String timeString = DateFormat('h:mm a').format(deadline); // e.g. "8:30 AM"
 
@@ -141,11 +155,9 @@ static Future<void> scheduleTaskNotification({
         if (isShortNotice) {
             bodyText = "⚠️ URGENT: Exam '$title' is at $timeString! Venue: ${venue ?? 'Run to the Exam Room'}.";
         } else {
-            // The "Evening Before" Message
             bodyText = "📅 Tomorrow you have: $title at $timeString.\n📍 Venue: ${venue ?? 'TBA'}.\nSuccess in your paper!";
         }
     } else {
-        // Standard Task
         if (isShortNotice) {
             bodyText = "⏰ Task Due: '$title' is due right now!";
         } else {
@@ -153,37 +165,62 @@ static Future<void> scheduleTaskNotification({
         }
     }
 
-    print("\n🔔 --- SCHEDULING ALARM ---");
+    print("\n🔔 --- SCHEDULING ALARM 1 ---");
     print("📌 Type: ${isExam ? 'EXAM (Night Before)' : 'TASK (15m Before)'}");
     print("📝 Title: '$title'");
-    print("💬 Body: '$bodyText'");
-    print("⏰ Ring Time: $reminderTime");
-    print("-----------------------------------\n");
+    print("⏰ Ring Time: $primaryReminderTime");
 
-    // 5. Schedule it
+    // 5. Schedule Primary Alarm
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
         id: id,
-        channelKey: 'dita_planner_channel_v3', 
+        channelKey: 'dita_planner_channel_v4', 
         title: isExam ? 'Exam Alert 🚨' : 'Task Reminder 📌', 
         body: bodyText, 
-        notificationLayout: isExam ? NotificationLayout.BigText : NotificationLayout.Default, // Exams get more space
+        notificationLayout: isExam ? NotificationLayout.BigText : NotificationLayout.Default, 
         wakeUpScreen: true, 
+        // CHANGED: Use Reminder for tasks to avoid loop sound, Alarm for exams is okay if critical
         category: isExam ? NotificationCategory.Alarm : NotificationCategory.Reminder,
         fullScreenIntent: isExam, 
       ),
       schedule: NotificationCalendar.fromDate(
-        date: reminderTime,
+        date: primaryReminderTime,
         allowWhileIdle: true, 
         preciseAlarm: true,   
       ),
     );
+
+    // 6. Schedule Secondary Alarm (1 Hour Before) - EXAMS ONLY
+    if (isExam && secondaryReminderTime != null) {
+       if (secondaryReminderTime.isAfter(DateTime.now())) {
+          print("\n🔔 --- SCHEDULING ALARM 2 (1 Hour Before) ---");
+          print("⏰ Ring Time: $secondaryReminderTime");
+          
+          int id1Hour = ("$id" + "_1hr").hashCode; 
+
+          await AwesomeNotifications().createNotification(
+            content: NotificationContent(
+              id: id1Hour,
+              channelKey: 'dita_planner_channel_v4', 
+              title: '⏳ Exam in 1 Hour!', 
+              body: "Get ready! '$title' starts at $timeString in ${venue ?? 'your venue'}.", 
+              notificationLayout: NotificationLayout.Default, 
+              wakeUpScreen: true, 
+              // Exam 1hr warning is critical, keeping Alarm but removing loop if possible via channel
+              category: NotificationCategory.Alarm,
+              fullScreenIntent: true, 
+            ),
+            schedule: NotificationCalendar.fromDate(
+              date: secondaryReminderTime,
+              allowWhileIdle: true, 
+              preciseAlarm: true,   
+            ),
+          );
+       }
+    }
+    print("-----------------------------------\n");
   }
 
-
-  // --- FEATURE: SCHEDULE WEEKLY CLASS REMINDER ---
-// --- FEATURE: SCHEDULE WEEKLY CLASS REMINDER ---
-// --- FEATURE: SCHEDULE WEEKLY CLASS REMINDERS (DUAL ALARMS) ---
   static Future<void> scheduleClassNotification({
     required int id,
     required String title,
@@ -191,6 +228,11 @@ static Future<void> scheduleTaskNotification({
     required int dayOfWeek, // 1=Mon ... 7=Sun
     required TimeOfDay startTime,
   }) async {
+    // 🛑 CHECK TOGGLE BEFORE SCHEDULING
+    if (!_notificationsEnabled) {
+      print("🔕 Notification skipped: User has disabled reminders.");
+      return;
+    }
     
     // FORMAT TIME STRING
     final String formattedTime = 
@@ -205,8 +247,8 @@ static Future<void> scheduleTaskNotification({
 
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
-        id: id, // Use the original ID
-        channelKey: 'dita_planner_channel_v3',
+        id: id,
+        channelKey: 'dita_planner_channel_v4',
         title: '📅 Tomorrow: $title',
         body: 'Don\'t forget! Class at $formattedTime in $venue.',
         notificationLayout: NotificationLayout.Default,
@@ -228,12 +270,10 @@ static Future<void> scheduleTaskNotification({
     // ALARM 2: The "30 Minutes Before"
     // ==========================================
 
-    // 1. Calculate time logic (handle subtracting minutes)
     int totalMinutes = startTime.hour * 60 + startTime.minute;
-    int reminderMinutes = totalMinutes - 30;
+    int reminderMinutes = totalMinutes - 30; // 30 minutes before
     int reminderWeekday = dayOfWeek;
 
-    // Handle wrapping to previous day if class is e.g., at 00:15 AM
     if (reminderMinutes < 0) {
       reminderMinutes += 1440; // Add 24 hours
       reminderWeekday -= 1;
@@ -243,21 +283,23 @@ static Future<void> scheduleTaskNotification({
     int remHour = reminderMinutes ~/ 60;
     int remMinute = reminderMinutes % 60;
 
-    // 2. Create a unique ID for this second alarm
-    // We can't use the same 'id' or it will overwrite the 7 PM one.
-    // We generate a derived hash from the original ID.
     int id30Min = ("$id" + "_30").hashCode; 
 
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
-        id: id30Min, // <--- DIFFERENT ID
-        channelKey: 'dita_planner_channel_v3',
+        id: id30Min,
+        channelKey: 'dita_planner_channel_v4', // Ensure v4 is used
         title: '🔔 Upcoming Class: $title',
         body: 'Starts in 30 mins ($formattedTime) at $venue.',
         notificationLayout: NotificationLayout.Default,
-        category: NotificationCategory.Alarm, // Higher urgency
+        
+        // --- CHANGED HERE ---
+        // WAS: category: NotificationCategory.Alarm (Loops sound)
+        // NOW: category: NotificationCategory.Reminder (One sound + vibration)
+        category: NotificationCategory.Reminder, 
+        
         wakeUpScreen: true,
-        fullScreenIntent: true, // Shows over lock screen on some devices
+        fullScreenIntent: false, // Set to false so it doesn't take over screen like a phone call
       ),
       schedule: NotificationCalendar(
         weekday: reminderWeekday,
@@ -278,7 +320,7 @@ static Future<void> scheduleTaskNotification({
     // 1. Cancel the 7 PM Alarm
     await AwesomeNotifications().cancel(id);
     
-    // 2. Cancel the 30 Minute Alarm (using the same derived ID logic)
+    // 2. Cancel the 30 Minute Alarm
     int id30Min = ("$id" + "_30").hashCode;
     await AwesomeNotifications().cancel(id30Min);
     

@@ -1,4 +1,5 @@
 import 'package:dita_app/screens/privacy_policy_screen.dart';
+import 'package:dita_app/services/notification.dart';
 import 'package:dita_app/sheets/ChangePasswordSheet.dart';
 import 'package:dita_app/sheets/edit_profile_sheet.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   late Map<String, dynamic> _currentUser;
   bool _isUpdating = false;
+  // Initialize with the current state from the service
+  bool _isNotificationsEnabled = NotificationService.isEnabled; 
 
   @override
   void initState() {
@@ -25,38 +28,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- 1. EDIT PROFILE LOGIC ---
-void _showEditDialog() {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true, // Crucial for keyboard and full screen height
-    backgroundColor: Colors.transparent, // Required for custom sheet shape
-    builder: (context) => EditProfileSheet(
-      user: _currentUser,
-      // Pass a callback to handle state updates after save
-      onProfileSaved: (updatedUser) {
-        setState(() {
-          _currentUser = updatedUser;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Profile Updated Successfully!"), backgroundColor: Colors.green)
-        );
-      },
-    ),
-  );
-}
+  void _showEditDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, 
+      backgroundColor: Colors.transparent, 
+      builder: (context) => EditProfileSheet(
+        user: _currentUser,
+        onProfileSaved: (updatedUser) {
+          setState(() {
+            _currentUser = updatedUser;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Profile Updated Successfully!"), backgroundColor: Colors.green)
+          );
+        },
+      ),
+    );
+  }
 
-
-void _showChangePasswordDialog() {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true, // Crucial for keyboard
-    backgroundColor: Colors.transparent, 
-    builder: (context) => ChangePasswordSheet(
-      user: _currentUser,
-      primaryDark: Theme.of(context).primaryColor,
-    ),
-  );
-}
+  void _showChangePasswordDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, 
+      backgroundColor: Colors.transparent, 
+      builder: (context) => ChangePasswordSheet(
+        user: _currentUser,
+        primaryDark: Theme.of(context).primaryColor,
+      ),
+    );
+  }
 
   // --- 2. SUPPORT LOGIC ---
   Future<void> _launchContact(String scheme, String path) async {
@@ -80,7 +81,7 @@ void _showChangePasswordDialog() {
   }
 
   // --- 3. UI BUILD ---
- @override
+  @override
   Widget build(BuildContext context) {
     // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -90,7 +91,7 @@ void _showChangePasswordDialog() {
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
 
     return Scaffold(
-      backgroundColor: primaryColor, // 🟢 Matches the top blue area (Header)
+      backgroundColor: primaryColor, 
       appBar: AppBar(
         title: const Text("My Profile", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
@@ -107,7 +108,7 @@ void _showChangePasswordDialog() {
       ),
       body: Stack(
         children: [
-          // 1. FIXED BACKGROUND (Top Blue Area)
+          // 1. FIXED BACKGROUND
           Container(
             height: MediaQuery.of(context).size.height * 0.3,
             color: primaryColor,
@@ -170,7 +171,7 @@ void _showChangePasswordDialog() {
                   ),
                 ),
 
-                // --- SHEET CONTENT (White/Dark) ---
+                // --- SHEET CONTENT ---
                 Container(
                   width: double.infinity,
                   constraints: BoxConstraints(
@@ -178,7 +179,7 @@ void _showChangePasswordDialog() {
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                    color: scaffoldBg, // 🟢 Dynamic: Light Grey or Dark Navy
+                    color: scaffoldBg,
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                   ),
                   child: Column(
@@ -189,7 +190,7 @@ void _showChangePasswordDialog() {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: cardColor, // 🟢 Dynamic: White or Slate 800
+                          color: cardColor,
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
                         ),
@@ -198,7 +199,7 @@ void _showChangePasswordDialog() {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)), // 🟢
+                                const Text("Personal Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)), 
                                 IconButton(
                                   onPressed: _showEditDialog,
                                   icon: const Icon(Icons.edit_note_rounded, color: Colors.blue),
@@ -206,9 +207,9 @@ void _showChangePasswordDialog() {
                                 )
                               ],
                             ),
-                            Divider(color: isDark ? Colors.white10 : Colors.grey[200]), // 🟢 Dynamic Divider
+                            Divider(color: isDark ? Colors.white10 : Colors.grey[200]), 
                             _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-", Colors.blueAccent, textColor!),
-                            const SizedBox(height: 25), // Replaced Dividers with spacing for cleaner dark mode look
+                            const SizedBox(height: 25), 
                             _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-", Colors.blueAccent, textColor),
                             const SizedBox(height: 25),
                             _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}", Colors.blueAccent, textColor),
@@ -225,18 +226,49 @@ void _showChangePasswordDialog() {
                         alignment: Alignment.centerLeft,
                         child: Padding(
                           padding: const EdgeInsets.only(left: 10, bottom: 10),
-                          child: Text("Support & Help", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)), // 🟢
+                          child: const Text("Support & Settings", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)), 
                         ),
                       ),
                       
                       Container(
                         decoration: BoxDecoration(
-                          color: cardColor, // 🟢
+                          color: cardColor, 
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 5))],
                         ),
                         child: Column(
                           children: [
+                            // --- NEW: TOGGLE SWITCH ---
+                            SwitchListTile(
+                                title: Text("Enable Class Reminders", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)),
+                                subtitle: Text("Notify 30 mins before class", style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                                value: _isNotificationsEnabled,
+                                activeColor: Colors.blueAccent,
+                                secondary: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueAccent.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.notifications_active_outlined, color: Colors.blueAccent, size: 20),
+                                ),
+                                onChanged: (value) async {
+                                    setState(() {
+                                        _isNotificationsEnabled = value;
+                                    });
+                                    // Call Service to toggle logic
+                                    await NotificationService.toggleNotifications(value);
+                                    
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                            content: Text(value ? "Reminders Enabled ✅" : "Reminders Disabled 🔕"),
+                                            duration: const Duration(seconds: 1),
+                                        )
+                                    );
+                                },
+                            ),
+                            Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
+
                             _buildActionTile(Icons.lock_outline, "Change Password", Colors.redAccent, _showChangePasswordDialog, textColor),
                             Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
                             _buildActionTile(Icons.chat_bubble_outline_rounded, "Chat on WhatsApp", Colors.green, _openWhatsApp, textColor),
@@ -267,7 +299,7 @@ void _showChangePasswordDialog() {
                           label: const Text("Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 15),
-                            backgroundColor: Colors.red.withOpacity(0.1), // 🟢 0.1 works on both dark/light
+                            backgroundColor: Colors.red.withOpacity(0.1), 
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
                           ),
                         ),
@@ -287,7 +319,6 @@ void _showChangePasswordDialog() {
   // --- WIDGET HELPERS ---
 
   Widget _buildDetailRow(IconData icon, String title, String value, Color iconColor, Color textColor) {
-    // 🟢 Passed colors in
     return Row(
       children: [
         Container(
@@ -305,7 +336,7 @@ void _showChangePasswordDialog() {
             children: [
               Text(title, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
               const SizedBox(height: 2),
-              Text(value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: textColor)), // 🟢 Dynamic Text
+              Text(value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: textColor)), 
             ],
           ),
         ),
@@ -324,7 +355,7 @@ void _showChangePasswordDialog() {
         ),
         child: Icon(icon, color: color, size: 20),
       ),
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)), // 🟢 Dynamic Text
+      title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)),
       trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[500]),
     );
   }

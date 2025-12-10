@@ -1,16 +1,166 @@
-# dita_app
+🎓 DITA App - The Ultimate Student Companion
 
-A new Flutter project.
+(Tip: Replace this link with a real banner image or screenshot of your app)
 
-## Getting Started
+DITA App is the official mobile application for the Daystar Information Technology Association (DITA). It serves as a comprehensive digital companion for students, integrating academic tools, social features, and campus services into a single, polished platform.
 
-This project is a starting point for a Flutter application.
+Designed with a Midnight Blue & Gold aesthetic, the app features a robust Dark Mode, Offline Capabilities, and an AI Assistant powered by Gemini 2.5.
 
-A few resources to get you started if this is your first Flutter project:
+✨ Key Features
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+🧠 Intelligent Assistance
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+DITA AI Assistant: A context-aware chatbot (Gemini 2.5 Flash) that knows the user's specific timetable, exam schedule, and campus details.
+
+Smart Answers: Ask "When is my next exam?" or "Where is the nursing block?" and get instant, personalized responses.
+
+📅 Academic Management
+
+Exam Timetable: Automatically fetches exam dates. Works Offline via local caching.
+
+Class Schedule: Syncs directly from the Student Portal (via secure WebView extraction) or allows manual entry.
+
+Smart Reminders:
+
+Exams: Alerts the evening before and 1 hour before the paper.
+
+Classes: Alerts the evening before and 30 minutes before the session.
+
+💬 Social & Community
+
+Community Hub: An Instagram-style feed for students to share news, ask academic questions, or sell items (Marketplace).
+
+Lost & Found: Report lost items with photo uploads. Owners can mark items as "Found" to resolve cases.
+
+Gamified Leaderboard: Earn points by attending DITA events and scanning QR Codes. Compete for the top rank!
+
+🛠️ Utilities
+
+Secure Payments: Integrated M-Pesa (STK Push) for paying club membership fees.
+
+Task Planner: A built-in To-Do list to track assignments.
+
+Resources Library: Access past papers and PDF notes (Gold Members only).
+
+Biometric Login: Secure entry using Fingerprint/Face ID.
+
+🎨 UI/UX Highlights
+
+True Dark Mode: A sleek "Midnight Navy" theme that activates automatically based on system settings.
+
+Glassmorphism: Modern translucent effects in search bars and headers.
+
+Empty States: Custom SVG illustrations for empty screens (No tasks, No internet, etc.).
+
+Optimistic UI: Instant feedback for "Likes" and "Posts" before the server responds.
+
+📸 Screenshots
+
+Home (Light)
+
+Dark Mode
+
+Community
+
+AI Assistant
+
+<img src="path/to/screenshot1.png" width="200"/>
+
+<img src="path/to/screenshot2.png" width="200"/>
+
+<img src="path/to/screenshot3.png" width="200"/>
+
+<img src="path/to/screenshot4.png" width="200"/>
+
+🛠️ Tech Stack
+
+Mobile (Frontend)
+
+Framework: Flutter (Dart)
+
+State Management: setState + SharedPreferences (Local Caching)
+
+Networking: http
+
+Notifications: awesome_notifications + firebase_messaging
+
+Scanning: mobile_scanner (QR Codes)
+
+AI: google_generative_ai (Gemini API)
+
+Backend (API)
+
+Framework: Django REST Framework (Python)
+
+Database: PostgreSQL (Production) / SQLite (Dev)
+
+Auth: JWT (SimpleJWT)
+
+Storage: Cloudinary (Profile Pictures & Media)
+
+Hosting: Render
+
+Updates: Shorebird (Code Push)
+
+🚀 Getting Started
+
+Prerequisites
+
+Flutter SDK installed.
+
+Python 3.10+ installed.
+
+A Firebase project (for Push Notifications).
+
+A Cloudinary account (for Image Storage).
+
+1. Clone the Repository
+
+git clone [https://github.com/Iconia7/Dita-app.git](https://github.com/Iconia7/Dita-app.git)
+cd dita-app
+
+
+2. Backend Setup
+
+Navigate to the backend folder and set up the virtual environment.
+
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+
+Configure Environment Variables:
+Create a .env file in the backend root:
+
+SECRET_KEY=your_django_secret
+DEBUG=True
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+
+Run Migrations & Server:
+
+python manage.py migrate
+python manage.py runserver
+
+
+3. Frontend Setup
+
+Navigate to the app folder.
+
+cd dita_app
+flutter pub get
+
+
+Configure Environment Variables:
+Create a .env file in the assets/ folder (or root):
+
+GOOGLE_API_KEY=your_gemini_api_key
+API_BASE_URL=[http://127.0.0.1:8000/api](http://127.0.0.1:8000/api)
+
+
+Run the App:
+
+flutter run

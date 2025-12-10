@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart'; // Ensure this is in pubspec.yaml
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../widgets/dita_loader.dart';
@@ -12,7 +14,6 @@ class CommunityScreen extends StatefulWidget {
 }
 
 class _CommunityScreenState extends State<CommunityScreen> {
-  // 🟢 Removed hardcoded _primaryDark (Use Theme instead)
   String _selectedCategory = 'ALL';
 
   void _showCreatePostSheet() {
@@ -28,7 +29,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
+    // Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final primaryColor = Theme.of(context).primaryColor;
@@ -36,18 +37,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final borderColor = isDark ? Colors.white10 : Colors.grey[200]!;
 
     return Scaffold(
-      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
         title: Text(
           "Community", 
           style: TextStyle(
             fontWeight: FontWeight.w900, 
             fontSize: 24, 
-            color: textColor, // 🟢 Dynamic Text
+            color: textColor,
             letterSpacing: -0.5
           )
         ),
-        backgroundColor: scaffoldBg, // 🟢 Matches Body
+        backgroundColor: scaffoldBg,
         foregroundColor: textColor,
         elevation: 0,
         surfaceTintColor: scaffoldBg,
@@ -55,7 +56,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         actions: [
           IconButton(
             onPressed: _showCreatePostSheet,
-            icon: Icon(Icons.add_box_outlined, size: 28, color: textColor), // 🟢 Dynamic Icon
+            icon: Icon(Icons.add_box_outlined, size: 28, color: textColor),
             tooltip: "New Post",
           ),
           const SizedBox(width: 10),
@@ -63,11 +64,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
       ),
       body: Column(
         children: [
-          // Filter Chips (Stories Style)
+          // Filter Chips
           Container(
             height: 60,
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: borderColor)) // 🟢 Dynamic Border
+              border: Border(bottom: BorderSide(color: borderColor))
             ),
             child: ListView(
               scrollDirection: Axis.horizontal,
@@ -90,7 +91,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
               future: ApiService.getCommunityPosts(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: DaystarSpinner(size: 100)); 
+                  return const Center(child: DaystarSpinner(size: 120,)); 
                 }
                 
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -116,7 +117,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   child: ListView.separated(
                     padding: const EdgeInsets.only(bottom: 100), 
                     itemCount: posts.length,
-                    separatorBuilder: (c, i) => Divider(height: 1, color: borderColor), // 🟢 Dynamic Divider
+                    separatorBuilder: (c, i) => Divider(height: 1, color: borderColor),
                     itemBuilder: (context, index) {
                       return _PostItem(
                         post: posts[index], 
@@ -146,7 +147,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         decoration: BoxDecoration(
           color: isSelected 
               ? primaryColor 
-              : (isDark ? Colors.white10 : Colors.grey[100]), // 🟢 Dynamic Chip BG
+              : (isDark ? Colors.white10 : Colors.grey[100]),
           borderRadius: BorderRadius.circular(20),
           border: isSelected ? null : Border.all(color: isDark ? Colors.transparent : Colors.grey[300]!),
         ),
@@ -156,7 +157,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
             style: TextStyle(
               color: isSelected 
                   ? Colors.white 
-                  : (isDark ? Colors.white70 : Colors.black87), // 🟢 Dynamic Text
+                  : (isDark ? Colors.white70 : Colors.black87),
               fontWeight: FontWeight.bold,
               fontSize: 13
             ),
@@ -214,6 +215,7 @@ class _PostItemState extends State<_PostItem> {
   }
 
   void _editPost() async {
+    // Note: Edit currently only supports text updates for simplicity
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -257,7 +259,6 @@ class _PostItemState extends State<_PostItem> {
 
   @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
 
@@ -265,9 +266,9 @@ class _PostItemState extends State<_PostItem> {
     
     Color badgeColor;
     switch (displayCategory) {
-      case 'ACADEMIC': badgeColor = Colors.blueAccent; break;
+      case 'ACADEMIC': badgeColor = Colors.orange; break;
       case 'MARKET': badgeColor = Colors.green; break;
-      default: badgeColor = Colors.orangeAccent;
+      default: badgeColor = Colors.blue;
     }
 
     return Padding(
@@ -293,7 +294,7 @@ class _PostItemState extends State<_PostItem> {
                   children: [
                     Row(
                       children: [
-                        Text(widget.post['username'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)), // 🟢
+                        Text(widget.post['username'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)),
                         const SizedBox(width: 5),
                         if (widget.post['category'] != 'GENERAL')
                           Text("• $displayCategory", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor)),
@@ -301,7 +302,7 @@ class _PostItemState extends State<_PostItem> {
                     ),
                     Text(
                       DateFormat('MMM d').format(DateTime.parse(widget.post['created_at'])),
-                      style: TextStyle(color: subTextColor, fontSize: 11), // 🟢
+                      style: TextStyle(color: subTextColor, fontSize: 11),
                     ),
                   ],
                 ),
@@ -309,7 +310,7 @@ class _PostItemState extends State<_PostItem> {
               if (widget.post['is_owner'] ?? false)
                 PopupMenuButton(
                   icon: Icon(Icons.more_horiz, color: subTextColor),
-                  color: Theme.of(context).cardColor, // 🟢 Dynamic Menu
+                  color: Theme.of(context).cardColor,
                   onSelected: (val) {
                     if (val == 'delete') _deletePost();
                     if (val == 'edit') _editPost(); 
@@ -327,9 +328,24 @@ class _PostItemState extends State<_PostItem> {
             padding: const EdgeInsets.only(top: 10, bottom: 10),
             child: Text(
               displayContent, 
-              style: TextStyle(fontSize: 15, height: 1.4, color: textColor), // 🟢
+              style: TextStyle(fontSize: 15, height: 1.4, color: textColor),
             ),
           ),
+          
+          // DISPLAY IMAGE IF EXISTS
+          if (widget.post['image'] != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  widget.post['image'],
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
 
           // ACTION BAR
           Row(
@@ -338,10 +354,10 @@ class _PostItemState extends State<_PostItem> {
                 onTap: _handleLike,
                 child: Row(
                   children: [
-                    Icon(isLiked ? Icons.favorite : Icons.favorite_border_rounded, size: 26, color: isLiked ? Colors.red : textColor), // 🟢
+                    Icon(isLiked ? Icons.favorite : Icons.favorite_border_rounded, size: 26, color: isLiked ? Colors.red : textColor),
                     const SizedBox(width: 6),
                     if (likeCount > 0) 
-                      Text("$likeCount", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)), // 🟢
+                      Text("$likeCount", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)),
                   ],
                 ),
               ),
@@ -349,7 +365,7 @@ class _PostItemState extends State<_PostItem> {
               _IconAction(
                 icon: Icons.chat_bubble_outline_rounded, 
                 label: "${widget.post['comment_count']}",
-                color: textColor!, // 🟢
+                color: textColor!,
                 onTap: () {
                   showModalBottomSheet(
                     context: context, 
@@ -360,7 +376,7 @@ class _PostItemState extends State<_PostItem> {
                 },
               ),
               const Spacer(),
-              Icon(Icons.bookmark_border_rounded, size: 24, color: subTextColor), // 🟢
+              Icon(Icons.bookmark_border_rounded, size: 24, color: subTextColor),
             ],
           ),
         ],
@@ -369,11 +385,12 @@ class _PostItemState extends State<_PostItem> {
   }
 }
 
+// ... (_IconAction Helper stays same) ...
 class _IconAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color color; // 🟢 Added Color
+  final Color color; 
 
   const _IconAction({required this.icon, required this.label, required this.onTap, required this.color});
 
@@ -406,16 +423,24 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
   String _category = 'GENERAL';
   bool _isAnon = false;
   bool _isLoading = false;
+  File? _selectedImage; 
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) setState(() => _selectedImage = File(image.path));
+  }
 
   Future<void> _submit() async {
-    if (_contentController.text.isEmpty) return;
+    if (_contentController.text.isEmpty && _selectedImage == null) return;
     setState(() => _isLoading = true);
     
+    // UPDATED: Use createPost to handle multipart upload
     bool success = await ApiService.createPost({
       'content': _contentController.text,
       'category': _category,
-      'is_anonymous': _isAnon
-    });
+      'is_anonymous': _isAnon.toString(),
+    }, _selectedImage);
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -425,7 +450,6 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetColor = Theme.of(context).cardColor;
     final inputColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
@@ -434,13 +458,14 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
 
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
-      decoration: BoxDecoration(color: sheetColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(25))), // 🟢
+      decoration: BoxDecoration(color: sheetColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(25))),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text("New Post", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 15),
+          
           TextField(
             controller: _contentController,
             maxLines: 4,
@@ -450,15 +475,37 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
               hintStyle: TextStyle(color: Colors.grey[400]),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
               filled: true,
-              fillColor: inputColor, // 🟢
+              fillColor: inputColor,
             ),
           ),
           const SizedBox(height: 15),
+          
+          // IMAGE PICKER ROW
+          Row(
+            children: [
+              IconButton(
+                onPressed: _pickImage,
+                icon: Icon(Icons.image, color: primaryColor),
+                tooltip: "Add Image",
+              ),
+              if (_selectedImage != null)
+                Expanded(
+                  child: Text(
+                    "Image selected", 
+                    style: TextStyle(color: Colors.green, fontSize: 12),
+                    overflow: TextOverflow.ellipsis
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+          
           Row(
             children: [
               DropdownButton<String>(
                 value: _category,
-                dropdownColor: sheetColor, // 🟢
+                dropdownColor: sheetColor,
                 style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
                 items: const [
                   DropdownMenuItem(value: 'GENERAL', child: Text("General 📢")),
@@ -495,8 +542,7 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
   }
 }
 
-// --- EDIT POST SHEET ---
-// (Very similar to CreatePostSheet, just add the Theme logic for colors)
+// ... (EditPostSheet & CommentsSheet remain largely the same, edit doesn't usually support image change in v1) ...
 class EditPostSheet extends StatefulWidget {
   final String initialContent;
   final String initialCategory;
@@ -549,7 +595,6 @@ class _EditPostSheetState extends State<EditPostSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetColor = Theme.of(context).cardColor;
     final inputColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
@@ -602,7 +647,7 @@ class _EditPostSheetState extends State<EditPostSheet> {
   }
 }
 
-// --- COMMENTS SHEET ---
+// ... (CommentsSheet remains unchanged) ...
 class CommentsSheet extends StatefulWidget {
   final int postId;
   final Color primaryDark;
@@ -633,13 +678,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
     bool success = await ApiService.postComment(widget.postId, _commentController.text);
     if (success) {
       _commentController.clear();
-      _loadComments(); // Refresh list
+      _loadComments(); 
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetColor = Theme.of(context).cardColor;
     final inputColor = isDark ? const Color(0xFF0F172A) : Colors.grey[100];
@@ -658,7 +702,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
           const Divider(height: 1),
           Expanded(
             child: _loading 
-              ? const Center(child: DaystarSpinner(size: 100))
+              ? const Center(child: DaystarSpinner(size: 120,))
               : _comments.isEmpty 
                 ? Center(child: Text("No comments yet.", style: TextStyle(color: subTextColor)))
                 : ListView.builder(

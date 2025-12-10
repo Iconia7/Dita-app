@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
 class AiAssistantScreen extends StatefulWidget {
@@ -48,18 +49,53 @@ Future<void> _sendMessage() async {
   _scrollToBottom();
 
   try {
-    // 1) Get Events Context
+    // --- 1. CONTEXT INJECTION (THE NEW MAGIC) ---
+    
+    // A. Fetch Events (Existing)
     String eventContext = '';
     try {
       final events = await ApiService.getEvents();
       if (events.isNotEmpty) {
-        eventContext = "\n\nREAL-TIME UPCOMING EVENTS:\n" + 
-            events.take(3).map((e) => "- ${e['title']} on ${e['date']} @ ${e['venue']}").join("\n");
+        eventContext = "\n\n📢 **UPCOMING SCHOOL EVENTS:**\n" + 
+            events.take(3).map((e) => "- ${e['title']} (${e['date']} @ ${e['venue']})").join("\n");
       }
     } catch (_) {}
 
-    // 2) Define System Instruction
-// 2) Define System Instruction (Vast & Detailed)
+    // B. Fetch User Context (Name, Points)
+    String userContext = '';
+    final user = await ApiService.getUserLocally();
+    if (user != null) {
+      userContext = """
+      \n\n👤 **CURRENT STUDENT PROFILE:**
+      - **Name:** ${user['username']}
+      - **Program:** ${user['program']}
+      - **Current Points:** ${user['points']} (Check Leaderboard for rank)
+      - **Membership:** ${user['is_paid_member'] ? 'Gold Member 🌟' : 'Standard'}
+      """;
+    }
+
+    // C. Fetch Cached Exams (From SharedPrefs)
+    String examContext = '';
+    final prefs = await SharedPreferences.getInstance();
+    String? cachedExams = prefs.getString('cached_exams');
+    if (cachedExams != null) {
+      List<dynamic> exams = json.decode(cachedExams); 
+      if (exams.isNotEmpty) {
+        // Sort to find the next one
+        exams.sort((a, b) => DateTime.parse(a['date']).compareTo(DateTime.parse(b['date'])));
+        // Filter only future exams
+        final upcoming = exams.where((e) => DateTime.parse(e['date']).isAfter(DateTime.now())).take(3).toList();
+        
+        if (upcoming.isNotEmpty) {
+          examContext = "\n\n📅 **YOUR UPCOMING EXAMS:**\n" + 
+              upcoming.map((e) => "- ${e['course_code']}: ${e['title']} on ${e['date']} at ${e['venue']}").join("\n");
+        } else {
+          examContext = "\n\n📅 **YOUR EXAMS:** No upcoming exams found in local cache.";
+        }
+      }
+    }
+
+    // --- 2. DEFINE SYSTEM PROMPT (UPDATED) ---
     final systemText = """
 You are DITA AI, the intelligent, friendly, and tech-savvy virtual assistant for Daystar University students.
 Your goal is to make student life easier by navigating the DITA App and the Campus environment.
@@ -77,6 +113,7 @@ Your goal is to make student life easier by navigating the DITA App and the Camp
     - **Library (Agape Library):** The main resource center for study and research.
     - **The Garage:** Common student hangout and eatery area.
     - **Hope Center:** Large auditorium for chapel and major events.
+    - **Transport:** School buses pick up at the main gate. Check the notice board for schedules.
 * **Nairobi Campus (Valley Road):**
     - **DAC (Daystar Academic Center):** The main administration building housing lecture halls and offices.
     - **Library:** Located within the DAC building.
@@ -91,29 +128,37 @@ Your goal is to make student life easier by navigating the DITA App and the Camp
 - **GPA:** Your Grade Point Average determines your academic standing. Use the 'GPA Calculator' in the app to check.
 
 **4. MASTERING THE DITA APP (FEATURES & HOW-TO):**
-- **Events & Attendance:** - "How do I join an event?" -> Go to the Events tab and click 'RSVP'.
-    - "How do I get points?" -> Attend physical events and use the **QR Scanner** on the Home Screen to scan the event code. You earn **+20 Points** per check-in.
-- **Resources:** - Found in the 'Resources' tab. Contains past papers, PDF notes, and important links.
-    - Some resources may be locked for non-paid members.
-- **Timetables (Cached):** - Your Exam Timetable loads instantly from local storage.
-    - Click 'Refresh' or 'Add Unit' to sync with the live portal.
-- **Membership:**
-    - **Gold Member:** Paid subscription (active). Access to premium resources.
-    - **Inactive:** Membership expired. Renew via the 'Pay Fees' button (M-Pesa integration).
-- **Profile:** - You can edit your phone number and course details in the 'Profile' tab.
-    - Password changes require your old password for security.
+* **📱 Community Hub (New!):**
+    - A social feed for students.
+    - **Categories:** Academic (Help), Market (Sell items), General.
+    - **How to Post:** Click the 'box' icon in the top-right of the Community tab.
+    - **Rules:** Be respectful. Owners can delete their own posts.
+* **🕵️ Lost & Found (New!):**
+    - Found something? Post a picture! Lost something? Check the feed.
+    - **Found it?** If you are the owner, click "Mark as Found" to close the case.
+* **🏆 Leaderboard (Gamification):**
+    - Earn points by attending DITA events and scanning the QR code.
+    - **Ranks:** The top 3 students get Gold, Silver, and Bronze trophies.
+* **📅 Timetables:**
+    - **Exams:** Your exams load offline from cache! Click 'Refresh' to sync.
+    - **Classes:** You can manually add classes or sync from the portal (requires login).
+* **📚 Resources:**
+    - Access past papers and notes. Locked for non-paid members (Standard). Pay KES 200 via M-Pesa to unlock Gold status.
 
-**5. TROUBLESHOOTING & TECHNICAL SUPPORT:**
-- **"App is offline":** Check your internet. If the server is down, a "Maintenance Mode" screen will appear.
-- **"Login failed":** Ensure your credentials are correct or use "Forgot Password".
-- **Biometrics:** You can enable Fingerprint login if your device supports it.
+**5. TROUBLESHOOTING & SUPPORT:**
+- **"App is offline":** Check internet. If server is down, "Maintenance Mode" will appear.
+- **"Login failed":** Use "Forgot Password" on the login screen.
+- **"Upload failed":** Check your internet connection.
+
+**6. CONTEXT AWARENESS (USE THIS DATA TO ANSWER):**
+$userContext
+$examContext
+$eventContext
 
 **BEHAVIORAL GUIDELINES:**
-- **Length:** Keep responses concise (max 3-4 sentences) unless explaining a complex procedure.
-- **Unknowns:** If you don't know an answer (e.g., specific lecturer's phone number), politely refer them to the **DITA Office (ICT Ground Floor)** or the **University Portal**.
-- **Formatting:** Use **Bold** for key terms, buttons, or locations to make reading easy.
-
-$eventContext
+- **Personalize:** If you know the user's name from the context above, use it occassionally.
+- **Be Helpful:** If they ask "When is my next exam?", LOOK at the "YOUR UPCOMING EXAMS" section above and answer. If the list is empty, tell them to add units in the Exams tab.
+- **Length:** Keep answers concise (max 3-4 sentences).
 """;
 
     // 3) Build History
