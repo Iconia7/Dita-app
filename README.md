@@ -46,7 +46,7 @@ Designed with a **Midnight Blue & Gold** aesthetic, the app features a robust **
 
 | Home (Light) | Dark Mode | Community | AI Assistant |
 |--------------|-----------|-----------|--------------|
-| <img src="screenshots/home-light.jpg" width="200"/> | <img src="screenshots/dark-mode.png" width="200"/> | <img src="screenshots/community.jpg" width="200"/> | <img src="screenshots/ai-assistant.jpg" width="200"/> |
+| <img src="screenshots/home-light.jpg" width="200"/> | <img src="screenshots/dark-mode.jpg" width="200"/> | <img src="screenshots/community.jpg" width="200"/> | <img src="screenshots/ai-assistant.jpg" width="200"/> |
 
 ## 🛠️ Tech Stack
 
