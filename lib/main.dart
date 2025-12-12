@@ -5,7 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:awesome_notifications/awesome_notifications.dart'; // Import this
+import 'package:awesome_notifications/awesome_notifications.dart'; 
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 // 1. DEFINE TOP-LEVEL BACKGROUND HANDLER
 // This must be outside any class and outside main()
@@ -54,17 +55,28 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); 
   
-  // 2. REGISTER THE BACKGROUND HANDLER
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  try {
+    await Firebase.initializeApp();
+    await MobileAds.instance.initialize();
+    
+    // 2. REGISTER THE BACKGROUND HANDLER
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  await NotificationService.initialize();
-  
-  // Get the token (keep your existing logic)
-  FirebaseMessaging messaging = FirebaseMessaging.instance;
-  String? token = await messaging.getToken();
-  print("MY FCM TOKEN: $token"); 
+    await NotificationService.initialize();
+    
+    // Safely attempt to get the token
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    try {
+      String? token = await messaging.getToken();
+      print("MY FCM TOKEN: $token"); 
+    } catch (e) {
+      print("⚠️ FCM Token Error: $e"); // Log error but DON'T crash
+    }
+
+  } catch (e) {
+    print("⚠️ Initialization Error: $e");
+  }
   
   await dotenv.load(fileName: ".env");
 

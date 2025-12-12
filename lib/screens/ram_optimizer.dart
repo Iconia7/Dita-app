@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:dita_app/services/ads_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dita_app/services/api_service.dart';
@@ -16,19 +17,20 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   // --- CONFIG ---
   static const int gridSize = 8;
   static const double gridSpacing = 4.0;
-  
+   
   // --- STATE ---
   List<Color?> _board = List.filled(gridSize * gridSize, null);
   final List<Timer> _corruptedTimers = []; 
-  
+   
   int _scoreKB = 0; // Current Session Score
   int _sessionPoints = 0; // Points earned THIS session
-  
+   
   late int _currentTotalPoints; // Master points (synced with backend)
   int _localHighScore = 0; // Master High Score (Local Storage)
 
   bool _isGameOver = false;
   bool _isSaving = false;
+  bool _hasRevived = false;
 
   // --- HOVER STATE ---
   int? _hoverAnchorIndex;
@@ -40,7 +42,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   late Color _emptyColor;
   late Color _gridLineColor;
   final Color _corruptedColor = const Color(0xFF6A1B9A); 
-  
+   
   final List<Color> _processColors = [
     Colors.cyan, Colors.greenAccent, Colors.orangeAccent, Colors.blueAccent, Colors.pinkAccent,
   ];
@@ -65,6 +67,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   void initState() {
     super.initState();
     _loadData();
+    // Pre-load Ads (Banner + Interstitial + Rewarded)
+    AdManager.loadAds();
+    
     _fillAllSlots();
     WidgetsBinding.instance.addPostFrameCallback((_) => _showInstructions());
   }
@@ -130,7 +135,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
     List<Point<int>> newShape = List.from(_baseShapes[Random().nextInt(_baseShapes.length)]);
     bool flipX = Random().nextBool();
     bool flipY = Random().nextBool();
-    
+     
     if (flipX || flipY) {
       newShape = newShape.map((p) => Point(flipX ? -p.x : p.x, flipY ? -p.y : p.y)).toList();
       int minX = newShape.map((p) => p.x).reduce(min);
@@ -159,7 +164,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   void _placeShape(List<Point<int>> shape, Color color, int originX, int originY) {
     bool isCorrupted = Random().nextInt(10) == 0; 
     Color finalColor = isCorrupted ? _corruptedColor : color;
-    
+     
     // Scoring
     int kbGained = shape.length * 10;
     int pointsGained = shape.length; 
@@ -191,7 +196,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
         if (_board[i] == colorKey) currentPositions.add(i);
       }
       if (currentPositions.isEmpty) { t.cancel(); _corruptedTimers.remove(t); return; }
-      
+       
       int fromIndex = currentPositions[Random().nextInt(currentPositions.length)];
       List<int> dirs = [-1, 1, -gridSize, gridSize];
       dirs.shuffle();
@@ -311,12 +316,79 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       if (possible) break;
     }
     if (!possible) {
-      setState(() => _isGameOver = true);
-      _endGame();
+      _triggerCrash();
     }
   }
 
   // --- SAVE & EXIT LOGIC ---
+
+  void _triggerCrash() {
+    setState(() => _isGameOver = true); // Pause placement
+    
+    // Check if player has already revived
+    if (_hasRevived) {
+      _endGame(); // Already revived once, game over
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("OUT OF MEMORY", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content: const Text("No available moves.\nWatch a short ad to purge 30% of system memory and continue?"),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _endGame(); // Give up
+            },
+            child: const Text("EXIT", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _watchAdToResume();
+            },
+            icon: const Icon(Icons.cleaning_services),
+            label: const Text("PURGE RAM"),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _watchAdToResume() {
+    AdManager.showRewardedAd(
+      onReward: () {
+        setState(() {
+          _isGameOver = false;
+          _hasRevived = true;
+          // Clear 30% of random blocks to make space
+          int totalBlocks = gridSize * gridSize;
+          int blocksToClear = (totalBlocks * 0.3).toInt();
+          
+          List<int> filledIndices = [];
+          for (int i=0; i < _board.length; i++) {
+            if (_board[i] != null) filledIndices.add(i);
+          }
+          
+          filledIndices.shuffle();
+          for (int i=0; i < min(blocksToClear, filledIndices.length); i++) {
+            _board[filledIndices[i]] = null;
+          }
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("⚠️ MEMORY PURGED. SYSTEM RESUMED."), backgroundColor: Colors.green)
+        );
+      },
+      onFailure: () {
+        _endGame();
+      }
+    );
+  }
 
   Future<void> _saveGameData() async {
     if (_isSaving) return;
@@ -351,6 +423,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Saving Progress..."), duration: Duration(milliseconds: 800))
     );
+    // Ad logic handled by PopScope
     await _saveGameData();
     if (mounted) Navigator.pop(context);
   }
@@ -363,8 +436,8 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text("OUT OF MEMORY"),
-        content: Text("System Halted.\n\nKB Cleared: $_scoreKB\nSession Points: $_sessionPoints\n\nTotal Balance: $_currentTotalPoints"),
+        title: const Text("SYSTEM HALTED"),
+        content: Text("Final Report:\n\nKB Cleared: $_scoreKB\nSession Points: $_sessionPoints\n\nTotal Balance: $_currentTotalPoints"),
         actions: [
           TextButton(onPressed: () { Navigator.pop(ctx); Navigator.pop(context); }, child: const Text("Exit")),
           ElevatedButton(onPressed: () { Navigator.pop(ctx); _resetGame(); }, child: const Text("Reboot")),
@@ -380,6 +453,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       _scoreKB = 0;
       _sessionPoints = 0;
       _isGameOver = false;
+      _hasRevived = false;
       _fillAllSlots();
     });
   }
@@ -387,7 +461,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   // --- PREVIEW HELPERS ---
   bool _isPreviewCell(int index) {
     if (_hoverAnchorIndex == null || _hoverShape == null) return false;
-    
+     
     // Use the stored offsets calculated during DragTarget.onWillAccept
     int anchorX = (_hoverAnchorIndex! % gridSize) - _hoverXOffset;
     int anchorY = (_hoverAnchorIndex! ~/ gridSize) - _hoverYOffset;
@@ -422,6 +496,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
     return PopScope(
       canPop: true,
       onPopInvoked: (didPop) async {
+        if (didPop) {
+          AdManager.showInterstitialAd();
+        }
         await _saveGameData();
       },
       child: Scaffold(
@@ -605,6 +682,8 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                 }),
               ),
             ),
+            // 3. BANNER AD AT BOTTOM
+            const BannerAdWidget(),
           ],
         ),
       ),

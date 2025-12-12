@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:dita_app/services/ads_helper.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Local High Score
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dita_app/services/api_service.dart';
 
 class SnakeGameScreen extends StatefulWidget {
@@ -33,15 +34,16 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   Direction _nextDirection = Direction.up;
   Timer? _timer;
   int _currentSpeed = baseSpeed;
-  
+   
   bool _isPlaying = false;
   bool _isGameOver = false;
-  bool _isSaving = false; // Prevent double saves
-  
+  bool _isSaving = false;
+  bool _hasRevived = false; // Track if user used their one revive
+   
   // SCORING
   int _score = 0; 
-  late int _totalUserPoints; // Master balance from backend
-  int _localHighScore = 0;   // Saved locally on device
+  late int _totalUserPoints; 
+  int _localHighScore = 0;   
 
   // COMBO SYSTEM
   int _comboMultiplier = 1;
@@ -62,19 +64,20 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   void initState() {
     super.initState();
     _loadData();
+    // Load Ads (Interstitial + Rewarded)
+    AdManager.loadAds();
+    
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
     _resetGameState();
   }
 
   Future<void> _loadData() async {
-    // 1. Load Total Points from Backend User Object
     if (widget.user['points'] != null) {
       _totalUserPoints = int.tryParse(widget.user['points'].toString()) ?? 0;
     } else {
       _totalUserPoints = 0;
     }
 
-    // 2. Load High Score from Local Storage (since backend doesn't have it)
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
@@ -97,6 +100,7 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     _comboMeter = 0.0;
     _isGhost = false;
     _doubleScore = false;
+    _hasRevived = false; // Reset revive ability
   }
 
   @override
@@ -115,7 +119,7 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
       _isGameOver = false;
       _resetGameState();
       _generateFood();
-      _generateObstacles(3); // Start with a few walls
+      _generateObstacles(3);
     });
     _startTimer();
   }
@@ -136,7 +140,6 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   }
 
   void _updateCombo() {
-    // Decrease combo meter over time
     if (_comboMeter > 0) {
       _comboMeter -= 0.05; 
       if (_comboMeter <= 0) {
@@ -179,7 +182,9 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
           newHead.y < 0 || newHead.y >= rows || 
           _snake.contains(newHead) || 
           _obstacles.contains(newHead)) {
-        _gameOver();
+        
+        // --- CRASH DETECTED ---
+        _handleCrash();
         return;
       }
     }
@@ -202,13 +207,81 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     }
   }
 
+  // --- REVIVE / CRASH LOGIC ---
+
+  void _handleCrash() {
+    _timer?.cancel(); // Pause game
+    _effectTimer?.cancel();
+    setState(() => _isPlaying = false);
+
+    if (!_hasRevived) {
+      // Offer Revive
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          title: const Text("SYSTEM CRASHED!", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          content: const Text("Watch a short ad to activate Emergency Ghost Mode and continue?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _gameOver(); // User declined
+              },
+              child: const Text("GIVE UP"),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _watchAdToRevive();
+              },
+              icon: const Icon(Icons.play_circle_fill),
+              label: const Text("REVIVE"),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            )
+          ],
+        ),
+      );
+    } else {
+      // Already revived once, straight to Game Over
+      _gameOver();
+    }
+  }
+
+  void _watchAdToRevive() {
+    AdManager.showRewardedAd(
+      onReward: () {
+        // Success! Revive Logic
+        setState(() {
+          _hasRevived = true;
+          _isPlaying = true;
+          // Activate Ghost Mode so they don't immediately crash again
+          _activatePowerUp(PowerUpType.ghostMode);
+          
+          // Move snake slightly if stuck in wall (Optional, Ghost mode handles it mostly)
+          // Just resume timer
+          _startTimer();
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("👻 SYSTEM RESTORED! Ghost Mode Active."), backgroundColor: Colors.green)
+        );
+      },
+      onFailure: () {
+        // Ad failed or cancelled
+        _gameOver();
+      }
+    );
+  }
+
   void _handleEatFood() {
     _spawnExplosion(_snake.first, Colors.orange);
     
     // Scoring & Points
     int points = 10 * _comboMultiplier * (_doubleScore ? 2 : 1);
     _score += points;
-    _totalUserPoints += points; // Update master balance immediately
+    _totalUserPoints += points;
     
     // Combo Logic
     DateTime now = DateTime.now();
@@ -237,11 +310,15 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   }
 
   void _activatePowerUp(PowerUpType type) {
-    _spawnExplosion(_snake.first, Colors.white);
+    if (type != PowerUpType.ghostMode) {
+      // Don't spawn particles for auto-revive ghost mode to keep it clean
+       _spawnExplosion(_snake.first, Colors.white);
+    }
     
     // Cancel previous effects
     _effectTimer?.cancel();
-    _currentSpeed = baseSpeed; 
+    if (_currentSpeed != 100 && _currentSpeed != 400) _currentSpeed = baseSpeed; 
+    
     _isGhost = false;
     _doubleScore = false;
 
@@ -273,12 +350,12 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   }
 
   void _setEffectTimeout() {
-    _effectTimer = Timer(const Duration(seconds: 5), () {
+    _effectTimer = Timer(const Duration(seconds: 10), () {
       if (mounted) {
         setState(() {
           _isGhost = false;
           _doubleScore = false;
-          _currentSpeed = baseSpeed;
+          if (_currentSpeed != 100 && _currentSpeed != 400) _currentSpeed = baseSpeed;
           _startTimer();
         });
       }
@@ -402,10 +479,12 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     final primaryColor = Theme.of(context).primaryColor;
     final snakeColor = _isGhost ? Colors.white.withOpacity(0.5) : _skinColors[_skinIndex];
 
-    // WRAPPED IN POPSCOPE FOR SWIPE-BACK SAVING
     return PopScope(
       canPop: true,
       onPopInvoked: (didPop) async {
+        if (didPop) {
+          AdManager.showInterstitialAd();
+        }
         await _saveGameData();
       },
       child: Scaffold(
@@ -413,7 +492,6 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
         appBar: AppBar(
           title: const Text("Data Snake V2", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
           backgroundColor: primaryColor,
-          // Custom Back Button to trigger save
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: _onBackPressed,
@@ -445,7 +523,6 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildStat(Icons.monetization_on, "Balance", "$_totalUserPoints"),
-                  // Display max of current score or local high score
                   _buildStat(Icons.emoji_events, "High Score", "${max(_localHighScore, _score)}"),
                   _buildStat(Icons.speed, "Speed", _currentSpeed < 150 ? "MAX" : "${((baseSpeed - _currentSpeed)/2).toInt()}%"),
                 ],
@@ -560,12 +637,15 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
                 ),
               ),
             ),
+            
+            // 3. BANNER AD AT BOTTOM
+            const BannerAdWidget(),
           ],
         ),
       ),
     );
   }
-  
+   
   Widget _buildStat(IconData icon, String label, String value) {
     return Column(
       children: [
@@ -591,7 +671,7 @@ class _Particle {
   double life = 1.0;
   Color color;
   _Particle({required this.x, required this.y, required this.vx, required this.vy, required this.color});
-  
+   
   void update() {
     x += vx;
     y += vy;
@@ -605,7 +685,7 @@ class SnakePainter extends CustomPainter {
   final List<Point<int>> obstacles;
   final List<_GameItem> powerUps;
   final List<_Particle> particles;
-  
+   
   final int rows;
   final int cols;
   final Color snakeColor;
@@ -668,7 +748,7 @@ class SnakePainter extends CustomPainter {
       var p = snake[i];
       if (i == 0) fillPaint.color = snakeColor.withOpacity(1.0);
       else fillPaint.color = snakeColor.withOpacity(0.4 + ((snake.length - i) / snake.length) * 0.6);
-      
+       
       canvas.drawRRect(
         RRect.fromRectAndRadius(Rect.fromLTWH(p.x * cellW + 1, p.y * cellH + 1, cellW - 2, cellH - 2), const Radius.circular(4)), 
         fillPaint

@@ -1,7 +1,8 @@
+import 'package:dita_app/services/ads_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:dita_app/screens/binary_game_screen.dart'; 
 import 'package:dita_app/screens/ram_optimizer.dart';
-import 'package:dita_app/screens/snake_game.dart'; // <--- Added Import
+import 'package:dita_app/screens/snake_game.dart';
 
 class GamesListScreen extends StatelessWidget {
   final Map<String, dynamic> user;
@@ -31,67 +32,76 @@ class GamesListScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView( // Added scroll view in case list gets long
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Choose a Challenge",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
+      body: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Choose a Challenge",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      "Test your logic and optimization skills.",
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // --- GAME 1: RAM OPTIMIZER ---
+                    _GameCard(
+                      title: "RAM Optimizer",
+                      description: "Fit memory blocks efficiently. Avoid stack overflow.",
+                      icon: Icons.memory,
+                      color: Colors.green,
+                      isDark: isDark,
+                      onTap: () => _navigateToGame(context, RamOptimizerScreen(user: user)),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // --- GAME 2: BINARY TAC-TOE ---
+                    _GameCard(
+                      title: "Binary Tac-Toe",
+                      description: "Classic strategy with a binary twist. Vs AI or Friend.",
+                      icon: Icons.grid_3x3,
+                      color: Colors.cyan,
+                      isDark: isDark,
+                      onTap: () => _navigateToGame(context, GameScreen(user: user, userId: user,)), // Removed userId as it's likely inside user map
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // --- GAME 3: DATA SNAKE ---
+                    _GameCard(
+                      title: "Data Snake",
+                      description: "Collect data packets and grow your stream. Don't crash!",
+                      icon: Icons.timeline, 
+                      color: Colors.purpleAccent,
+                      isDark: isDark,
+                      onTap: () => _navigateToGame(context, SnakeGameScreen(user: user)),
+                    ),
+                    
+                    const SizedBox(height: 30),
+                  ],
                 ),
               ),
-              const SizedBox(height: 5),
-              Text(
-                "Test your logic and optimization skills.",
-                style: TextStyle(
-                  color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // --- GAME 1: RAM OPTIMIZER ---
-              _GameCard(
-                title: "RAM Optimizer",
-                description: "Fit memory blocks efficiently. Avoid stack overflow.",
-                icon: Icons.memory,
-                color: Colors.green,
-                isDark: isDark,
-                onTap: () => _navigateToGame(context, RamOptimizerScreen(user: user)),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- GAME 2: BINARY TAC-TOE ---
-              _GameCard(
-                title: "Binary Tac-Toe",
-                description: "Classic strategy with a binary twist. Vs AI or Friend.",
-                icon: Icons.grid_3x3,
-                color: Colors.cyan,
-                isDark: isDark,
-                onTap: () => _navigateToGame(context, GameScreen(user: user, userId: user['id'] ?? "")),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- GAME 3: DATA SNAKE (NEW) ---
-              _GameCard(
-                title: "Data Snake",
-                description: "Collect data packets and grow your stream. Don't crash!",
-                icon: Icons.timeline, 
-                color: Colors.purpleAccent,
-                isDark: isDark,
-                onTap: () => _navigateToGame(context, SnakeGameScreen(user: user)),
-              ),
-              
-              const SizedBox(height: 40),
-            ],
+            ),
           ),
-        ),
+          
+          // 🟢 Banner Ad at the bottom
+          const BannerAdWidget(),
+        ],
       ),
     );
   }
