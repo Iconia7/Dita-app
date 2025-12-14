@@ -431,8 +431,9 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
 
       // 2. Save Points to BACKEND
       int userId = 0;
-      if (widget.user['id'] is int) userId = widget.user['id'];
-      else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
+      if (widget.user['id'] is int) {
+        userId = widget.user['id'];
+      } else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
 
       if (userId != 0) {
         await ApiService.updateUser(userId, {"points": _totalUserPoints});
@@ -714,8 +715,12 @@ class SnakePainter extends CustomPainter {
     final Paint strokePaint = Paint()..color = gridColor..style = PaintingStyle.stroke;
 
     // Grid
-    for(int c = 0; c <= cols; c++) canvas.drawLine(Offset(c * cellW, 0), Offset(c * cellW, size.height), strokePaint);
-    for(int r = 0; r <= rows; r++) canvas.drawLine(Offset(0, r * cellH), Offset(size.width, r * cellH), strokePaint);
+    for(int c = 0; c <= cols; c++) {
+      canvas.drawLine(Offset(c * cellW, 0), Offset(c * cellW, size.height), strokePaint);
+    }
+    for(int r = 0; r <= rows; r++) {
+      canvas.drawLine(Offset(0, r * cellH), Offset(size.width, r * cellH), strokePaint);
+    }
 
     // Obstacles
     fillPaint.color = Colors.grey;
@@ -746,8 +751,11 @@ class SnakePainter extends CustomPainter {
     fillPaint.color = snakeColor;
     for (int i = 0; i < snake.length; i++) {
       var p = snake[i];
-      if (i == 0) fillPaint.color = snakeColor.withOpacity(1.0);
-      else fillPaint.color = snakeColor.withOpacity(0.4 + ((snake.length - i) / snake.length) * 0.6);
+      if (i == 0) {
+        fillPaint.color = snakeColor.withOpacity(1.0);
+      } else {
+        fillPaint.color = snakeColor.withOpacity(0.4 + ((snake.length - i) / snake.length) * 0.6);
+      }
        
       canvas.drawRRect(
         RRect.fromRectAndRadius(Rect.fromLTWH(p.x * cellW + 1, p.y * cellH + 1, cellW - 2, cellH - 2), const Radius.circular(4)), 

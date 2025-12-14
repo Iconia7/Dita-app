@@ -141,8 +141,9 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                   icon: const Icon(Icons.tune, color: Colors.white),
                   color: Theme.of(context).cardColor, // 🟢 Dynamic Menu BG
                   onSelected: (value) {
-                    if (value == 'manual') Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualClassEntryScreen())).then((_) => _loadClasses());
-                    else if (value == 'sync') Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses());
+                    if (value == 'manual') {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualClassEntryScreen())).then((_) => _loadClasses());
+                    } else if (value == 'sync') Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses());
                     else if (value == 'clear') _clearAllClasses();
                   },
                   itemBuilder: (BuildContext context) => [

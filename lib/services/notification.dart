@@ -196,7 +196,7 @@ class NotificationService {
           print("\n🔔 --- SCHEDULING ALARM 2 (1 Hour Before) ---");
           print("⏰ Ring Time: $secondaryReminderTime");
           
-          int id1Hour = ("$id" + "_1hr").hashCode; 
+          int id1Hour = ("$id" "_1hr").hashCode; 
 
           await AwesomeNotifications().createNotification(
             content: NotificationContent(
@@ -283,7 +283,7 @@ class NotificationService {
     int remHour = reminderMinutes ~/ 60;
     int remMinute = reminderMinutes % 60;
 
-    int id30Min = ("$id" + "_30").hashCode; 
+    int id30Min = ("$id" "_30").hashCode; 
 
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
@@ -321,7 +321,7 @@ class NotificationService {
     await AwesomeNotifications().cancel(id);
     
     // 2. Cancel the 30 Minute Alarm
-    int id30Min = ("$id" + "_30").hashCode;
+    int id30Min = ("$id" "_30").hashCode;
     await AwesomeNotifications().cancel(id30Min);
     
     print("🚫 Cancelled both alarms for Class ID: $id");

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:dita_app/services/ads_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dita_app/services/api_service.dart';
 
@@ -32,6 +33,11 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   bool _isSaving = false;
   bool _hasRevived = false;
 
+  // --- COMBO SYSTEM ---
+  int _comboCount = 0;
+  late AnimationController _comboController;
+  late Animation<double> _comboScale;
+
   // --- HOVER STATE ---
   int? _hoverAnchorIndex;
   List<Point<int>>? _hoverShape;
@@ -45,9 +51,10 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
    
   final List<Color> _processColors = [
     Colors.cyan, Colors.greenAccent, Colors.orangeAccent, Colors.blueAccent, Colors.pinkAccent,
+    Colors.purpleAccent, Colors.tealAccent, // Added more colors for variety
   ];
 
-  // --- BASE SHAPES ---
+  // --- BASE SHAPES (Expanded) ---
   final List<List<Point<int>>> _baseShapes = [
     [const Point(0,0)], 
     [const Point(0,0), const Point(0,1)], 
@@ -58,31 +65,39 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
     [const Point(0,0), const Point(1,0), const Point(0,1)], 
     [const Point(0,0), const Point(1,0), const Point(2,0), const Point(1,1)], 
     [const Point(0,0), const Point(0,1), const Point(0,2), const Point(1,2)], 
+    [const Point(0,0), const Point(1,0), const Point(2,0), const Point(3,0)], // Long I-Piece
   ];
 
-  List<List<Point<int>>?> _availableShapesInSlot = [null, null, null];
-  List<Color?> _slotColors = [null, null, null];
+  final List<List<Point<int>>?> _availableShapesInSlot = [null, null, null];
+  final List<Color?> _slotColors = [null, null, null];
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    // Pre-load Ads (Banner + Interstitial + Rewarded)
     AdManager.loadAds();
     
     _fillAllSlots();
+    
+    // Combo Animation
+    _comboController = AnimationController(
+      vsync: this, 
+      duration: const Duration(milliseconds: 300),
+      lowerBound: 1.0,
+      upperBound: 1.5,
+    );
+    _comboScale = CurvedAnimation(parent: _comboController, curve: Curves.elasticOut);
+
     WidgetsBinding.instance.addPostFrameCallback((_) => _showInstructions());
   }
 
   Future<void> _loadData() async {
-    // 1. Load Total Points from Backend User Object
     if (widget.user['points'] != null) {
       _currentTotalPoints = int.tryParse(widget.user['points'].toString()) ?? 0;
     } else {
       _currentTotalPoints = 0;
     }
 
-    // 2. Load High Score from Local Storage
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
@@ -94,6 +109,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   @override
   void dispose() {
     _cancelAllTimers();
+    _comboController.dispose();
     super.dispose();
   }
 
@@ -115,12 +131,19 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
           children: [
             const Text("1. DRAG shapes to allocate memory."),
             const SizedBox(height: 8),
-            const Text("2. The block places exactly under your finger."),
+            const Text("2. Clear lines to free up RAM."),
             const SizedBox(height: 8),
-            const Text("⚠️ Watch out for Purple Corrupted Blocks!"),
+            const Text("3. Maintain streaks for massive bonuses!"),
+            const SizedBox(height: 8),
+            const Text("⚠️ Watch out for Purple Corrupted Blocks!", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("START"))],
+        actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), 
+                child: Text("START", style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold))
+            )
+        ],
       ),
     );
   }
@@ -128,7 +151,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   // --- GAME LOGIC ---
 
   void _fillAllSlots() {
-    for(int i=0; i<3; i++) _generateSingleShape(i);
+    for(int i=0; i<3; i++) {
+      _generateSingleShape(i);
+    }
   }
 
   void _generateSingleShape(int index) {
@@ -162,12 +187,15 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   }
 
   void _placeShape(List<Point<int>> shape, Color color, int originX, int originY) {
-    bool isCorrupted = Random().nextInt(10) == 0; 
+    bool isCorrupted = Random().nextInt(15) == 0; // Slightly reduced corruption chance
     Color finalColor = isCorrupted ? _corruptedColor : color;
      
     // Scoring
     int kbGained = shape.length * 10;
     int pointsGained = shape.length; 
+
+    // Haptic Feedback for placement
+    HapticFeedback.lightImpact();
 
     setState(() {
       for (var p in shape) {
@@ -204,7 +232,8 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
         int toIndex = fromIndex + d;
         int currentX = fromIndex % gridSize;
         int nextX = toIndex % gridSize;
-        if ((d == 1 && nextX == 0) || (d == -1 && currentX == 0)) continue; 
+        // Prevent wrapping around edges
+        if ((d == 1 && nextX == 0) || (d == -1 && currentX == gridSize - 1)) continue; 
         
         if (toIndex >= 0 && toIndex < _board.length && _board[toIndex] == null) {
           setState(() {
@@ -237,11 +266,20 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       if (full) colsToClear.add(x);
     }
 
-    if (rowsToClear.isEmpty && colsToClear.isEmpty) return;
+    if (rowsToClear.isEmpty && colsToClear.isEmpty) {
+        _comboCount = 0; // Reset combo if no clear
+        return;
+    }
+
+    // COMBO LOGIC
+    _comboCount++;
+    _comboController.forward(from: 1.0); // Animate combo text
+    HapticFeedback.mediumImpact(); // Stronger feedback for clears
 
     int totalBlocksCleared = (rowsToClear.length * gridSize) + (colsToClear.length * gridSize);
-    int pointsGained = totalBlocksCleared * 2; 
-    int kbCleaned = totalBlocksCleared * 10;
+    // Base points + Combo Multiplier
+    int pointsGained = (totalBlocksCleared * 2) * _comboCount; 
+    int kbCleaned = (totalBlocksCleared * 10) * _comboCount;
     int corruptionBonus = 0;
 
     for (int y in rowsToClear) {
@@ -260,7 +298,8 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
     if (corruptionBonus > 0) {
       _showFloatingText("PURGED! +$corruptionBonus", _corruptedColor);
     } else {
-      _showFloatingText("+$pointsGained Pts!", Colors.amber);
+        String comboText = _comboCount > 1 ? " x$_comboCount COMBO!" : "CLEARED!";
+        _showFloatingText("+$pointsGained Pts!$comboText", _comboCount > 1 ? Colors.orangeAccent : Colors.amber);
     }
 
     setState(() {
@@ -281,7 +320,8 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
     OverlayEntry overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
         top: MediaQuery.of(context).size.height * 0.4,
-        left: MediaQuery.of(context).size.width * 0.3,
+        left: MediaQuery.of(context).size.width * 0.2, // Center a bit better
+        width: MediaQuery.of(context).size.width * 0.6,
         child: Material(
           color: Colors.transparent,
           child: TweenAnimationBuilder<double>(
@@ -289,10 +329,16 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
             duration: const Duration(milliseconds: 1200),
             builder: (context, value, child) {
               return Transform.translate(
-                offset: Offset(0, -60 * value),
+                offset: Offset(0, -80 * value), // Float up more
                 child: Opacity(
                   opacity: 1 - value,
-                  child: Text(text, style: TextStyle(color: color, fontSize: 32, fontWeight: FontWeight.bold, shadows: const [Shadow(blurRadius: 10, color: Colors.black)])),
+                  child: Center(
+                      child: Text(
+                          text, 
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: color, fontSize: 28, fontWeight: FontWeight.bold, shadows: const [Shadow(blurRadius: 10, color: Colors.black)])
+                      )
+                  ),
                 ),
               );
             },
@@ -324,6 +370,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
 
   void _triggerCrash() {
     setState(() => _isGameOver = true); // Pause placement
+    HapticFeedback.heavyImpact(); // Game over vibration
     
     // Check if player has already revived
     if (_hasRevived) {
@@ -335,8 +382,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         title: const Text("OUT OF MEMORY", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-        content: const Text("No available moves.\nWatch a short ad to purge 30% of system memory and continue?"),
+        content: Text("No available moves.\nWatch a short ad to purge 30% of system memory and continue?", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
         actions: [
           TextButton(
             onPressed: () {
@@ -350,8 +398,8 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
               Navigator.pop(ctx);
               _watchAdToResume();
             },
-            icon: const Icon(Icons.cleaning_services),
-            label: const Text("PURGE RAM"),
+            icon: const Icon(Icons.play_circle_filled),
+            label: const Text("WATCH AD & RESUME"),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
           ),
         ],
@@ -385,6 +433,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
         );
       },
       onFailure: () {
+        // If ad fails, force game over
         _endGame();
       }
     );
@@ -405,8 +454,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       }
 
       int userId = 0;
-      if (widget.user['id'] is int) userId = widget.user['id'];
-      else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
+      if (widget.user['id'] is int) {
+        userId = widget.user['id'];
+      } else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
 
       if (userId != 0) {
         await ApiService.updateUser(userId, {"points": _currentTotalPoints});
@@ -436,8 +486,12 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text("SYSTEM HALTED"),
-        content: Text("Final Report:\n\nKB Cleared: $_scoreKB\nSession Points: $_sessionPoints\n\nTotal Balance: $_currentTotalPoints"),
+        backgroundColor: Theme.of(context).cardColor,
+        title: Text("SYSTEM HALTED", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold)),
+        content: Text(
+            "Final Report:\n\nKB Cleared: $_scoreKB\nSession Points: $_sessionPoints\n\nTotal Balance: $_currentTotalPoints",
+            style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+        ),
         actions: [
           TextButton(onPressed: () { Navigator.pop(ctx); Navigator.pop(context); }, child: const Text("Exit")),
           ElevatedButton(onPressed: () { Navigator.pop(ctx); _resetGame(); }, child: const Text("Reboot")),
@@ -452,6 +506,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
       _board = List.filled(gridSize * gridSize, null);
       _scoreKB = 0;
       _sessionPoints = 0;
+      _comboCount = 0;
       _isGameOver = false;
       _hasRevived = false;
       _fillAllSlots();
@@ -462,7 +517,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   bool _isPreviewCell(int index) {
     if (_hoverAnchorIndex == null || _hoverShape == null) return false;
      
-    // Use the stored offsets calculated during DragTarget.onWillAccept
+    // Use the stored offsets calculated during DragTarget.onWillAcceptWithDetails
     int anchorX = (_hoverAnchorIndex! % gridSize) - _hoverXOffset;
     int anchorY = (_hoverAnchorIndex! ~/ gridSize) - _hoverYOffset;
 
@@ -520,9 +575,13 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildScoreCard("MEMORY", "$_scoreKB KB", Icons.memory),
-                  _buildScoreCard("HIGH SCORE", "${max(_localHighScore, _scoreKB)}", Icons.emoji_events, color: Colors.yellowAccent),
-                  _buildScoreCard("POINTS", "$_sessionPoints", Icons.monetization_on, color: Colors.amberAccent),
+                  _buildScoreCard("MEMORY", "$_scoreKB KB", Icons.memory, isDark),
+                  _buildScoreCard("HIGH SCORE", "${max(_localHighScore, _scoreKB)}", Icons.emoji_events, isDark, color: Colors.yellowAccent),
+                  // Combo Scale Animation for Points
+                  ScaleTransition(
+                      scale: _comboScale,
+                      child: _buildScoreCard("POINTS", "$_sessionPoints", Icons.monetization_on, isDark, color: Colors.amberAccent)
+                  ),
                 ],
               ),
             ),
@@ -553,8 +612,8 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                       bool isValid = _isValidPreview();
 
                       return DragTarget<int>(
-                        onWillAccept: (slotIndex) {
-                          if (slotIndex != null) {
+                        onWillAcceptWithDetails: (details) {
+                          int slotIndex = details.data;
                              var shape = _availableShapesInSlot[slotIndex]!;
                              
                              // Calculate dynamic offset based on shape size
@@ -564,9 +623,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                                if(p.y > maxY) maxY = p.y;
                              }
 
-                             // --- CHANGED ---
                              // Centers Horizontally, but keeps Vertical offset to 0.
-                             // This means the "Finger" is on Row 0 of the shape.
                              int xOff = (maxX + 1) ~/ 2;
                              int yOff = 0; 
 
@@ -576,13 +633,14 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                                _hoverXOffset = xOff;
                                _hoverYOffset = yOff;
                              });
-                          }
+                          
                           return true;
                         },
                         onLeave: (_) {
                           setState(() { _hoverAnchorIndex = null; _hoverShape = null; });
                         },
-                        onAccept: (slotIndex) {
+                        onAcceptWithDetails: (details) {
+                          int slotIndex = details.data;
                           var shape = _availableShapesInSlot[slotIndex]!;
                           
                           int maxX = 0; int maxY = 0;
@@ -591,8 +649,6 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                              if(p.y > maxY) maxY = p.y;
                           }
                           
-                          // --- CHANGED ---
-                          // Must match onWillAccept logic
                           int xOff = (maxX + 1) ~/ 2;
                           int yOff = 0;
 
@@ -606,7 +662,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                             _generateSingleShape(slotIndex); 
                             _runGarbageCollection();
                           } else {
-                            // Optional: Shake effect or error sound
+                             HapticFeedback.vibrate(); // Error feedback
                           }
                         },
                         builder: (context, candidates, rejects) {
@@ -634,7 +690,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
               height: 180,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                color: Theme.of(context).canvasColor,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, -5))]
               ),
@@ -651,17 +707,15 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                     if(p.y > maxY) maxY = p.y;
                   }
                   double width = (maxX + 1) * blockSize;
-                  // double height = (maxY + 1) * blockSize; // Unused in new logic
                   
-                  // --- CHANGED ---
-                  // Visual Offset: We only center X.
-                  // For Y, we shift it slightly so the finger is in the center of the TOP block.
+                  // Visual Offset
                   double visXOffset = width / 2;
                   double visYOffset = blockSize / 2; 
 
                   return Draggable<int>(
                     data: index,
                     dragAnchorStrategy: pointerDragAnchorStrategy,
+                    onDragStarted: () => HapticFeedback.selectionClick(),
                     feedback: Transform.translate(
                       // Offset matches the visual anchor
                       offset: Offset(-visXOffset, -visYOffset),
@@ -690,7 +744,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
     );
   }
 
-  Widget _buildScoreCard(String label, String value, IconData icon, {Color? color}) {
+  Widget _buildScoreCard(String label, String value, IconData icon, bool isDark, {Color? color}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -735,8 +789,6 @@ class BoardShapePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()..color = color..style = PaintingStyle.fill;
     
-    // We draw relative to 0,0, which works perfectly with the new "Direct Drag" logic
-    // where 0,0 is under the finger.
     double gap = 2.0; 
 
     for (var p in shape) {

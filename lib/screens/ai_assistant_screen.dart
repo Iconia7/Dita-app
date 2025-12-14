@@ -56,8 +56,7 @@ Future<void> _sendMessage() async {
     try {
       final events = await ApiService.getEvents();
       if (events.isNotEmpty) {
-        eventContext = "\n\n📢 **UPCOMING SCHOOL EVENTS:**\n" + 
-            events.take(3).map((e) => "- ${e['title']} (${e['date']} @ ${e['venue']})").join("\n");
+        eventContext = "\n\n📢 **UPCOMING SCHOOL EVENTS:**\n${events.take(3).map((e) => "- ${e['title']} (${e['date']} @ ${e['venue']})").join("\n")}";
       }
     } catch (_) {}
 
@@ -87,8 +86,7 @@ Future<void> _sendMessage() async {
         final upcoming = exams.where((e) => DateTime.parse(e['date']).isAfter(DateTime.now())).take(3).toList();
         
         if (upcoming.isNotEmpty) {
-          examContext = "\n\n📅 **YOUR UPCOMING EXAMS:**\n" + 
-              upcoming.map((e) => "- ${e['course_code']}: ${e['title']} on ${e['date']} at ${e['venue']}").join("\n");
+          examContext = "\n\n📅 **YOUR UPCOMING EXAMS:**\n${upcoming.map((e) => "- ${e['course_code']}: ${e['title']} on ${e['date']} at ${e['venue']}").join("\n")}";
         } else {
           examContext = "\n\n📅 **YOUR EXAMS:** No upcoming exams found in local cache.";
         }

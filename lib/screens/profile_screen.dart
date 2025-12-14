@@ -17,7 +17,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Map<String, dynamic> _currentUser;
-  bool _isUpdating = false;
+  final bool _isUpdating = false;
   // Initialize with the current state from the service
   bool _isNotificationsEnabled = NotificationService.isEnabled; 
 
@@ -243,7 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 title: Text("Enable Class Reminders", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)),
                                 subtitle: Text("Notify 30 mins before class", style: TextStyle(color: Colors.grey[500], fontSize: 11)),
                                 value: _isNotificationsEnabled,
-                                activeColor: Colors.blueAccent,
+                                activeThumbColor: Colors.blueAccent,
                                 secondary: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(

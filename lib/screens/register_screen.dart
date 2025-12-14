@@ -540,7 +540,7 @@ Widget _buildDropdown({
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(color: inputFill, borderRadius: BorderRadius.circular(15)), // 🟢
       child: DropdownButtonFormField(
-        value: value,
+        initialValue: value,
         dropdownColor: Theme.of(context).cardColor, // 🟢
         style: TextStyle(fontWeight: FontWeight.w600, color: textColor), // 🟢
         decoration: InputDecoration(

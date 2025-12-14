@@ -113,7 +113,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(color: inputFill, borderRadius: BorderRadius.circular(10)), // 🟢
                       child: DropdownButtonFormField<int>(
-                        value: _selectedYear,
+                        initialValue: _selectedYear,
                         dropdownColor: Theme.of(context).cardColor, // 🟢
                         style: TextStyle(color: textColor, fontWeight: FontWeight.bold), // 🟢
                         decoration: InputDecoration(

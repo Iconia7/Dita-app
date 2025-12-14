@@ -18,11 +18,11 @@ class AdManager {
 
   // TEST IDs (Replace with Real IDs for Production)
   static final String _interstitialAdUnitId = Platform.isAndroid
-      ? 'ca-app-pub-3940256099942544/1033173712' // Android Test ID
+      ? 'ca-app-pub-2572570007063815/2326651489' // Android Test ID
       : 'ca-app-pub-3940256099942544/4411468910'; // iOS Test ID
 
   static final String _rewardedAdUnitId = Platform.isAndroid
-      ? 'ca-app-pub-3940256099942544/5224354917' // Android Test ID
+      ? 'ca-app-pub-2572570007063815/3276771078' // Android Test ID
       : 'ca-app-pub-3940256099942544/1712485313'; // iOS Test ID
 
   /// Loads both Interstitial and Rewarded Ads with staggering
@@ -52,10 +52,6 @@ class AdManager {
     
     _isInterAdLoading = true;
     debugPrint("🔄 Loading Interstitial Ad...");
-
-    MobileAds.instance.updateRequestConfiguration(
-      RequestConfiguration(testDeviceIds: ['DAA83440AED931366A2DEB062C92723A'])
-    );
 
     InterstitialAd.load(
       adUnitId: _interstitialAdUnitId,
@@ -123,11 +119,6 @@ class AdManager {
 
     _isRewardAdLoading = true;
     debugPrint("🔄 Loading Rewarded Ad...");
-
-    // Ensure config is updated for Rewarded Ads too
-    MobileAds.instance.updateRequestConfiguration(
-      RequestConfiguration(testDeviceIds: ['DAA83440AED931366A2DEB062C92723A'])
-    );
 
     RewardedAd.load(
       adUnitId: _rewardedAdUnitId,
@@ -216,7 +207,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   bool _isLoaded = false;
 
   final String _adUnitId = Platform.isAndroid
-      ? 'ca-app-pub-3940256099942544/9214589741'
+      ? 'ca-app-pub-2572570007063815/4257027864'
       : 'ca-app-pub-3940256099942544/2435281174';
 
   @override

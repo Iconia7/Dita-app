@@ -1,6 +1,7 @@
 import 'package:dita_app/screens/forgot_password_modal.dart';
 import 'package:dita_app/screens/register_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import for AutofillHints
 import '../services/api_service.dart';
 import 'home_screen.dart';
 
@@ -57,6 +58,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   void _handleLogin() async {
+    // Save form fields to trigger autofill save prompt
+    TextInput.finishAutofillContext();
+    
     if (!_formKey.currentState!.validate()) return;
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
@@ -204,71 +208,75 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                           child: Form(
                             key: _formKey,
-                            child: Column(
-                              children: [
-                                // Username
-                                _buildStylishInput(
-                                  controller: _usernameController,
-                                  hint: "Admission / Username",
-                                  icon: Icons.person_outline_rounded,
-                                  validator: (v) => v!.isEmpty ? "Username is required" : null, // <--- VALIDATION ADDED
-                                  isDark: isDark,
-                                ),
-
-                                const SizedBox(height: 20),
-
-                                // Password
-                                _buildStylishInput(
-                                  controller: _passwordController,
-                                  hint: "Password",
-                                  icon: Icons.lock_outline_rounded,
-                                  isPassword: true,
-                                  validator: (v) => v!.isEmpty ? "Password is required" : null, // <--- VALIDATION ADDED
-                                  isDark: isDark,
-                                ),
-
-                                // Forgot Password
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: (){showModalBottomSheet(
-                                      context: context,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (context) => const ForgotPasswordModal(),
-                                    );},
-                                    child: Text("Forgot Password?", style: TextStyle(color: isDark ? Colors.blue[200] : const Color(0xFF004C99), fontWeight: FontWeight.bold)),
+                            child: AutofillGroup( // 🟢 WRAP FIELDS IN AUTOFILL GROUP
+                              child: Column(
+                                children: [
+                                  // Username
+                                  _buildStylishInput(
+                                    controller: _usernameController,
+                                    hint: "Admission / Username",
+                                    icon: Icons.person_outline_rounded,
+                                    validator: (v) => v!.isEmpty ? "Username is required" : null,
+                                    isDark: isDark,
+                                    autofillHints: const [AutofillHints.username], // 🟢 ADD AUTOFILL HINT
                                   ),
-                                ),
 
-                                const SizedBox(height: 20),
+                                  const SizedBox(height: 20),
 
-                                // Login Button
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 55,
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading ? null : _handleLogin,
-                                    style: ElevatedButton.styleFrom(
-                                     backgroundColor: isDark ? const Color(0xFFFFD700) : const Color(0xFF003366),
-                                      foregroundColor: isDark ? const Color(0xFF003366) : Colors.white,
-                                      elevation: 5,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
+                                  // Password
+                                  _buildStylishInput(
+                                    controller: _passwordController,
+                                    hint: "Password",
+                                    icon: Icons.lock_outline_rounded,
+                                    isPassword: true,
+                                    validator: (v) => v!.isEmpty ? "Password is required" : null,
+                                    isDark: isDark,
+                                    autofillHints: const [AutofillHints.password], // 🟢 ADD AUTOFILL HINT
+                                  ),
+
+                                  // Forgot Password
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: (){showModalBottomSheet(
+                                        context: context,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (context) => const ForgotPasswordModal(),
+                                      );},
+                                      child: Text("Forgot Password?", style: TextStyle(color: isDark ? Colors.blue[200] : const Color(0xFF004C99), fontWeight: FontWeight.bold)),
                                     ),
-                                    child: _isLoading
-                                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                        : const Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Text("LOGIN", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                                              SizedBox(width: 8),
-                                              Icon(Icons.arrow_forward, size: 18)
-                                            ],
-                                          ),
                                   ),
-                                ),
-                              ],
+
+                                  const SizedBox(height: 20),
+
+                                  // Login Button
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 55,
+                                    child: ElevatedButton(
+                                      onPressed: _isLoading ? null : _handleLogin,
+                                      style: ElevatedButton.styleFrom(
+                                       backgroundColor: isDark ? const Color(0xFFFFD700) : const Color(0xFF003366),
+                                        foregroundColor: isDark ? const Color(0xFF003366) : Colors.white,
+                                        elevation: 5,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(15),
+                                        ),
+                                      ),
+                                      child: _isLoading
+                                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                          : const Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Text("LOGIN", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                                                SizedBox(width: 8),
+                                                Icon(Icons.arrow_forward, size: 18)
+                                              ],
+                                            ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -287,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   MaterialPageRoute(builder: (_) => const RegisterScreen())
                                 );
                               },
-                              child: Text(
+                              child: const Text(
                                 "Create Account",
                                 style: TextStyle(
                                   color: Color(0xFFFFD700),
@@ -319,6 +327,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     bool isPassword = false,
     String? Function(String?)? validator,
     required bool isDark,
+    Iterable<String>? autofillHints, // 🟢 Accept autofill hints
   }) {
     final fillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA); // Dark Navy or Light Grey
     final iconColor = isDark ? Colors.white54 : Colors.grey[500];
@@ -327,6 +336,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       validator: validator,
+      autofillHints: autofillHints, // 🟢 Set autofill hints
       style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
       decoration: InputDecoration(
         filled: true,

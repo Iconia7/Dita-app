@@ -1,3 +1,4 @@
+import 'package:dita_app/services/ads_helper.dart';
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
@@ -45,7 +46,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
 
-    return Scaffold(
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) async {
+        if (didPop) {
+          AdManager.showInterstitialAd();
+        }
+      },
+      child: Scaffold(
       backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
         title: const Text("Top Students 🏆", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -190,6 +198,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           );
         },
       ),
+    ),
     );
   }
 }
