@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'manual_class_entry_screen.dart';
@@ -193,44 +194,20 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
     );
   }
 
-  Widget _buildEmptyState() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
-                  color: isDark ? Colors.white10 : Colors.white, // 🟢 Dynamic Circle
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, spreadRadius: 5)]
-              ),
-              child: Icon(Icons.calendar_month_outlined, size: 50, color: isDark ? Colors.white54 : const Color(0xFF003366).withOpacity(0.5)),
-            ),
-            const SizedBox(height: 25),
-            Text("No Classes Yet", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)), // 🟢
-            const SizedBox(height: 10),
-            Text("Sync your portal or add classes manually to get started.", textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).textTheme.labelSmall?.color)), // 🟢
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses()),
-              icon: const Icon(Icons.cloud_download_outlined),
-              label: const Text("Sync Now"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+Widget _buildEmptyState() {
+  return EmptyStateWidget(
+    svgPath: 'assets/svgs/no_data.svg', // Ensure you add this SVG asset
+    title: "No Classes Yet",
+    message: "Sync your portal or add classes manually to get started.",
+    actionLabel: "Sync Now",
+    onActionPressed: () {
+      Navigator.push(
+        context, 
+        MaterialPageRoute(builder: (_) => const PortalImportScreen())
+      ).then((_) => _loadClasses());
+    },
+  );
+}
 
   Widget _buildDayTimeline(String day) {
     // 🟢 Theme Helpers

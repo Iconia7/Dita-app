@@ -1,54 +1,120 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:dita_app/services/api_service.dart';
 import 'package:dita_app/services/ads_helper.dart'; 
+
+// --- THEME CONSTANTS ---
+const Color kDeepSlate = Color(0xFF0F172A);
+const Color kSurface = Color(0xFF1E293B);
+const Color kDitaBlue = Color(0xFF003366);
+const Color kNeonBlue = Color(0xFF38BDF8); // Player Color
+const Color kNeonRed = Color(0xFFEF4444);  // AI/Enemy Color
+const Color kDitaGold = Color(0xFFFFD700); // Win Color
 
 enum GameMode { ai, friend }
 
 class GameScreen extends StatefulWidget {
   final Map<String, dynamic> user;
-  const GameScreen({super.key, required this.user, required userId});
+  final dynamic userId; // Added to match constructor usage
+  const GameScreen({super.key, required this.user, required this.userId});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateMixin {
-  // Game Configuration
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
+  // Game Config
   GameMode _mode = GameMode.ai;
    
   // Game State
   List<String> _board = List.filled(9, "");
-  String _currentPlayer = "1"; // "1" starts
+  String _currentPlayer = "1"; 
   bool _isGameOver = false;
-  int _sessionWins = 0;
   bool _isAiThinking = false;
   
   // Winning Logic
-  List<int>? _winningPattern; // Stores the indices of the winning line
+  List<int>? _winningPattern; 
    
-  // User Points State
+  // User Points
   late int _currentTotalPoints;
 
-  // Design Colors
-  final Color _p1Color = Colors.cyanAccent;   // Player 1 (Binary 1)
-  final Color _p2Color = Colors.redAccent;    // Player 2 / AI (Binary 0)
+  // --- ANIMATION CONTROLLERS ---
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+  
+  // Particles
+  final List<Particle> _particles = [];
+  late Ticker _ticker;
 
   @override
   void initState() {
     super.initState();
-    // Pre-load Ad
     AdManager.loadInterstitialAd();
     
-    // Initialize points from the passed user object
-    _currentTotalPoints = widget.user['points'] ?? 0;
+    // Points Init
+    _currentTotalPoints = (widget.user['points'] is int) 
+        ? widget.user['points'] 
+        : int.tryParse(widget.user['points'].toString()) ?? 0;
+
+    // Shake Animation (Impact Effect)
+    _shakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _shakeAnimation = Tween<double>(begin: 0, end: 10).animate(
+      CurvedAnimation(parent: _shakeController, curve: Curves.easeInOut)
+    )..addListener(() => setState((){}));
+
+    // Particle System
+    _ticker = createTicker(_updateParticles)..start();
+  }
+
+  @override
+  void dispose() {
+    _shakeController.dispose();
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  // --- FX LOGIC ---
+
+  void _triggerShake() {
+    _shakeController.reset();
+    _shakeController.forward().then((value) => _shakeController.reverse());
+    HapticFeedback.lightImpact();
+  }
+
+  void _updateParticles(Duration elapsed) {
+    if (_particles.isEmpty) return;
+    setState(() {
+      for (var p in _particles) { p.update(); }
+      _particles.removeWhere((p) => p.life <= 0);
+    });
+  }
+
+  void _spawnExplosion(List<int> indices, Color color) {
+    // Convert board index to approximate screen coordinates relative to board center
+    // This is a visual approximation for juice
+    for (int index in indices) {
+      int row = index ~/ 3;
+      int col = index % 3;
+      // Grid is centered, so we offset particles based on row/col
+      // We'll map 0..2 to -1..1 range for rendering relative to center
+      double x = (col - 1) * 100.0; 
+      double y = (row - 1) * 100.0;
+
+      for (int i = 0; i < 15; i++) {
+        _particles.add(Particle(x: x, y: y, color: color));
+      }
+    }
   }
 
   // --- GAME LOGIC ---
 
   void _handleTap(int index) {
     if (_board[index] != "" || _isGameOver || _isAiThinking) return;
+
+    _triggerShake(); // JUICE: Shake on every move
 
     setState(() {
       _board[index] = _currentPlayer;
@@ -65,12 +131,10 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
 
   void _switchTurn() {
     if (_mode == GameMode.friend) {
-      // Local Multiplayer
       setState(() {
         _currentPlayer = _currentPlayer == "1" ? "0" : "1";
       });
     } else {
-      // AI Mode
       _aiMove();
     }
   }
@@ -78,10 +142,14 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   void _aiMove() async {
     setState(() => _isAiThinking = true);
     
-    await Future.delayed(const Duration(milliseconds: 600));
+    // Thinking delay
+    await Future.delayed(const Duration(milliseconds: 700));
     if (!mounted) return;
 
     int bestMove = _findBestMove();
+    
+    // AI Move Effect
+    HapticFeedback.selectionClick(); 
     
     setState(() {
       _board[bestMove] = "0"; 
@@ -95,15 +163,12 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     }
   }
 
-  // Smart AI Logic
   int _findBestMove() {
     // 1. Try to WIN
     for (int i = 0; i < 9; i++) {
       if (_board[i] == "") {
         _board[i] = "0";
-        if (_checkWin("0")) { 
-          _board[i] = ""; return i;
-        }
+        if (_checkWin("0")) { _board[i] = ""; return i; }
         _board[i] = "";
       }
     }
@@ -111,9 +176,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     for (int i = 0; i < 9; i++) {
       if (_board[i] == "") {
         _board[i] = "1";
-        if (_checkWin("1")) { 
-          _board[i] = ""; return i;
-        }
+        if (_checkWin("1")) { _board[i] = ""; return i; }
         _board[i] = "";
       }
     }
@@ -127,8 +190,6 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     return emptySpots[Random().nextInt(emptySpots.length)];
   }
 
-  /// Checks if [player] has won.
-  /// [setPattern]: If true, updates the UI state with the winning line.
   bool _checkWin(String player, {bool setPattern = false}) {
     List<List<int>> winPatterns = [
       [0, 1, 2], [3, 4, 5], [6, 7, 8], 
@@ -143,6 +204,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         
         if (setPattern) {
           _winningPattern = pattern;
+          // JUICE: Explode particles on winning line
+          _spawnExplosion(pattern, player == "1" ? kDitaGold : kNeonRed);
         }
         return true;
       }
@@ -152,74 +215,65 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
 
   Future<void> _endGame(String result) async {
     setState(() => _isGameOver = true);
+    HapticFeedback.heavyImpact(); // Strong vibration on game over
+
+    // Delay showing dialog to let animations play
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if(!mounted) return;
     
     String title = "";
     String msg = "";
+    Color color = Colors.white;
     int pointsEarned = 0;
 
     if (_mode == GameMode.ai) {
       if (result == "1") {
-        title = "YOU WON! 🎉";
-        msg = "Binary Master! You earned +20 Points.";
+        title = "SYSTEM SECURED";
+        msg = "Protocol Complete. +20 Points.";
         pointsEarned = 20;
-        _sessionWins += 1;
+        color = kNeonBlue;
       } else if (result == "0") {
-        title = "SYSTEM WINS 🤖";
-        msg = "The AI outsmarted you this time.";
+        title = "BREACH DETECTED";
+        msg = "The Virus won this round.";
+        color = kNeonRed;
       } else {
-        title = "IT'S A DRAW 🤝";
-        msg = "Balanced match. +5 Points for effort.";
+        title = "STALEMATE";
+        msg = "Connection stable. +5 Points.";
         pointsEarned = 5;
+        color = Colors.grey;
       }
     } else {
-      if (result == "1") {
-        title = "PLAYER 1 WINS!";
-        msg = "Congratulations Player 1 (Blue)";
-      } else if (result == "0") {
-        title = "PLAYER 2 WINS!";
-        msg = "Congratulations Player 2 (Red)";
-      } else {
-        title = "DRAW!";
-        msg = "No winner this time.";
-      }
+      if (result == "1") { title = "PLAYER 1 WINS"; color = kNeonBlue; } 
+      else if (result == "0") { title = "PLAYER 2 WINS"; color = kNeonRed; }
+      else { title = "DRAW"; color = Colors.grey; }
     }
 
     if (pointsEarned > 0 && _mode == GameMode.ai) {
-      setState(() {
-        _currentTotalPoints += pointsEarned;
-      });
+      setState(() => _currentTotalPoints += pointsEarned);
       try {
-        await ApiService.updateUser(widget.user['id'], {"points": _currentTotalPoints});
+        await ApiService.updateUser(widget.userId, {"points": _currentTotalPoints});
       } catch (e) {
         debugPrint("Error updating points: $e");
       }
     }
 
-    if (!mounted) return;
-    
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: result == "1" ? Colors.green : (result == "0" ? Colors.red : Colors.orange))),
-        content: Text(msg, textAlign: TextAlign.center),
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: color, width: 2)),
+        title: Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 24)),
+        content: Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context);
-            },
-            child: const Text("EXIT"),
+            onPressed: () { Navigator.pop(ctx); Navigator.pop(context); },
+            child: const Text("EXIT", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _resetGame();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, foregroundColor: Colors.white),
-            child: const Text("PLAY AGAIN"),
+            onPressed: () { Navigator.pop(ctx); _resetGame(); },
+            style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.black),
+            child: const Text("REBOOT SYSTEM"),
           )
         ],
       )
@@ -233,43 +287,40 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
       _currentPlayer = "1";
       _isAiThinking = false;
       _winningPattern = null; 
+      _particles.clear();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
-    final primaryColor = Theme.of(context).primaryColor;
-    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    // Theme Colors from DITA Theme
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Shake Offset
+    double shakeOffset = sin(_shakeController.value * pi * 4) * _shakeAnimation.value;
 
     return PopScope(
       canPop: true,
       onPopInvoked: (didPop) {
-        if (didPop) {
-          AdManager.showInterstitialAd();
-        }
+        if (didPop) AdManager.showInterstitialAd();
       },
       child: Scaffold(
-        backgroundColor: bgColor,
+        backgroundColor: isDark ? kDeepSlate : Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          title: const Text("Binary Tac-Toe", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          title: const Text("CYBER TIC-TAC-TOE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           centerTitle: true,
-          backgroundColor: primaryColor,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
           actions: [
-             if (_mode == GameMode.ai)
+            if (_mode == GameMode.ai)
                Container(
-                 margin: const EdgeInsets.only(right: 15),
-                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                 decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(15)),
+                 margin: const EdgeInsets.only(right: 20),
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                 decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white24)),
                  child: Row(
                    children: [
-                     const Icon(Icons.star, color: Colors.yellow, size: 16),
-                     const SizedBox(width: 4),
+                     const Icon(Icons.stars, color: kDitaGold, size: 16),
+                     const SizedBox(width: 6),
                      Text("$_currentTotalPoints", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                    ],
                  ),
@@ -280,91 +331,73 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           children: [
             const SizedBox(height: 20),
             
-            // MODE TOGGLE
+            // 1. MODE SELECTOR
             Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white10 : Colors.grey[200],
-                borderRadius: BorderRadius.circular(25)
-              ),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(30)),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildModeBtn("Single Player (AI)", GameMode.ai),
-                  _buildModeBtn("2 Players (Local)", GameMode.friend),
+                  _buildModeBtn("AI BATTLE", GameMode.ai),
+                  _buildModeBtn("PVP LOCAL", GameMode.friend),
                 ],
               ),
             ),
 
             const Spacer(),
 
-            // STATUS TEXT
-            if (_mode == GameMode.ai)
-               Column(
-                 children: [
-                   Text(
-                     _isAiThinking ? "AI is calculating..." : "Your Turn (1)",
-                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _isAiThinking ? Colors.grey : _p1Color),
-                   ),
-                   const SizedBox(height: 5),
-                   Text("Session Wins: $_sessionWins", style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-                 ],
-               )
-            else 
-               Row(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: [
-                   Text("Player 1", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _currentPlayer == "1" ? _p1Color : Colors.grey)),
-                   const SizedBox(width: 20),
-                   const Text("vs", style: TextStyle(color: Colors.grey)),
-                   const SizedBox(width: 20),
-                   Text("Player 2", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _currentPlayer == "0" ? _p2Color : Colors.grey)),
-                 ],
-               ),
+            // 2. STATUS
+            Text(
+              _isAiThinking ? "SYSTEM CALCULATING..." : (_isGameOver ? "GAME OVER" : (_currentPlayer == "1" ? "YOUR TURN (1)" : "OPPONENT TURN (0)")),
+              style: TextStyle(
+                color: _isAiThinking ? Colors.grey : (_currentPlayer == "1" ? kNeonBlue : kNeonRed),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2.0
+              ),
+            ),
+            
+            const SizedBox(height: 30),
 
-            const SizedBox(height: 40),
-
-            // THE BOARD
-            Center(
-              child: Container(
-                width: 320,
-                height: 320,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10))
-                  ]
-                ),
+            // 3. BOARD WITH FX
+            Transform.translate(
+              offset: Offset(shakeOffset, 0),
+              child: SizedBox(
+                width: 300, height: 300,
                 child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    // Layer 1: The Grid
+                    // A. The Grid
                     GridView.builder(
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
+                        crossAxisCount: 3, mainAxisSpacing: 12, crossAxisSpacing: 12,
                       ),
                       itemCount: 9,
-                      itemBuilder: (context, index) {
-                        return _buildGridTile(index, isDark);
-                      },
+                      itemBuilder: (context, index) => _buildGridTile(index),
                     ),
-                    
-                    // Layer 2: The Winning Overlay (Border + Strikethrough)
+
+                    // B. Winning Line Overlay
                     if (_winningPattern != null)
-                      IgnorePointer(
+                       IgnorePointer(
+                         child: CustomPaint(
+                           size: const Size(300, 300),
+                           painter: LaserLinePainter(
+                             pattern: _winningPattern!, 
+                             color: _board[_winningPattern![0]] == "1" ? kDitaGold : kNeonRed
+                           ),
+                         ),
+                       ),
+                    
+                    // C. Particle Overlay
+                    IgnorePointer(
+                      child: Center(
                         child: CustomPaint(
-                          size: Size.infinite,
-                          painter: WinningOverlayPainter(
-                            winningPattern: _winningPattern!,
-                            // Default green for win, can be dynamic
-                            color: Colors.greenAccent, 
-                          ),
+                          size: const Size(300, 300),
+                          painter: GameParticlePainter(_particles),
                         ),
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -372,15 +405,13 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
             
             const Spacer(),
             
-            // Reset Button
+            // 4. RESET & ADS
             TextButton.icon(
-              onPressed: _resetGame, 
-              icon: Icon(Icons.refresh, color: textColor), 
-              label: Text("Restart Game", style: TextStyle(color: textColor)),
-              style: TextButton.styleFrom(padding: const EdgeInsets.all(20)),
+              onPressed: _resetGame,
+              icon: const Icon(Icons.refresh, color: Colors.white54),
+              label: const Text("RESET BOARD", style: TextStyle(color: Colors.white54, letterSpacing: 1.2)),
             ),
-            
-            // 3. BANNER AD AT BOTTOM
+            const SizedBox(height: 10),
             const BannerAdWidget(),
           ],
         ),
@@ -391,61 +422,49 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   Widget _buildModeBtn(String label, GameMode mode) {
     bool isSelected = _mode == mode;
     return GestureDetector(
-      onTap: () {
-        setState(() => _mode = mode);
-        _resetGame();
-      },
-      child: Container(
+      onTap: () { setState(() => _mode = mode); _resetGame(); },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          color: isSelected ? kDitaBlue : Colors.transparent,
+          borderRadius: BorderRadius.circular(25),
         ),
-        child: Text(
-          label, 
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey, 
-            fontWeight: FontWeight.bold
-          )
-        ),
+        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.white38, fontWeight: FontWeight.bold, fontSize: 12)),
       ),
     );
   }
 
-  Widget _buildGridTile(int index, bool isDark) {
+  Widget _buildGridTile(int index) {
     String value = _board[index];
-    Color cellColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
-    Color txtColor = Colors.grey;
+    Color borderColor = Colors.white10;
+    Color txtColor = Colors.white;
+    List<BoxShadow> shadows = [];
 
     if (value == "1") {
-      cellColor = _p1Color.withOpacity(0.1);
-      txtColor = _p1Color; 
+      borderColor = kNeonBlue;
+      txtColor = kNeonBlue;
+      shadows = [BoxShadow(color: kNeonBlue.withOpacity(0.4), blurRadius: 15)];
     } else if (value == "0") {
-      cellColor = _p2Color.withOpacity(0.1);
-      txtColor = _p2Color; 
+      borderColor = kNeonRed;
+      txtColor = kNeonRed;
+      shadows = [BoxShadow(color: kNeonRed.withOpacity(0.4), blurRadius: 15)];
     }
 
     return GestureDetector(
       onTap: () => _handleTap(index),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
-          color: cellColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: value == "" ? Colors.transparent : txtColor,
-            width: 2
-          )
+          color: kSurface,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: value == "" ? Colors.white10 : borderColor, width: 2),
+          boxShadow: shadows
         ),
         child: Center(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: 40, 
-              fontWeight: FontWeight.w900, 
-              color: txtColor,
-              shadows: value != "" ? [Shadow(color: txtColor.withOpacity(0.5), blurRadius: 10)] : null
-            ),
+            style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: txtColor),
           ),
         ),
       ),
@@ -453,99 +472,66 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 }
 
-// --- PAINTER FOR WINNING OVERLAY ---
-class WinningOverlayPainter extends CustomPainter {
-  final List<int> winningPattern;
-  final Color color;
+// --- PAINTERS ---
 
-  WinningOverlayPainter({required this.winningPattern, required this.color});
+class LaserLinePainter extends CustomPainter {
+  final List<int> pattern;
+  final Color color;
+  LaserLinePainter({required this.pattern, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (winningPattern.isEmpty) return;
-
-    final paintLine = Paint()
+    final paint = Paint()
       ..color = color
-      ..strokeWidth = 8.0 // Thick strike-through line
+      ..strokeWidth = 8
       ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
+      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4); // Glow effect
 
-    final paintBorder = Paint()
-      ..color = color
-      ..strokeWidth = 4.0 // Border thickness
-      ..style = PaintingStyle.stroke;
+    double cellW = size.width / 3;
+    double cellH = size.height / 3;
+    int start = pattern.first;
+    int end = pattern.last;
 
-    // Grid measurements (accounting for padding in the main container if necessary, 
-    // but here size is the GridView size)
-    final cellW = size.width / 3;
-    final cellH = size.height / 3;
-
-    // Sort to ensure we draw from top/left to bottom/right
-    final sorted = List<int>.from(winningPattern)..sort();
-    final first = sorted.first;
-    final last = sorted.last;
-
-    // Calculate centers of start and end cells for the line
-    final p1 = Offset(
-      (first % 3) * cellW + cellW / 2,
-      (first ~/ 3) * cellH + cellH / 2,
-    );
-    final p2 = Offset(
-      (last % 3) * cellW + cellW / 2,
-      (last ~/ 3) * cellH + cellH / 2,
-    );
-
-    // 1. Draw Strikethrough
-    canvas.drawLine(p1, p2, paintLine);
-
-    // 2. Draw Group Border
-    // Determine type based on index difference
-    if (sorted[1] == sorted[0] + 1) { 
-      // Horizontal Row
-      // Create a rect around the row, slightly padded inside the grid area
-      final rect = Rect.fromCenter(
-        center: Offset(size.width / 2, p1.dy), 
-        width: size.width - 10, 
-        height: cellH - 10
-      );
-      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(15)), paintBorder);
-    } else if (sorted[1] == sorted[0] + 3) {
-      // Vertical Column
-      final rect = Rect.fromCenter(
-        center: Offset(p1.dx, size.height / 2), 
-        width: cellW - 10, 
-        height: size.height - 10
-      );
-      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(15)), paintBorder);
-    } else {
-      // Diagonal (0,4,8 or 2,4,6)
-      final center = Offset(size.width / 2, size.height / 2);
-      // Calculate diagonal length via Pythagoras, subtract some padding
-      final diagLength = sqrt(pow(size.width, 2) + pow(size.height, 2)) - 40;
-      
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      
-      // Rotate 45 degrees (pi/4) or -45 depending on direction
-      if (first == 0) {
-        canvas.rotate(pi / 4); // Top-left to bottom-right
-      } else {
-        canvas.rotate(-pi / 4); // Top-right to bottom-left
-      }
-      
-      // Draw a "capsule" shape around the diagonal path
-      final rect = Rect.fromCenter(
-        center: Offset.zero,
-        width: diagLength, 
-        height: cellH - 30 // Thickness of the diagonal border
-      );
-      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(15)), paintBorder);
-      canvas.restore();
+    // Fix diagonal sorting for drawing
+    if (pattern.contains(2) && pattern.contains(6)) {
+        start = 2; end = 6;
     }
+
+    double x1 = (start % 3) * cellW + cellW / 2;
+    double y1 = (start ~/ 3) * cellH + cellH / 2;
+    double x2 = (end % 3) * cellW + cellW / 2;
+    double y2 = (end ~/ 3) * cellH + cellH / 2;
+
+    canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
   }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class Particle {
+  double x, y, vx, vy, size, life;
+  Color color;
+  Particle({required this.x, required this.y, required this.color}) 
+      : vx = (Random().nextDouble() - 0.5) * 4,
+        vy = (Random().nextDouble() - 0.5) * 4,
+        size = Random().nextDouble() * 5 + 2,
+        life = 1.0;
+  void update() { x += vx; y += vy; life -= 0.05; size *= 0.95; }
+}
+
+class GameParticlePainter extends CustomPainter {
+  final List<Particle> particles;
+  GameParticlePainter(this.particles);
 
   @override
-  bool shouldRepaint(covariant WinningOverlayPainter oldDelegate) {
-    return oldDelegate.winningPattern != winningPattern;
+  void paint(Canvas canvas, Size size) {
+    // Center the painter
+    canvas.translate(size.width / 2, size.height / 2);
+    for (var p in particles) {
+      final paint = Paint()..color = p.color.withOpacity(p.life.clamp(0.0, 1.0));
+      canvas.drawCircle(Offset(p.x, p.y), p.size, paint);
+    }
   }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

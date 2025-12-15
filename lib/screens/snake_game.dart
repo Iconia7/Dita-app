@@ -2,8 +2,18 @@ import 'dart:async';
 import 'dart:math';
 import 'package:dita_app/services/ads_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dita_app/services/api_service.dart';
+
+// --- THEME CONSTANTS ---
+const Color kDeepSlate = Color(0xFF0F172A);
+const Color kSurface = Color(0xFF1E293B);
+const Color kNeonBlue = Color(0xFF38BDF8);
+const Color kNeonGreen = Color(0xFF4ADE80);
+const Color kNeonRed = Color(0xFFEF4444);
+const Color kDitaGold = Color(0xFFFFD700);
 
 class SnakeGameScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -20,7 +30,7 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   // --- CONFIG ---
   static const int rows = 30;
   static const int columns = 20;
-  static const int baseSpeed = 250; 
+  static const int baseSpeed = 200; 
 
   // --- GAME ENTITIES ---
   List<Point<int>> _snake = [];
@@ -38,7 +48,7 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   bool _isPlaying = false;
   bool _isGameOver = false;
   bool _isSaving = false;
-  bool _hasRevived = false; // Track if user used their one revive
+  bool _hasRevived = false;
    
   // SCORING
   int _score = 0; 
@@ -57,17 +67,32 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
 
   // VISUALS
   late AnimationController _pulseController;
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+  late Ticker _ticker;
+
+  // SKINS (Cyber Theme)
   int _skinIndex = 0;
-  final List<Color> _skinColors = [Colors.greenAccent, Colors.cyanAccent, Colors.purpleAccent, Colors.redAccent];
+  final List<Color> _skinColors = [kNeonBlue, kNeonGreen, Color(0xFFD946EF), kDitaGold];
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    // Load Ads (Interstitial + Rewarded)
     AdManager.loadAds();
     
-    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
+    // Pulse Animation (Food Glow)
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..repeat(reverse: true);
+    
+    // Shake Animation (Impact)
+    _shakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _shakeAnimation = Tween<double>(begin: 0, end: 10).animate(
+      CurvedAnimation(parent: _shakeController, curve: Curves.easeInOut)
+    )..addListener(() => setState((){}));
+
+    // Particle Loop
+    _ticker = createTicker(_updateParticles)..start();
+
     _resetGameState();
   }
 
@@ -100,7 +125,7 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     _comboMeter = 0.0;
     _isGhost = false;
     _doubleScore = false;
-    _hasRevived = false; // Reset revive ability
+    _hasRevived = false;
   }
 
   @override
@@ -108,7 +133,41 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     _timer?.cancel();
     _effectTimer?.cancel();
     _pulseController.dispose();
+    _shakeController.dispose();
+    _ticker.dispose();
     super.dispose();
+  }
+
+  // --- FX HELPERS ---
+  
+  void _triggerShake() {
+    _shakeController.reset();
+    _shakeController.forward().then((value) => _shakeController.reverse());
+  }
+
+  void _updateParticles(Duration elapsed) {
+    if (_particles.isEmpty) return;
+    // We don't need setState here usually if using a specialized loop, 
+    // but since we repaint the whole CustomPaint via state, we'll clean list here
+    // and let the game loop trigger the repaint or the pulse controller.
+    _particles.removeWhere((p) => p.life <= 0);
+    for (var p in _particles) {
+      p.update();
+    }
+  }
+
+  void _spawnExplosion(Point<int> pos, Color color) {
+    for (int i = 0; i < 12; i++) {
+      double angle = (pi * 2 * i) / 12;
+      double speed = 0.2 + Random().nextDouble() * 0.3;
+      _particles.add(_Particle(
+        x: pos.x.toDouble(), 
+        y: pos.y.toDouble(), 
+        vx: cos(angle) * speed, 
+        vy: sin(angle) * speed, 
+        color: color
+      ));
+    }
   }
 
   // --- GAME LOOP ---
@@ -134,25 +193,17 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   void _updateGame() {
     setState(() {
       _moveSnake();
-      _updateParticles();
       _updateCombo();
     });
   }
 
   void _updateCombo() {
     if (_comboMeter > 0) {
-      _comboMeter -= 0.05; 
+      _comboMeter -= 0.02; // Decay slower
       if (_comboMeter <= 0) {
         _comboMeter = 0;
         _comboMultiplier = 1;
       }
-    }
-  }
-
-  void _updateParticles() {
-    _particles.removeWhere((p) => p.life <= 0);
-    for (var p in _particles) {
-      p.update();
     }
   }
 
@@ -177,13 +228,14 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
       if (newHead.y < 0) newHead = Point(newHead.x, rows - 1);
       if (newHead.y >= rows) newHead = Point(newHead.x, 0);
     } else {
-      // Standard Collision (Walls, Self, Obstacles)
+      // Standard Collision
       if (newHead.x < 0 || newHead.x >= columns || 
           newHead.y < 0 || newHead.y >= rows || 
           _snake.contains(newHead) || 
           _obstacles.contains(newHead)) {
         
-        // --- CRASH DETECTED ---
+        _triggerShake();
+        HapticFeedback.heavyImpact();
         _handleCrash();
         return;
       }
@@ -210,41 +262,40 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   // --- REVIVE / CRASH LOGIC ---
 
   void _handleCrash() {
-    _timer?.cancel(); // Pause game
+    _timer?.cancel(); 
     _effectTimer?.cancel();
     setState(() => _isPlaying = false);
 
     if (!_hasRevived) {
-      // Offer Revive
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          backgroundColor: Theme.of(context).cardColor,
-          title: const Text("SYSTEM CRASHED!", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-          content: const Text("Watch a short ad to activate Emergency Ghost Mode and continue?"),
+          backgroundColor: kSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: kNeonRed)),
+          title: const Text("CONNECTION LOST", style: TextStyle(color: kNeonRed, fontWeight: FontWeight.bold, fontFamily: 'Courier')),
+          content: const Text("System crash detected.\nEstablish emergency uplink (Watch Ad) to activate GHOST PROTOCOL?", style: TextStyle(color: Colors.white70)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                _gameOver(); // User declined
+                _gameOver();
               },
-              child: const Text("GIVE UP"),
+              child: const Text("ABORT", style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(ctx);
                 _watchAdToRevive();
               },
-              icon: const Icon(Icons.play_circle_fill),
-              label: const Text("REVIVE"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+              icon: const Icon(Icons.wifi_tethering),
+              label: const Text("RECONNECT"),
+              style: ElevatedButton.styleFrom(backgroundColor: kNeonBlue, foregroundColor: Colors.black),
             )
           ],
         ),
       );
     } else {
-      // Already revived once, straight to Game Over
       _gameOver();
     }
   }
@@ -252,31 +303,22 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   void _watchAdToRevive() {
     AdManager.showRewardedAd(
       onReward: () {
-        // Success! Revive Logic
         setState(() {
           _hasRevived = true;
           _isPlaying = true;
-          // Activate Ghost Mode so they don't immediately crash again
-          _activatePowerUp(PowerUpType.ghostMode);
-          
-          // Move snake slightly if stuck in wall (Optional, Ghost mode handles it mostly)
-          // Just resume timer
-          _startTimer();
+          _activatePowerUp(PowerUpType.ghostMode); // Ghost logic handles timer restart
         });
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("👻 SYSTEM RESTORED! Ghost Mode Active."), backgroundColor: Colors.green)
+          const SnackBar(content: Text("GHOST PROTOCOL INITIATED"), backgroundColor: kNeonBlue)
         );
       },
-      onFailure: () {
-        // Ad failed or cancelled
-        _gameOver();
-      }
+      onFailure: () => _gameOver()
     );
   }
 
   void _handleEatFood() {
-    _spawnExplosion(_snake.first, Colors.orange);
+    HapticFeedback.lightImpact();
+    _spawnExplosion(_snake.first, kDitaGold);
     
     // Scoring & Points
     int points = 10 * _comboMultiplier * (_doubleScore ? 2 : 1);
@@ -285,11 +327,11 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     
     // Combo Logic
     DateTime now = DateTime.now();
-    if (now.difference(_lastEatTime).inMilliseconds < 2000) {
+    if (now.difference(_lastEatTime).inMilliseconds < 3000) {
       _comboMeter = 1.0;
       if (_comboMultiplier < 5) _comboMultiplier++;
     } else {
-      _comboMeter = 0.5; // Start fresh combo
+      _comboMeter = 0.5; 
       _comboMultiplier = 1;
     }
     _lastEatTime = now;
@@ -297,27 +339,27 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     // Difficulty Scaling
     if (_score % 100 == 0) {
       _generateObstacles(2); 
-      if (_currentSpeed > 100) {
+      if (_currentSpeed > 80) {
         _currentSpeed = (_currentSpeed * 0.95).toInt();
         _startTimer();
       }
     }
 
-    // Chance to spawn PowerUp (20%)
     if (Random().nextInt(5) == 0) _generatePowerUp();
-
     _generateFood();
   }
 
   void _activatePowerUp(PowerUpType type) {
     if (type != PowerUpType.ghostMode) {
-      // Don't spawn particles for auto-revive ghost mode to keep it clean
        _spawnExplosion(_snake.first, Colors.white);
+       _triggerShake();
     }
     
-    // Cancel previous effects
     _effectTimer?.cancel();
-    if (_currentSpeed != 100 && _currentSpeed != 400) _currentSpeed = baseSpeed; 
+    // Reset speed unless we are applying a speed modifier
+    if (type != PowerUpType.speedBoost && type != PowerUpType.slowMo) {
+       if (_currentSpeed == 80 || _currentSpeed == 400) _currentSpeed = baseSpeed;
+    }
     
     _isGhost = false;
     _doubleScore = false;
@@ -326,27 +368,44 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
       case PowerUpType.megaPoint:
         _score += 50;
         _totalUserPoints += 50;
+        _showFloatingText("DATA UPLOAD +50", kNeonBlue);
         _startTimer(); 
         break;
       case PowerUpType.speedBoost:
-        _currentSpeed = 100; // Fast
+        _currentSpeed = 80; // Fast
+        _showFloatingText("OVERCLOCK!", kNeonRed);
         _startTimer();
         _setEffectTimeout();
         break;
       case PowerUpType.slowMo:
-        _currentSpeed = 400; // Slow
+        _currentSpeed = 300; // Slow
+        _showFloatingText("SYSTEM LAG...", kNeonBlue);
         _startTimer();
         _setEffectTimeout();
         break;
       case PowerUpType.ghostMode:
         _isGhost = true;
+        _startTimer(); // Ensure timer is running if coming from revive
         _setEffectTimeout();
         break;
       case PowerUpType.doubleScore:
         _doubleScore = true;
+        _showFloatingText("2X BANDWIDTH", Colors.pinkAccent);
         _setEffectTimeout();
         break;
     }
+  }
+
+  void _showFloatingText(String text, Color color) {
+    // Simplified juice text wrapper (logic identical to previous games)
+    ScaffoldMessenger.of(context).showSnackBar(
+       SnackBar(
+         content: Text(text, textAlign: TextAlign.center, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+         backgroundColor: Colors.transparent,
+         elevation: 0,
+         duration: const Duration(milliseconds: 800),
+       )
+    );
   }
 
   void _setEffectTimeout() {
@@ -355,24 +414,12 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
         setState(() {
           _isGhost = false;
           _doubleScore = false;
-          if (_currentSpeed != 100 && _currentSpeed != 400) _currentSpeed = baseSpeed;
+          // Reset speed modifiers
+          if (_currentSpeed == 80 || _currentSpeed == 300) _currentSpeed = baseSpeed;
           _startTimer();
         });
       }
     });
-  }
-
-  void _spawnExplosion(Point<int> pos, Color color) {
-    for (int i = 0; i < 8; i++) {
-      double angle = (pi * 2 * i) / 8;
-      _particles.add(_Particle(
-        x: pos.x.toDouble(), 
-        y: pos.y.toDouble(), 
-        vx: cos(angle) * 0.2, 
-        vy: sin(angle) * 0.2, 
-        color: color
-      ));
-    }
   }
 
   // --- GENERATORS ---
@@ -402,7 +449,7 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     return p;
   }
 
-  // --- SAVE & EXIT LOGIC ---
+  // --- SAVE & EXIT ---
 
   void _gameOver() async {
     _timer?.cancel();
@@ -421,15 +468,11 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // 1. Save High Score LOCALLY
       if (_score > _localHighScore) {
         await prefs.setInt('snake_high_score', _score);
-        setState(() {
-          _localHighScore = _score;
-        });
+        setState(() => _localHighScore = _score);
       }
 
-      // 2. Save Points to BACKEND
       int userId = 0;
       if (widget.user['id'] is int) {
         userId = widget.user['id'];
@@ -437,19 +480,15 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
 
       if (userId != 0) {
         await ApiService.updateUser(userId, {"points": _totalUserPoints});
-        print("✅ Snake Saved: Points=$_totalUserPoints, HighScore=$_localHighScore");
       }
     } catch (e) {
-      print("Error saving snake data: $e");
+      debugPrint("Error saving snake data: $e");
     } finally {
       _isSaving = false;
     }
   }
 
   Future<void> _onBackPressed() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Saving Progress..."), duration: Duration(milliseconds: 800))
-    );
     await _saveGameData();
     if (mounted) Navigator.pop(context);
   }
@@ -458,13 +497,18 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
 
   void _handleVerticalDrag(DragUpdateDetails details) {
     if (_direction == Direction.left || _direction == Direction.right) {
-      _nextDirection = details.delta.dy > 0 ? Direction.down : Direction.up;
+      // Sensitivity check to prevent accidental U-turns
+      if (details.delta.dy.abs() > 5) {
+        _nextDirection = details.delta.dy > 0 ? Direction.down : Direction.up;
+      }
     }
   }
 
   void _handleHorizontalDrag(DragUpdateDetails details) {
     if (_direction == Direction.up || _direction == Direction.down) {
-      _nextDirection = details.delta.dx > 0 ? Direction.right : Direction.left;
+      if (details.delta.dx.abs() > 5) {
+        _nextDirection = details.delta.dx > 0 ? Direction.right : Direction.left;
+      }
     }
   }
 
@@ -476,170 +520,160 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = Theme.of(context).primaryColor;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color bgColor = isDark ? kDeepSlate : Theme.of(context).scaffoldBackgroundColor;
+    
+    // Current Skin Color
     final snakeColor = _isGhost ? Colors.white.withOpacity(0.5) : _skinColors[_skinIndex];
+    
+    // Shake Offset
+    double shakeOffset = sin(_shakeController.value * pi * 4) * _shakeAnimation.value;
 
     return PopScope(
       canPop: true,
       onPopInvoked: (didPop) async {
-        if (didPop) {
-          AdManager.showInterstitialAd();
-        }
+        if (didPop) AdManager.showInterstitialAd();
         await _saveGameData();
       },
       child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: bgColor,
         appBar: AppBar(
-          title: const Text("Data Snake V2", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-          backgroundColor: primaryColor,
+          title: const Text("DATA STREAM // SNAKE", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Courier')),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios, color: kNeonBlue),
             onPressed: _onBackPressed,
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.palette, color: Colors.white),
-              tooltip: "Change Skin",
+              icon: Icon(Icons.palette, color: snakeColor),
               onPressed: _cycleSkin,
             ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Text(
-                  "$_score", 
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.white)
-                ),
-              ),
-            )
           ],
         ),
         body: Column(
           children: [
-            // TOP STATS
+            // 1. STATS HUD
             Container(
-              padding: const EdgeInsets.all(12),
-              color: Theme.of(context).cardColor,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: kSurface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white10)
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildStat(Icons.monetization_on, "Balance", "$_totalUserPoints"),
-                  _buildStat(Icons.emoji_events, "High Score", "${max(_localHighScore, _score)}"),
-                  _buildStat(Icons.speed, "Speed", _currentSpeed < 150 ? "MAX" : "${((baseSpeed - _currentSpeed)/2).toInt()}%"),
+                  _buildStat("SCORE", "$_score", kNeonBlue),
+                  _buildStat("HIGH", "${max(_localHighScore, _score)}", kDitaGold),
+                  _buildStat("CREDITS", "$_totalUserPoints", kNeonGreen),
                 ],
               ),
             ),
+            
+            const SizedBox(height: 10),
 
             // COMBO BAR
-            LinearProgressIndicator(
-              value: _comboMeter,
-              backgroundColor: Colors.transparent,
-              valueColor: AlwaysStoppedAnimation<Color>(_comboMultiplier > 1 ? Colors.orangeAccent : Colors.transparent),
-              minHeight: 4,
-            ),
-            
-            // GAME AREA
-            Expanded(
-              child: GestureDetector(
-                onVerticalDragUpdate: _handleVerticalDrag,
-                onHorizontalDragUpdate: _handleHorizontalDrag,
-                child: Container(
-                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                  child: Center(
-                    child: AspectRatio(
-                      aspectRatio: columns / rows,
-                      child: Stack(
-                        children: [
-                          // Game Board
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.withOpacity(0.3), width: 2),
-                              color: isDark ? Colors.black : Colors.white,
-                            ),
-                            child: CustomPaint(
-                              painter: SnakePainter(
-                                snake: _snake, 
-                                food: _food, 
-                                obstacles: _obstacles,
-                                powerUps: _activePowerUps,
-                                particles: _particles,
-                                rows: rows, 
-                                cols: columns,
-                                snakeColor: snakeColor,
-                                gridColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-                                pulse: _pulseController.value,
-                              ),
-                              size: Size.infinite,
-                            ),
-                          ),
-                          
-                          // Game Over Overlay
-                          if (_isGameOver)
-                            Container(
-                              color: Colors.black54,
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.broken_image, color: Colors.redAccent, size: 60),
-                                    const SizedBox(height: 10),
-                                    const Text("SYSTEM CRASHED", style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                                    Text("Score: $_score", style: const TextStyle(color: Colors.white70, fontSize: 18)),
-                                    const SizedBox(height: 20),
-                                    ElevatedButton(
-                                      onPressed: _startGame,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: primaryColor,
-                                        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)
-                                      ),
-                                      child: const Text("REBOOT SYSTEM", style: TextStyle(color: Colors.white)),
-                                    )
-                                  ],
-                                ),
-                              ),
-                            ),
+            if (_isPlaying)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _comboMeter,
+                    backgroundColor: kSurface,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _comboMultiplier >= 5 ? Colors.redAccent : (_comboMultiplier > 1 ? Colors.orangeAccent : Colors.transparent)
+                    ),
+                    minHeight: 6,
+                  ),
+                ),
+              ),
 
-                          // Start Overlay
-                          if (!_isPlaying && !_isGameOver)
-                            Container(
-                              color: Colors.black45,
-                              child: Center(
-                                child: ElevatedButton.icon(
-                                  onPressed: _startGame,
-                                  icon: const Icon(Icons.play_arrow),
-                                  label: const Text("INITIALIZE"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: primaryColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)
-                                  ),
-                                ),
-                              ),
+            const SizedBox(height: 10),
+            
+            // 2. GAME AREA
+            Expanded(
+              child: Transform.translate(
+                offset: Offset(shakeOffset, 0),
+                child: GestureDetector(
+                  onVerticalDragUpdate: _handleVerticalDrag,
+                  onHorizontalDragUpdate: _handleHorizontalDrag,
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0B101A), // Darker than slate for board
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: kNeonBlue.withOpacity(0.3), width: 1),
+                      boxShadow: [BoxShadow(color: kNeonBlue.withOpacity(0.1), blurRadius: 20)]
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          // Calculate exact cell size to fit container
+                          return CustomPaint(
+                            painter: SnakePainter(
+                              snake: _snake, 
+                              food: _food, 
+                              obstacles: _obstacles,
+                              powerUps: _activePowerUps,
+                              particles: _particles,
+                              rows: rows, 
+                              cols: columns,
+                              snakeColor: snakeColor,
+                              gridColor: Colors.white.withOpacity(0.03),
+                              pulse: _pulseController.value,
+                              isGhost: _isGhost
                             ),
-                            
-                          // UI Elements (Combo, Effects)
-                          if (_comboMultiplier > 1 && _isPlaying)
-                            Positioned(
-                              top: 20, right: 20,
-                              child: Text(
-                                "COMBO x$_comboMultiplier!",
-                                style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 20, shadows: [Shadow(blurRadius: 10, color: Colors.red)]),
-                              ),
-                            ),
-                            
-                          if (_isGhost)
-                            const Positioned(bottom: 20, left: 20, child: Text("👻 GHOST MODE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                          if (_doubleScore)
-                            const Positioned(bottom: 20, right: 20, child: Text("🍒 DOUBLE SCORE", style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold))),
-                        ],
+                            size: Size(constraints.maxWidth, constraints.maxHeight),
+                          );
+                        }
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-            
-            // 3. BANNER AD AT BOTTOM
+
+            // 3. OVERLAY STATUS
+            if (_comboMultiplier > 1 && _isPlaying)
+              Text("COMBO x$_comboMultiplier", style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 2)),
+
+            if (_isGameOver)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                child: ElevatedButton.icon(
+                   onPressed: _startGame,
+                   icon: const Icon(Icons.refresh),
+                   label: const Text("REBOOT SYSTEM"),
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: kNeonBlue, 
+                     foregroundColor: Colors.black,
+                     padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)
+                   ),
+                ),
+              ),
+
+             if (!_isPlaying && !_isGameOver)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                child: ElevatedButton.icon(
+                   onPressed: _startGame,
+                   icon: const Icon(Icons.play_arrow),
+                   label: const Text("INITIALIZE STREAM"),
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: kNeonGreen, 
+                     foregroundColor: Colors.black,
+                     padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)
+                   ),
+                ),
+              ),
+
+            // 4. BANNER AD
             const BannerAdWidget(),
           ],
         ),
@@ -647,13 +681,12 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     );
   }
    
-  Widget _buildStat(IconData icon, String label, String value) {
+  Widget _buildStat(String label, String value, Color color) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: Colors.grey),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, letterSpacing: 1.2)),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color, fontFamily: 'Courier')),
       ],
     );
   }
@@ -692,6 +725,7 @@ class SnakePainter extends CustomPainter {
   final Color snakeColor;
   final Color gridColor;
   final double pulse; 
+  final bool isGhost;
 
   SnakePainter({
     required this.snake, 
@@ -704,6 +738,7 @@ class SnakePainter extends CustomPainter {
     required this.snakeColor,
     required this.gridColor,
     required this.pulse,
+    required this.isGhost,
   });
 
   @override
@@ -712,61 +747,73 @@ class SnakePainter extends CustomPainter {
     double cellH = size.height / rows;
 
     final Paint fillPaint = Paint()..style = PaintingStyle.fill;
-    final Paint strokePaint = Paint()..color = gridColor..style = PaintingStyle.stroke;
+    final Paint glowPaint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.solid, 6);
 
-    // Grid
-    for(int c = 0; c <= cols; c++) {
-      canvas.drawLine(Offset(c * cellW, 0), Offset(c * cellW, size.height), strokePaint);
-    }
-    for(int r = 0; r <= rows; r++) {
-      canvas.drawLine(Offset(0, r * cellH), Offset(size.width, r * cellH), strokePaint);
-    }
+    // 1. Draw Grid
+    final Paint gridPaint = Paint()..color = gridColor..style = PaintingStyle.stroke;
+    for(int c = 0; c <= cols; c++) canvas.drawLine(Offset(c * cellW, 0), Offset(c * cellW, size.height), gridPaint);
+    for(int r = 0; r <= rows; r++) canvas.drawLine(Offset(0, r * cellH), Offset(size.width, r * cellH), gridPaint);
 
-    // Obstacles
-    fillPaint.color = Colors.grey;
+    // 2. Obstacles (Firewalls)
     for (var o in obstacles) {
+      fillPaint.color = Colors.redAccent.withOpacity(0.2);
       canvas.drawRect(Rect.fromLTWH(o.x * cellW, o.y * cellH, cellW, cellH), fillPaint);
-      canvas.drawRect(Rect.fromLTWH(o.x * cellW + 2, o.y * cellH + 2, cellW - 4, cellH - 4), Paint()..color = Colors.black12);
+      
+      // X mark
+      final p = Paint()..color = Colors.redAccent..strokeWidth = 2;
+      canvas.drawLine(Offset(o.x * cellW + 4, o.y * cellH + 4), Offset(o.x * cellW + cellW - 4, o.y * cellH + cellH - 4), p);
+      canvas.drawLine(Offset(o.x * cellW + cellW - 4, o.y * cellH + 4), Offset(o.x * cellW + 4, o.y * cellH + cellH - 4), p);
     }
 
-    // Food
+    // 3. Food (Data Packets)
     if (food != null) {
-      fillPaint.color = Colors.orangeAccent.withOpacity(0.8 + (pulse * 0.2));
-      canvas.drawCircle(Offset((food!.x * cellW) + cellW/2, (food!.y * cellH) + cellH/2), (cellW/2) - 1 + pulse, fillPaint);
+      Offset center = Offset((food!.x * cellW) + cellW/2, (food!.y * cellH) + cellH/2);
+      
+      // Glow
+      glowPaint.color = kDitaGold.withOpacity(0.6 + (pulse * 0.4));
+      canvas.drawCircle(center, (cellW/2) + pulse * 2, glowPaint);
+      
+      // Core
+      fillPaint.color = Colors.white;
+      canvas.drawCircle(center, (cellW/2) - 3, fillPaint);
     }
 
-    // PowerUps
+    // 4. PowerUps
     for (var p in powerUps) {
+      Color pColor;
       switch(p.type) {
-        case PowerUpType.megaPoint: fillPaint.color = Colors.cyan; break;
-        case PowerUpType.speedBoost: fillPaint.color = Colors.yellow; break;
-        case PowerUpType.slowMo: fillPaint.color = Colors.blue; break;
-        case PowerUpType.ghostMode: fillPaint.color = Colors.white; break;
-        case PowerUpType.doubleScore: fillPaint.color = Colors.pink; break;
+        case PowerUpType.megaPoint: pColor = Colors.cyan; break;
+        case PowerUpType.speedBoost: pColor = Colors.redAccent; break;
+        case PowerUpType.slowMo: pColor = Colors.blue; break;
+        case PowerUpType.ghostMode: pColor = Colors.white; break;
+        case PowerUpType.doubleScore: pColor = Colors.pink; break;
       }
-      canvas.drawRect(Rect.fromLTWH(p.pos.x * cellW + 2, p.pos.y * cellH + 2, cellW - 4, cellH - 4), fillPaint);
+      fillPaint.color = pColor;
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(p.pos.x * cellW + 2, p.pos.y * cellH + 2, cellW - 4, cellH - 4), const Radius.circular(4)), fillPaint);
     }
 
-    // Snake
-    fillPaint.color = snakeColor;
+    // 5. Snake (Data Stream)
     for (int i = 0; i < snake.length; i++) {
       var p = snake[i];
-      if (i == 0) {
-        fillPaint.color = snakeColor.withOpacity(1.0);
-      } else {
-        fillPaint.color = snakeColor.withOpacity(0.4 + ((snake.length - i) / snake.length) * 0.6);
+      double opacity = isGhost ? 0.3 : (0.4 + ((snake.length - i) / snake.length) * 0.6);
+      fillPaint.color = snakeColor.withOpacity(opacity);
+      
+      if (i == 0 && !isGhost) {
+        // Head Glow
+        canvas.drawCircle(Offset(p.x * cellW + cellW/2, p.y * cellH + cellH/2), cellW/1.5, Paint()..color = snakeColor.withOpacity(0.4)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10));
+        fillPaint.color = snakeColor; // Solid head
       }
-       
+        
       canvas.drawRRect(
         RRect.fromRectAndRadius(Rect.fromLTWH(p.x * cellW + 1, p.y * cellH + 1, cellW - 2, cellH - 2), const Radius.circular(4)), 
         fillPaint
       );
     }
 
-    // Particles
+    // 6. Particles
     for (var p in particles) {
-      fillPaint.color = p.color.withOpacity(p.life);
-      canvas.drawCircle(Offset(p.x * cellW + cellW/2, p.y * cellH + cellH/2), 3 * p.life, fillPaint);
+      fillPaint.color = p.color.withOpacity(p.life.clamp(0.0, 1.0));
+      canvas.drawRect(Rect.fromLTWH(p.x * cellW + cellW/2, p.y * cellH + cellH/2, 4 * p.life, 4 * p.life), fillPaint);
     }
   }
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dita_app/widgets/dita_loader.dart';
+import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
@@ -309,20 +310,38 @@ Color _getStatusColor(String status, Color defaultColor) {
 
   Widget _buildExamList(bool isDark, Color cardColor, Color primaryColor, Color? textColor, Color? subTextColor) {
     if (_myExams.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.assignment_late_outlined, size: 60, color: isDark ? Colors.white24 : Colors.grey[300]),
-            const SizedBox(height: 15),
-            Text(
-              _myCodes.isEmpty ? "Add units above to see exams." : "No exams found for these codes.", 
-              style: TextStyle(color: subTextColor),
-            ),
-          ],
-        ),
-      );
-    }
+  // Check the condition once to keep the code clean
+  final bool noCodes = _myCodes.isEmpty;
+
+  return EmptyStateWidget(
+    // 1. You'll need to add an exam-related SVG to your assets
+    svgPath: 'assets/svgs/no_data.svg', 
+    
+    // 2. Dynamic Title
+    title: noCodes ? "No Units Added" : "No Exams Found",
+    
+    // 3. Dynamic Message based on your previous logic
+    message: noCodes 
+        ? "Add your unit codes above to generate your personalized exam timetable." 
+        : "We couldn't find any exams matching the codes you entered. Please double-check them.",
+    
+    // 4. Show "Add" button only if codes are missing
+    actionLabel: noCodes ? "Add Unit" : "Clear & Retry",
+    
+    onActionPressed: () {
+      if (noCodes) {
+        // Logic to focus your text input field or open the add modal
+        // focusNode.requestFocus(); 
+      } else {
+        // Logic to clear codes or refresh
+        setState(() {
+          _myCodes.clear();
+          // _saveCodes();
+        });
+      }
+    },
+  );
+}
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
