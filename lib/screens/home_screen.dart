@@ -13,6 +13,7 @@ import 'package:dita_app/screens/search_screen.dart';
 import 'package:dita_app/screens/tasks_screen.dart';
 import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:dita_app/widgets/empty_state_widget.dart';
+import 'package:dita_app/widgets/promo_popup.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -57,6 +58,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndPromptPayment();});
       _syncNotificationToken();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+     PromoPopup.checkAndShow(context);
+  });  
   }
 
   Future<void> _pickAndUploadImage() async {

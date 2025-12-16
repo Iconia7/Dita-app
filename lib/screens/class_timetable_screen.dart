@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'manual_class_entry_screen.dart';
 import 'portal_import_screen.dart';
 import '../services/notification.dart';
 
@@ -142,13 +141,10 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
                   icon: const Icon(Icons.tune, color: Colors.white),
                   color: Theme.of(context).cardColor, // 🟢 Dynamic Menu BG
                   onSelected: (value) {
-                    if (value == 'manual') {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualClassEntryScreen())).then((_) => _loadClasses());
-                    } else if (value == 'sync') Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses());
+                    if (value == 'sync') Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses());
                     else if (value == 'clear') _clearAllClasses();
                   },
                   itemBuilder: (BuildContext context) => [
-                    const PopupMenuItem(value: 'manual', child: Row(children: [Icon(Icons.add, size: 18), SizedBox(width: 8), Text("Add Class")])),
                     const PopupMenuItem(value: 'sync', child: Row(children: [Icon(Icons.sync, size: 18), SizedBox(width: 8), Text("Sync Portal")])),
                     const PopupMenuDivider(),
                     const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 8), Text("Clear All", style: TextStyle(color: Colors.red))])),

@@ -542,6 +542,18 @@ class ApiService {
     }
   }
 
+    static Future<List<dynamic>> getPromotions() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/promotions/'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print("Error fetching promotions: $e");
+    }
+    return [];
+  }
+
   // --- CRITICAL FIX: updateUser was missing Auth Headers ---
   static Future<bool> updateUser(int userId, Map<String, dynamic> data) async {
     try {

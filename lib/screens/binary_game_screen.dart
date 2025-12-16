@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:dita_app/services/api_service.dart';
-import 'package:dita_app/services/ads_helper.dart'; 
+import 'package:dita_app/services/ads_helper.dart';
 
 // --- THEME CONSTANTS ---
 const Color kDeepSlate = Color(0xFF0F172A);
@@ -15,6 +15,7 @@ const Color kNeonRed = Color(0xFFEF4444);  // AI/Enemy Color
 const Color kDitaGold = Color(0xFFFFD700); // Win Color
 
 enum GameMode { ai, friend }
+enum GameDifficulty { easy, medium, hard } // 🟢 Added Difficulty Enum
 
 class GameScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -28,6 +29,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   // Game Config
   GameMode _mode = GameMode.ai;
+  GameDifficulty _difficulty = GameDifficulty.medium; // 🟢 Default Difficulty
    
   // Game State
   List<String> _board = List.filled(9, "");
@@ -93,13 +95,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _spawnExplosion(List<int> indices, Color color) {
-    // Convert board index to approximate screen coordinates relative to board center
-    // This is a visual approximation for juice
     for (int index in indices) {
       int row = index ~/ 3;
       int col = index % 3;
-      // Grid is centered, so we offset particles based on row/col
-      // We'll map 0..2 to -1..1 range for rendering relative to center
       double x = (col - 1) * 100.0; 
       double y = (row - 1) * 100.0;
 
@@ -164,7 +162,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   int _findBestMove() {
-    // 1. Try to WIN
+    // 🟢 1. EASY: Pure Random (20% chance to play smart)
+    if (_difficulty == GameDifficulty.easy) {
+      if (Random().nextDouble() > 0.2) return _getRandomMove();
+    }
+
+    // 🟢 2. MEDIUM: Wins if can, Blocks if critical, otherwise Random
+    if (_difficulty == GameDifficulty.medium) {
+      // 50% chance to miss a block/win opportunity
+      if (Random().nextDouble() > 0.5) return _getRandomMove();
+    }
+
+    // 🟢 3. HARD (and Medium fallback): Smart Logic
+    
+    // A. Try to WIN
     for (int i = 0; i < 9; i++) {
       if (_board[i] == "") {
         _board[i] = "0";
@@ -172,7 +183,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         _board[i] = "";
       }
     }
-    // 2. Block Player
+    
+    // B. Block Player
     for (int i = 0; i < 9; i++) {
       if (_board[i] == "") {
         _board[i] = "1";
@@ -180,13 +192,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         _board[i] = "";
       }
     }
-    // 3. Take Center
+    
+    // C. Take Center
     if (_board[4] == "") return 4;
-    // 4. Random
+    
+    // D. Random
+    return _getRandomMove();
+  }
+
+  int _getRandomMove() {
     List<int> emptySpots = [];
     for (int i = 0; i < 9; i++) {
       if (_board[i] == "") emptySpots.add(i);
     }
+    if (emptySpots.isEmpty) return 0; // Should not happen
     return emptySpots[Random().nextInt(emptySpots.length)];
   }
 
@@ -215,9 +234,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Future<void> _endGame(String result) async {
     setState(() => _isGameOver = true);
-    HapticFeedback.heavyImpact(); // Strong vibration on game over
-
-    // Delay showing dialog to let animations play
+    HapticFeedback.heavyImpact(); 
     await Future.delayed(const Duration(milliseconds: 1500));
     if(!mounted) return;
     
@@ -229,8 +246,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (_mode == GameMode.ai) {
       if (result == "1") {
         title = "SYSTEM SECURED";
-        msg = "Protocol Complete. +20 Points.";
-        pointsEarned = 20;
+        // 🟢 Bonus based on difficulty
+        int bonus = _difficulty == GameDifficulty.hard ? 30 : (_difficulty == GameDifficulty.medium ? 20 : 10);
+        msg = "Protocol Complete. +$bonus Points.";
+        pointsEarned = bonus;
         color = kNeonBlue;
       } else if (result == "0") {
         title = "BREACH DETECTED";
@@ -311,6 +330,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           centerTitle: true,
           elevation: 0,
           backgroundColor: Colors.transparent,
+          // 🟢 Ensure back button is visible
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black),
+            onPressed: () => Navigator.pop(context),
+          ),
           actions: [
             if (_mode == GameMode.ai)
                Container(
@@ -327,93 +351,119 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                )
           ],
         ),
-        body: Column(
-          children: [
-            const SizedBox(height: 20),
-            
-            // 1. MODE SELECTOR
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(30)),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildModeBtn("AI BATTLE", GameMode.ai),
-                  _buildModeBtn("PVP LOCAL", GameMode.friend),
-                ],
-              ),
-            ),
-
-            const Spacer(),
-
-            // 2. STATUS
-            Text(
-              _isAiThinking ? "SYSTEM CALCULATING..." : (_isGameOver ? "GAME OVER" : (_currentPlayer == "1" ? "YOUR TURN (1)" : "OPPONENT TURN (0)")),
-              style: TextStyle(
-                color: _isAiThinking ? Colors.grey : (_currentPlayer == "1" ? kNeonBlue : kNeonRed),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2.0
-              ),
-            ),
-            
-            const SizedBox(height: 30),
-
-            // 3. BOARD WITH FX
-            Transform.translate(
-              offset: Offset(shakeOffset, 0),
-              child: SizedBox(
-                width: 300, height: 300,
-                child: Stack(
-                  clipBehavior: Clip.none,
+        body: SafeArea( // 🟢 Fix Layout Shift: SafeArea
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center, // 🟢 Fix Layout Shift: Center Horizontally
+            children: [
+              const SizedBox(height: 20),
+              
+              // 1. MODE SELECTOR
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(30)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // A. The Grid
-                    GridView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3, mainAxisSpacing: 12, crossAxisSpacing: 12,
-                      ),
-                      itemCount: 9,
-                      itemBuilder: (context, index) => _buildGridTile(index),
-                    ),
-
-                    // B. Winning Line Overlay
-                    if (_winningPattern != null)
-                       IgnorePointer(
-                         child: CustomPaint(
-                           size: const Size(300, 300),
-                           painter: LaserLinePainter(
-                             pattern: _winningPattern!, 
-                             color: _board[_winningPattern![0]] == "1" ? kDitaGold : kNeonRed
-                           ),
-                         ),
-                       ),
-                    
-                    // C. Particle Overlay
-                    IgnorePointer(
-                      child: Center(
-                        child: CustomPaint(
-                          size: const Size(300, 300),
-                          painter: GameParticlePainter(_particles),
-                        ),
-                      ),
-                    ),
+                    _buildModeBtn("AI BATTLE", GameMode.ai),
+                    _buildModeBtn("PVP LOCAL", GameMode.friend),
                   ],
                 ),
               ),
-            ),
-            
-            const Spacer(),
-            
-            // 4. RESET & ADS
-            TextButton.icon(
-              onPressed: _resetGame,
-              icon: const Icon(Icons.refresh, color: Colors.white54),
-              label: const Text("RESET BOARD", style: TextStyle(color: Colors.white54, letterSpacing: 1.2)),
-            ),
-            const SizedBox(height: 10),
-            const BannerAdWidget(),
-          ],
+
+              const SizedBox(height: 15),
+
+              // 🟢 2. DIFFICULTY SELECTOR (Only in AI Mode)
+              if (_mode == GameMode.ai)
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: kSurface.withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildDifficultyBtn("Easy", GameDifficulty.easy, Colors.greenAccent),
+                      _buildDifficultyBtn("Med", GameDifficulty.medium, Colors.orangeAccent),
+                      _buildDifficultyBtn("Hard", GameDifficulty.hard, Colors.redAccent),
+                    ],
+                  ),
+                ),
+
+              const Spacer(),
+
+              // 3. STATUS
+              Text(
+                _isAiThinking ? "SYSTEM CALCULATING..." : (_isGameOver ? "GAME OVER" : (_currentPlayer == "1" ? "YOUR TURN (1)" : "OPPONENT TURN (0)")),
+                style: TextStyle(
+                  color: _isAiThinking ? Colors.grey : (_currentPlayer == "1" ? kNeonBlue : kNeonRed),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2.0
+                ),
+              ),
+              
+              const SizedBox(height: 30),
+
+              // 4. BOARD WITH FX
+              Transform.translate(
+                offset: Offset(shakeOffset, 0),
+                child: SizedBox(
+                  width: 300, height: 300,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // A. The Grid
+                      GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3, mainAxisSpacing: 12, crossAxisSpacing: 12,
+                        ),
+                        itemCount: 9,
+                        itemBuilder: (context, index) => _buildGridTile(index),
+                      ),
+
+                      // B. Winning Line Overlay
+                      if (_winningPattern != null)
+                        IgnorePointer(
+                          child: CustomPaint(
+                            size: const Size(300, 300),
+                            painter: LaserLinePainter(
+                              pattern: _winningPattern!, 
+                              color: _board[_winningPattern![0]] == "1" ? kDitaGold : kNeonRed
+                            ),
+                          ),
+                        ),
+                    
+                      // C. Particle Overlay
+                      IgnorePointer(
+                        child: Center(
+                          child: CustomPaint(
+                            size: const Size(300, 300),
+                            painter: GameParticlePainter(_particles),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const Spacer(),
+              
+              // 5. RESET
+              TextButton.icon(
+                onPressed: _resetGame,
+                icon: const Icon(Icons.refresh, color: Colors.grey),
+                label: const Text("RESET BOARD", style: TextStyle(color: Colors.grey, letterSpacing: 1.2)),
+              ),
+              
+              const SizedBox(height: 10),
+              
+              // 🟢 6. BANNER AD (Centered at bottom)
+              const SizedBox(
+                width: double.infinity, 
+                child: BannerAdWidget(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -431,6 +481,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(25),
         ),
         child: Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.white38, fontWeight: FontWeight.bold, fontSize: 12)),
+      ),
+    );
+  }
+
+  // 🟢 Helper for Difficulty Buttons
+  Widget _buildDifficultyBtn(String label, GameDifficulty difficulty, Color activeColor) {
+    bool isSelected = _difficulty == difficulty;
+    return GestureDetector(
+      onTap: () { setState(() => _difficulty = difficulty); _resetGame(); },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: isSelected ? activeColor : Colors.transparent),
+        ),
+        child: Text(label, style: TextStyle(color: isSelected ? activeColor : Colors.grey, fontWeight: FontWeight.bold, fontSize: 10)),
       ),
     );
   }
@@ -526,7 +594,15 @@ class GameParticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Center the painter
-    canvas.translate(size.width / 2, size.height / 2);
+    canvas.translate(size.width / 2, size.height / 2); // 🟢 Fixed Offset logic relative to center if needed, but particle x/y logic was based on -100 to 100 in spawn
+    // Actually, spawn logic uses 0..200 range relative to grid? No, spawn uses `(col - 1) * 100.0`.
+    // Center of grid is 0,0 for `(col-1)`. 
+    // `col` ranges 0,1,2. `col-1` ranges -1, 0, 1.
+    // So 0,0 is indeed center.
+    
+    // We need to translate canvas to center of SizedBox(300,300) so 0,0 is center.
+    canvas.translate(150, 150); // Hardcoded half of 300 since SizedBox is 300x300
+
     for (var p in particles) {
       final paint = Paint()..color = p.color.withOpacity(p.life.clamp(0.0, 1.0));
       canvas.drawCircle(Offset(p.x, p.y), p.size, paint);
