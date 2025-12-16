@@ -606,6 +606,7 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
         appBar: AppBar(
           title: const Text("RAM Optimizer", style: TextStyle(fontWeight: FontWeight.bold)),
           centerTitle: true,
+          backgroundColor: primaryColor,
           elevation: 0,
         ),
         body: SafeArea(

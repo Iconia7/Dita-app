@@ -314,6 +314,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     // Theme Colors from DITA Theme
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color primaryColor = Theme.of(context).primaryColor;
     
     // Shake Offset
     double shakeOffset = sin(_shakeController.value * pi * 4) * _shakeAnimation.value;
@@ -329,7 +330,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           title: const Text("CYBER TIC-TAC-TOE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           centerTitle: true,
           elevation: 0,
-          backgroundColor: Colors.transparent,
+          backgroundColor: primaryColor,
           // 🟢 Ensure back button is visible
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black),

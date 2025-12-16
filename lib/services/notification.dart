@@ -88,7 +88,7 @@ class NotificationService {
         channelKey: 'dita_announcements',
         title: message.data['title'] ?? 'DITA Update', 
         body: message.data['message_body'] ?? 'New announcement available.',
-        notificationLayout: NotificationLayout.BigText, 
+        notificationLayout: NotificationLayout.BigPicture, 
         bigPicture: message.data['image'], 
         color: const Color(0xFF003366),
         backgroundColor: Colors.white,

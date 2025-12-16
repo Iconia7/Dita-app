@@ -521,8 +521,8 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bgColor = isDark ? kDeepSlate : Theme.of(context).scaffoldBackgroundColor;
-    
+    final Color scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final primaryColor = Theme.of(context).primaryColor;
     // Current Skin Color
     final snakeColor = _isGhost ? Colors.white.withOpacity(0.5) : _skinColors[_skinIndex];
     
@@ -536,14 +536,14 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
         await _saveGameData();
       },
       child: Scaffold(
-        backgroundColor: bgColor,
+        backgroundColor: isDark ? kDeepSlate : scaffoldBg,
         appBar: AppBar(
           title: const Text("DATA STREAM // SNAKE", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Courier')),
-          backgroundColor: Colors.transparent,
           elevation: 0,
+          backgroundColor: primaryColor,
           centerTitle: true,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: kNeonBlue),
+            icon: const Icon(Icons.arrow_back_ios, color: Color.fromARGB(255, 255, 255, 255)),
             onPressed: _onBackPressed,
           ),
           actions: [
