@@ -532,8 +532,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
         setState(() => _localHighScore = _scoreKB);
       }
       int userId = 0;
-      if (widget.user['id'] is int) userId = widget.user['id'];
-      else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
+      if (widget.user['id'] is int) {
+        userId = widget.user['id'];
+      } else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
 
       if (userId != 0) {
         await ApiService.updateUser(userId, {"points": _currentTotalPoints});

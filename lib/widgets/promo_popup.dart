@@ -151,17 +151,7 @@ class _PromoDialogWidget extends StatelessWidget {
                       const SizedBox(height: 15),
                       
                       // Dismiss Text
-                      GestureDetector(
-                        onTap: onClose,
-                        child: Text(
-                          "No thanks",
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
+                      
                     ],
                   ),
                 ),

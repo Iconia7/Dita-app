@@ -180,7 +180,8 @@ $eventContext
       },
       "generationConfig": {
         "temperature": 0.7,
-        "maxOutputTokens": 300,
+        "maxOutputTokens": 1500, // Increased to allow full code responses
+        "topP": 0.9,
       }
     };
 
@@ -200,7 +201,13 @@ $eventContext
       String assistantText = "I'm not sure.";
       
       if (data['candidates'] != null && data['candidates'].isNotEmpty) {
-        final parts = data['candidates'][0]['content']['parts'];
+        final candidate = data['candidates'][0];
+        // Check if the model stopped because it hit a limit
+        if (candidate['finishReason'] == 'MAX_TOKENS') {
+          debugPrint("Warning: Response was cut off due to token limit.");
+        }
+        
+        final parts = candidate['content']['parts'];
         if (parts != null && parts.isNotEmpty) {
           assistantText = parts[0]['text'];
         }

@@ -77,7 +77,7 @@ class GamesListScreen extends StatelessWidget {
                       icon: Icons.grid_3x3,
                       color: Colors.cyan,
                       isDark: isDark,
-                      onTap: () => _navigateToGame(context, GameScreen(user: user, userId: user,)), // Removed userId as it's likely inside user map
+                      onTap: () => _navigateToGame(context, GameScreen(user: user)), // Removed userId as it's likely inside user map
                     ),
 
                     const SizedBox(height: 16),

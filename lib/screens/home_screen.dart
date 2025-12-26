@@ -1213,40 +1213,39 @@ const SizedBox(width: 15),
   // --- PLACEHOLDER TABS ---
 // --- TAB 2: EVENTS (LIVE DATA) ---
   Widget _buildEventsTab() {
+    // 🟢 Check membership status
+    bool isPaid = _currentUser['is_paid_member'] ?? false;
+    
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
-        title: const Text("Upcoming Events", style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white)),
+        title: const Text("Upcoming Events", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        automaticallyImplyLeading: false, // Hides back button if it appears
+        automaticallyImplyLeading: false, 
       ),
       body: FutureBuilder<List<dynamic>>(
-        future: ApiService.getEvents(), // Call the API
+        future: ApiService.getEvents(), 
         builder: (context, snapshot) {
-          // 1. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: DaystarSpinner(size: 120));
           }
           
-          // 2. Error State
           if (snapshot.hasError) {
             return Center(child: Text("Error loading events", style: TextStyle(color: Colors.grey[600])));
           }
 
-          // 3. Empty State
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-  return EmptyStateWidget(
-    svgPath: 'assets/svgs/no_events.svg',
-    title: "No Upcoming Events",
-    message: "Looks like the calendar is clear for now. Check back later for new activities!",
-    actionLabel: "Refresh",
-    onActionPressed: () => setState(() {}),
-  );
-}
+            return EmptyStateWidget(
+              svgPath: 'assets/svgs/no_events.svg',
+              title: "No Upcoming Events",
+              message: "Looks like the calendar is clear for now. Check back later for new activities!",
+              actionLabel: "Refresh",
+              onActionPressed: () => setState(() {}),
+            );
+          }
 
-          // 4. Data State (The List)
           final events = snapshot.data!;
           
           return ListView.builder(
@@ -1257,6 +1256,8 @@ const SizedBox(width: 15),
                 event: snapshot.data![index],
                 userId: _currentUser['id'],
                 primaryDark: Theme.of(context).primaryColor,
+                isPaid: isPaid, // 🟢 PASS PAYMENT STATUS
+                onUnlockPressed: _showPaymentSheet, // 🟢 Callback to open payment sheet
                 onRsvpChanged: (bool isJoining, String title) {
                   _showRSVPDialog(isJoining, title);
                 },
@@ -1265,6 +1266,7 @@ const SizedBox(width: 15),
           );
         },
       ),
+      
     );
   }
 
@@ -1455,6 +1457,8 @@ class EventCard extends StatefulWidget {
   final Map<String, dynamic> event;
   final int userId;
   final Color primaryDark;
+  final bool isPaid; // 🟢 New Parameter
+  final VoidCallback onUnlockPressed; // 🟢 New Callback
   final Function(bool, String) onRsvpChanged;
 
   const EventCard({
@@ -1462,6 +1466,8 @@ class EventCard extends StatefulWidget {
     required this.event, 
     required this.userId, 
     required this.primaryDark,
+    required this.isPaid, // 🟢
+    required this.onUnlockPressed, // 🟢
     required this.onRsvpChanged
   });
 
@@ -1471,7 +1477,7 @@ class EventCard extends StatefulWidget {
 
 class _EventCardState extends State<EventCard> {
   late bool _hasRsvped;
-  bool _isProcessing = false; // Tracks loading for THIS button only
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -1485,11 +1491,15 @@ class _EventCardState extends State<EventCard> {
     final String day = DateFormat('dd').format(date);
     final String month = DateFormat('MMM').format(date).toUpperCase();
     final String time = DateFormat('h:mm a').format(date);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))]),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, 
+        borderRadius: BorderRadius.circular(20), 
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))]
+      ),
       child: Column(
         children: [
           Container(
@@ -1497,7 +1507,9 @@ class _EventCardState extends State<EventCard> {
             decoration: BoxDecoration(
               color: widget.primaryDark.withOpacity(0.1),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              image: widget.event['image'] != null ? DecorationImage(image: NetworkImage(widget.event['image']), fit: BoxFit.cover) : null,
+              image: widget.event['image'] != null 
+                  ? DecorationImage(image: NetworkImage(widget.event['image']), fit: BoxFit.cover) 
+                  : null,
             ),
             child: widget.event['image'] == null ? Center(child: Icon(Icons.image, color: Colors.grey[400], size: 40)) : null,
           ),
@@ -1507,15 +1519,22 @@ class _EventCardState extends State<EventCard> {
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                  decoration: BoxDecoration(color: isDark ? Colors.white10 : widget.primaryDark.withOpacity(0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: widget.primaryDark.withOpacity(0.1))),
-                  child: Column(children: [Text(day, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : widget.primaryDark)), Text(month, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.primaryDark.withOpacity(0.6)))]),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white10 : widget.primaryDark.withOpacity(0.05), 
+                    borderRadius: BorderRadius.circular(15), 
+                    border: Border.all(color: widget.primaryDark.withOpacity(0.1))
+                  ),
+                  child: Column(children: [
+                    Text(day, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : widget.primaryDark)), 
+                    Text(month, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.primaryDark.withOpacity(0.6)))
+                  ]),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.event['title'], style:  TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(widget.event['title'], style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color), maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 5),
                       Row(children: [Icon(Icons.location_on, size: 14, color: Colors.grey[500]), const SizedBox(width: 4), Text(widget.event['venue'], style: TextStyle(fontSize: 12, color: Colors.grey[500]))]),
                       const SizedBox(height: 4),
@@ -1524,23 +1543,29 @@ class _EventCardState extends State<EventCard> {
                   ),
                 ),
                 
-                // --- BUTTON WITH LOADING STATE ---
+                // --- RSVP BUTTON WITH LOCK LOGIC ---
                 SizedBox(
                   width: 45, height: 45,
                   child: ElevatedButton(
                     onPressed: _isProcessing 
-                        ? null // Disable if loading (Prevents multi-clicks)
+                        ? null 
                         : () async {
-                            setState(() => _isProcessing = true); // Start Loading
+                            // 🟢 LOCK CHECK
+                            if (!widget.isPaid) {
+                              widget.onUnlockPressed(); // Open Payment Sheet
+                              return;
+                            }
+
+                            setState(() => _isProcessing = true);
                             
                             bool isNowJoining = !_hasRsvped;
                             bool success = await ApiService.rsvpEvent(widget.event['id']);
                             
                             if (mounted) {
-                              setState(() => _isProcessing = false); // Stop Loading
+                              setState(() => _isProcessing = false);
                               
                               if(success) {
-                                setState(() => _hasRsvped = isNowJoining); // Flip State
+                                setState(() => _hasRsvped = isNowJoining);
                                 widget.onRsvpChanged(isNowJoining, widget.event['title']);
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text("Could not update RSVP.")));
@@ -1548,15 +1573,23 @@ class _EventCardState extends State<EventCard> {
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _hasRsvped ? Colors.white : widget.primaryDark,
-                      foregroundColor: _hasRsvped ? widget.primaryDark : Colors.white,
-                      side: _hasRsvped ? BorderSide(color: widget.primaryDark) : BorderSide.none,
+                      backgroundColor: !widget.isPaid 
+                          ? Colors.grey[300] // Locked Color
+                          : (_hasRsvped ? Colors.white : widget.primaryDark),
+                      foregroundColor: !widget.isPaid 
+                          ? Colors.grey[600] 
+                          : (_hasRsvped ? widget.primaryDark : Colors.white),
+                      side: _hasRsvped && widget.isPaid ? BorderSide(color: widget.primaryDark) : BorderSide.none,
                       shape: const CircleBorder(),
-                      padding: EdgeInsets.zero, // Center icon
+                      padding: EdgeInsets.zero, 
                     ),
                     child: _isProcessing 
                         ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _hasRsvped ? widget.primaryDark : Colors.white))
-                        : Icon(_hasRsvped ? Icons.check_circle : Icons.add_alert_rounded, size: 20),
+                        : Icon(
+                            // 🟢 SHOW LOCK IF NOT PAID
+                            !widget.isPaid ? Icons.lock : (_hasRsvped ? Icons.check_circle : Icons.add_alert_rounded), 
+                            size: 20
+                          ),
                   ),
                 )
               ],

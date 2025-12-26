@@ -44,8 +44,6 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  final Color _primaryLight = const Color(0xFF004C99);
-
   // Animations
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -236,7 +234,7 @@ String? _validateConfirmPassword(String? value) {
     final cardColor = Theme.of(context).cardColor;
     final primaryColor = Theme.of(context).primaryColor;
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
-    final inputFill = isDark ? Colors.white10 : const Color(0xFFF5F7FA);
+    final fillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
 
     // 🟢 Dynamic Gradient
     final gradientColors = isDark 
@@ -322,7 +320,7 @@ String? _validateConfirmPassword(String? value) {
                                   controller: _usernameController, 
                                   hint: "Username (e.g. Newton)", 
                                   icon: Icons.person_outline_rounded,
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
                                 _buildStylishInput(
@@ -330,7 +328,7 @@ String? _validateConfirmPassword(String? value) {
                                   hint: "Admission Number", 
                                   icon: Icons.badge_outlined,
                                   validator: _validateAdmission,
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
                                 _buildStylishInput(
@@ -339,7 +337,7 @@ String? _validateConfirmPassword(String? value) {
                                   icon: Icons.phone_iphone_rounded, 
                                   keyboardType: TextInputType.phone,
                                   validator: _validatePhoneNumber,
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
                                 _buildStylishInput(
@@ -348,7 +346,7 @@ String? _validateConfirmPassword(String? value) {
                                   icon: Icons.email_outlined,
                                   keyboardType: TextInputType.emailAddress,
                                   validator: _validateEmail,
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
                                 _buildDropdown(
@@ -357,7 +355,7 @@ String? _validateConfirmPassword(String? value) {
                                   value: _selectedProgram,
                                   items: _programs,
                                   onChanged: (val) => setState(() => _selectedProgram = val as String?),
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark, primaryColor: primaryColor
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark, primaryColor: primaryColor
                                 ),
                                 const SizedBox(height: 15),
                                 _buildDropdown(
@@ -366,7 +364,7 @@ String? _validateConfirmPassword(String? value) {
                                   value: _selectedYear,
                                   items: [1, 2, 3, 4],
                                   onChanged: (val) => setState(() => _selectedYear = val as int?),
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark, primaryColor: primaryColor
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark, primaryColor: primaryColor
                                 ),
                                 const SizedBox(height: 15),
                                 _buildStylishInput(
@@ -374,7 +372,7 @@ String? _validateConfirmPassword(String? value) {
                                   hint: "Password", 
                                   icon: Icons.lock_outline_rounded, 
                                   isPassword: true,
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
                                 _buildStylishInput(
@@ -383,7 +381,7 @@ String? _validateConfirmPassword(String? value) {
                                   icon: Icons.lock_reset_rounded, 
                                   isPassword: true,
                                   validator: _validateConfirmPassword,
-                                  inputFill: inputFill, textColor: textColor, isDark: isDark
+                                  inputFill: fillColor, textColor: textColor, isDark: isDark
                                 ),
 
                                 const SizedBox(height: 30),
@@ -517,7 +515,7 @@ String? _validateConfirmPassword(String? value) {
         ),
         focusedBorder: OutlineInputBorder( // Blue border when focused
           borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: _primaryLight, width: 1.5),
+          borderSide: BorderSide(color: isDark ? const Color(0xFFFFD700) : const Color(0xFF004C99), width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
       ),

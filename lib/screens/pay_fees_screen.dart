@@ -38,7 +38,7 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
     
     setState(() => _isLoading = true);
     // Simulate API Call or Real Call
-    bool success = await ApiService.initiatePayment(_phoneController.text);
+    bool success = await ApiService.initiatePayment(_phoneController.text, widget.user['id']);
     setState(() => _isLoading = false);
 
     if (mounted && success) {

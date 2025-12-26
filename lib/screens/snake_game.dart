@@ -751,8 +751,12 @@ class SnakePainter extends CustomPainter {
 
     // 1. Draw Grid
     final Paint gridPaint = Paint()..color = gridColor..style = PaintingStyle.stroke;
-    for(int c = 0; c <= cols; c++) canvas.drawLine(Offset(c * cellW, 0), Offset(c * cellW, size.height), gridPaint);
-    for(int r = 0; r <= rows; r++) canvas.drawLine(Offset(0, r * cellH), Offset(size.width, r * cellH), gridPaint);
+    for(int c = 0; c <= cols; c++) {
+      canvas.drawLine(Offset(c * cellW, 0), Offset(c * cellW, size.height), gridPaint);
+    }
+    for(int r = 0; r <= rows; r++) {
+      canvas.drawLine(Offset(0, r * cellH), Offset(size.width, r * cellH), gridPaint);
+    }
 
     // 2. Obstacles (Firewalls)
     for (var o in obstacles) {

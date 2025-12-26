@@ -1,3 +1,4 @@
+import 'package:dita_app/services/ads_helper.dart';
 import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +50,14 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
 
-    return Scaffold(
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) async {
+        if (didPop) {
+          AdManager.showInterstitialAd();
+        }
+      },
+      child: Scaffold(
       backgroundColor: scaffoldBg, // 🟢 Dynamic BG
       appBar: AppBar(
         title: const Text("My Attendance Log", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -115,6 +123,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                  );
                },
              ),
-    );
+    ),);
   }
 }

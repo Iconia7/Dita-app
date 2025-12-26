@@ -365,5 +365,5 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
       ),
     );
-  }
+  } 
 }
