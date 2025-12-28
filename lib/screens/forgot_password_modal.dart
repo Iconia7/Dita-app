@@ -168,12 +168,28 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
     }
   }
 
-  // 🔌 BACKEND CALL (Only called after Firebase verifies the user)
+// 🔌 BACKEND CALL (Updated to send Token)
   Future<void> _updateBackendPassword() async {
     try {
-      // NOTE: Ensure your ApiService has this method!
+      // 1. Get the current logged-in user (we just signed in with OTP)
+      User? firebaseUser = FirebaseAuth.instance.currentUser;
+
+      if (firebaseUser == null) {
+        _showMessage("Error: User not identified.", true);
+        return;
+      }
+
+      // 2. GET THE SECURITY TOKEN
+      String? idToken = await firebaseUser.getIdToken();
+
+      if (idToken == null) {
+        _showMessage("Error: Could not generate security token.", true);
+        return;
+      }
+
+      // 3. Send the TOKEN (not the phone number) to the backend
       bool success = await ApiService.resetPasswordByPhone(
-        _phoneController.text.trim(), 
+        idToken, // <--- SEND TOKEN HERE
         _newPassController.text.trim()
       );
 
