@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,8 +29,11 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
     _tabController = TabController(length: 7, initialIndex: todayIndex, vsync: this);
     _loadClasses();
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      if (mounted) setState(() {});
-    });
+    if (mounted) {
+      setState(() {}); // Updates the UI
+      _checkAndShowProgress(); // 🟢 Check for notification updates
+    }
+  });
   }
 
   @override
@@ -38,6 +42,116 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
     _tabController.dispose();
     super.dispose();
   }
+
+// Run this inside your Timer loop
+void _checkAndShowProgress() {
+  final now = DateTime.now();
+  final dayClasses = _classes.where((c) => c['day'] == _days[now.weekday - 1]).toList();
+
+  bool activeNotificationFound = false;
+
+  for (var c in dayClasses) {
+    final startMinutes = _timeToMinutes(c['startTime']);
+    final endMinutes = _timeToMinutes(c['endTime']);
+    final currentMinutes = now.hour * 60 + now.minute;
+
+    // 1. IS CLASS LIVE? (Start < Now < End)
+    if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
+      _updateProgressNotification(c);
+      activeNotificationFound = true;
+      break; // Only show one live class at a time
+    }
+    
+    // 2. DID CLASS JUST FINISH? (End < Now < End + 5 mins)
+    // This catches the moment the class ends so we can show "Done"
+    else if (currentMinutes >= endMinutes && currentMinutes < endMinutes + 5) {
+      _showCompletionNotification(c);
+      activeNotificationFound = true;
+    }
+  }
+
+  // 3. CLEANUP
+  // If no classes are live or just finished, ensure we don't have stuck notifications
+  if (!activeNotificationFound) {
+    // You might want to cancel specific IDs or all from this channel
+    AwesomeNotifications().cancelNotificationsByChannelKey('live_class_monitor');
+  }
+}
+
+// 🟢 HELPER: Calculates percentage (0.0 to 1.0)
+  double _calculateProgress(String start, String end) {
+    try {
+      final now = DateTime.now();
+      final currentMinutes = now.hour * 60 + now.minute;
+      final startMinutes = _timeToMinutes(start);
+      final endMinutes = _timeToMinutes(end);
+
+      if (endMinutes <= startMinutes) return 0.0;
+
+      final totalDuration = endMinutes - startMinutes;
+      final elapsed = currentMinutes - startMinutes;
+
+      // Return value between 0.0 and 1.0
+      return (elapsed / totalDuration).clamp(0.0, 1.0);
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+Future<void> _updateProgressNotification(Map<String, dynamic> classData) async {
+  double progress = _calculateProgress(classData['startTime'], classData['endTime']);
+  int progressInt = (progress * 100).toInt();
+
+  await AwesomeNotifications().createNotification(
+    content: NotificationContent(
+      id: classData['id'], 
+      channelKey: 'live_class_monitor',
+      title: 'Ongoing: ${classData['code']}',
+      body: 'Ends at ${classData['endTime']} • ${classData['venue']}',
+      
+      // PROGRESS LAYOUT
+      notificationLayout: NotificationLayout.ProgressBar,
+      progress: progressInt.toDouble(), 
+      
+      // STICKY BEHAVIOR
+      locked: true,             // User cannot swipe away
+      autoDismissible: false,   // Tap does not dismiss
+      category: NotificationCategory.Progress,
+      payload: {'class_id': classData['id'].toString()},
+    ),
+    actionButtons: [
+      NotificationActionButton(
+        key: 'STOP_MONITOR', 
+        label: 'End Monitor', 
+        actionType: ActionType.DismissAction
+      ),
+    ],
+  );
+}
+
+Future<void> _showCompletionNotification(Map<String, dynamic> classData) async {
+  await AwesomeNotifications().createNotification(
+    content: NotificationContent(
+      id: classData['id'], // Reuses ID to replace the progress bar
+      channelKey: 'live_class_monitor', // Use same channel
+      
+      // SUCCESS MESSAGE
+      title: 'Class Dismissed! 🎉', 
+      body: '${classData['code']} has ended. Enjoy your break!',
+      
+      // STANDARD LAYOUT (Removes Progress Bar)
+      notificationLayout: NotificationLayout.Default,
+      progress: null, 
+      
+      // UNLOCKED BEHAVIOR (Key Change!)
+      locked: false,            // User CAN swipe it away now
+      autoDismissible: true,    // Tap dismisses it
+      wakeUpScreen: true,       // Light up screen (optional)
+      category: NotificationCategory.Status,
+    ),
+    // No action buttons needed, or add a "Open App" button
+  );
+}
 
   Future<void> _loadClasses() async {
     final prefs = await SharedPreferences.getInstance();

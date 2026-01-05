@@ -755,14 +755,14 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
                                 if (cellColor != null) {
                                   // 3D RENDERED BLOCK
                                   return CustomPaint(
-                                    painter: Block3DPainter(color: cellColor),
+                                    painter: HighResBlock3DPainter(color: cellColor),
                                   );
                                 } else if (isPreview) {
                                   // PREVIEW GHOST (Now 3D and colored)
                                   return Opacity(
                                     opacity: 0.5,
                                     child: CustomPaint(
-                                      painter: Block3DPainter(
+                                      painter: HighResBlock3DPainter(
                                         color: isValid ? (_hoverColor ?? Colors.grey) : Colors.red
                                       ),
                                     ),
@@ -900,104 +900,81 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
 // --- 3D PAINTERS ---
 
 /// Renders a single block with a sophisticated 3D Bevel and Texture effect
-class Block3DPainter extends CustomPainter {
+class HighResBlock3DPainter extends CustomPainter {
   final Color color;
-  Block3DPainter({required this.color});
+  HighResBlock3DPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. Setup Colors
-    // Highlight (Top/Left)
-    final Color highlight = Colors.white.withOpacity(0.4);
-    // Shadow (Bottom/Right)
-    final Color shadow = Colors.black.withOpacity(0.3);
-    // Deep Shadow (Bottom Edge for height)
-    final Color deepShadow = HSLColor.fromColor(color).withLightness((HSLColor.fromColor(color).lightness - 0.2).clamp(0.0, 1.0)).toColor();
-    
-    final double bevel = size.width * 0.15;
+    final paint = Paint();
     final Rect rect = Offset.zero & size;
-    final RRect rrect = RRect.fromRectAndRadius(rect, const Radius.circular(6));
+    final double r = 4.0;
 
-    // 2. Draw Deep Bottom Shadow (Height simulation)
-    final Rect heightRect = Rect.fromLTWH(0, bevel, size.width, size.height);
-    final RRect heightRRect = RRect.fromRectAndRadius(heightRect, const Radius.circular(6));
-    canvas.drawRRect(heightRRect, Paint()..color = deepShadow);
+    // 1. Draw Main Body with Shader (This fixes the 'gradient' error)
+    paint.shader = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        color,
+        HSLColor.fromColor(color)
+            .withLightness((HSLColor.fromColor(color).lightness - 0.15).clamp(0, 1))
+            .toColor(),
+      ],
+    ).createShader(rect); // Gradients must be converted to Shaders for Paint
 
-    // 3. Draw Main Face Base
-    canvas.drawRRect(rrect, Paint()..color = color);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(r)), paint);
 
-    // 4. Draw Bevels (Triangular paths for sharp 3D look)
-    final Path topBevel = Path()
-      ..moveTo(0, 0)..lineTo(size.width, 0)..lineTo(size.width - bevel, bevel)..lineTo(bevel, bevel)..close();
-    canvas.drawPath(topBevel, Paint()..color = highlight);
-
-    final Path leftBevel = Path()
-      ..moveTo(0, 0)..lineTo(0, size.height)..lineTo(bevel, size.height - bevel)..lineTo(bevel, bevel)..close();
-    canvas.drawPath(leftBevel, Paint()..color = highlight);
-
-    final Path rightBevel = Path()
-      ..moveTo(size.width, 0)..lineTo(size.width, size.height)..lineTo(size.width - bevel, size.height - bevel)..lineTo(size.width - bevel, bevel)..close();
-    canvas.drawPath(rightBevel, Paint()..color = shadow);
-
-    final Path bottomBevel = Path()
-      ..moveTo(0, size.height)..lineTo(size.width, size.height)..lineTo(size.width - bevel, size.height - bevel)..lineTo(bevel, size.height - bevel)..close();
-    canvas.drawPath(bottomBevel, Paint()..color = shadow);
-
-    // 5. Draw Inner Face (The textured part)
-    final Rect innerRect = Rect.fromLTWH(bevel, bevel, size.width - (bevel * 2), size.height - (bevel * 2));
+    // 2. High-Res Bevel (Top/Left Highlight)
+    final highlightPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = Colors.white.withOpacity(0.3);
     
-    // Texture: Subtle scanlines/stripes
-    canvas.save();
-    canvas.clipRect(innerRect);
-    final Paint texturePaint = Paint()..color = Colors.white.withOpacity(0.1)..strokeWidth = 1.0;
-    for(double i = -size.height; i < size.width; i+=4) {
-       canvas.drawLine(Offset(i, size.height), Offset(i + size.height, 0), texturePaint);
-    }
-    canvas.restore();
-    
-    // 6. Final Gloss Shine (Top Left Curve)
-    final Path shine = Path()
-      ..moveTo(bevel + 2, bevel + 10)
-      ..quadraticBezierTo(bevel + 2, bevel + 2, bevel + 10, bevel + 2);
-    canvas.drawPath(shine, Paint()..color = Colors.white.withOpacity(0.6)..style = PaintingStyle.stroke..strokeWidth = 2);
+    final path = Path()
+      ..moveTo(0, size.height - r)
+      ..lineTo(0, r)
+      ..quadraticBezierTo(0, 0, r, 0)
+      ..lineTo(size.width - r, 0);
+    canvas.drawPath(path, highlightPaint);
+
+    // 3. Inner Glossy Reflection
+    final glossPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Colors.white.withOpacity(0.2), Colors.transparent],
+      ).createShader(Rect.fromLTWH(2, 2, size.width - 4, size.height / 2));
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(2, 2, size.width - 4, size.height / 2), 
+        Radius.circular(r),
+      ), 
+      glossPaint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant Block3DPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant HighResBlock3DPainter old) => old.color != color;
 }
 
-/// Renders a complex shape composed of multiple 3D blocks
 class BoardShapePainter extends CustomPainter {
   final List<Point<int>> shape;
   final Color color;
   final double blockSize;
-
   BoardShapePainter({required this.shape, required this.color, required this.blockSize});
 
   @override
   void paint(Canvas canvas, Size size) {
     for (var p in shape) {
-      // Calculate offset for this specific block
-      double px = p.x * blockSize;
-      double py = p.y * blockSize;
-      
-      // We essentially reuse the logic from Block3DPainter but translated
       canvas.save();
-      canvas.translate(px, py);
-      
-      // Draw 3D Block (Miniaturized logic for performance)
-      // We pass a smaller size to create gaps between blocks in a shape
-      double gap = 2.0;
-      double bSize = blockSize - gap;
-      
-      Block3DPainter(color: color).paint(canvas, Size(bSize, bSize));
-      
+      canvas.translate(p.x * blockSize, p.y * blockSize);
+      HighResBlock3DPainter(color: color).paint(canvas, Size(blockSize - 2, blockSize - 2));
       canvas.restore();
     }
   }
-
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
 // --- PARTICLES ---

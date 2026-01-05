@@ -41,6 +41,18 @@ class NotificationService {
           // CHANGED: Defines a standard single long vibration (Wait 0ms, Vibrate 1000ms)
           vibrationPattern: highVibrationPattern, 
         ),
+        NotificationChannel(
+      channelKey: 'live_class_monitor',
+      channelName: 'Live Class Monitor',
+      channelDescription: 'Shows progress bar for ongoing classes',
+      defaultColor: const Color(0xFF10B981),
+      ledColor: Colors.white,
+      importance: NotificationImportance.Low, // 🟢 CRITICAL: Prevents sound/vibration on update
+      playSound: false,
+      enableVibration: false,
+      locked: true, // 🟢 Makes it "Sticky" (user can't swipe it away easily)
+      onlyAlertOnce: true,
+    ),
         // Add a separate channel for backend announcements
         NotificationChannel(
           channelKey: 'dita_announcements',
@@ -76,6 +88,7 @@ class NotificationService {
       }
     });
   }
+  
 
   static Future<void> _showCustomFirebaseNotification(RemoteMessage message) async {
     // Always show backend announcements even if planner reminders are off? 
@@ -104,6 +117,8 @@ class NotificationService {
       await AwesomeNotifications().requestPermissionToSendNotifications();
     }
   }
+
+  
 
   // --- FEATURE: SCHEDULE TASK REMINDER ---
   static Future<void> scheduleTaskNotification({

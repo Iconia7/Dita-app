@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // Ensure this is in pubspec.yaml
+import 'package:image_picker/image_picker.dart'; 
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../widgets/dita_loader.dart';
@@ -15,6 +16,7 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen> {
   String _selectedCategory = 'ALL';
+  final ScrollController _scrollController = ScrollController(); // 🆕 For FAB animation
 
   void _showCreatePostSheet() {
     showModalBottomSheet(
@@ -23,117 +25,155 @@ class _CommunityScreenState extends State<CommunityScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => const CreatePostSheet(),
     ).then((val) {
-      if (val == true) setState(() {}); // Refresh if posted
+      if (val == true) setState(() {}); 
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Theme Helpers
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
-    final primaryColor = Theme.of(context).primaryColor;
-    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
-    final borderColor = isDark ? Colors.white10 : Colors.grey[200]!;
+@override
+Widget build(BuildContext context) {
+  // Theme Helpers
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+  final primaryColor = Theme.of(context).primaryColor;
+  final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+  final borderColor = isDark ? Colors.white10 : Colors.grey[200]!;
 
-    return Scaffold(
-      backgroundColor: scaffoldBg,
-      appBar: AppBar(
-        title: Text(
-          "Community", 
-          style: TextStyle(
-            fontWeight: FontWeight.w900, 
-            fontSize: 24, 
-            color: textColor,
-            letterSpacing: -0.5
-          )
-        ),
-        backgroundColor: scaffoldBg,
-        foregroundColor: textColor,
-        elevation: 0,
-        surfaceTintColor: scaffoldBg,
-        centerTitle: false, 
-        actions: [
-          IconButton(
-            onPressed: _showCreatePostSheet,
-            icon: Icon(Icons.add_box_outlined, size: 28, color: textColor),
-            tooltip: "New Post",
-          ),
-          const SizedBox(width: 10),
-        ],
+  return Scaffold(
+    backgroundColor: scaffoldBg,
+    // ❌ REMOVED: floatingActionButton to avoid overlap with AI Assistant
+    
+    appBar: AppBar(
+      title: Text(
+        "Community", 
+        style: TextStyle(
+          fontWeight: FontWeight.w900, 
+          fontSize: 24, 
+          color: textColor,
+          letterSpacing: -0.5
+        )
       ),
-      body: Column(
-        children: [
-          // Filter Chips
-          Container(
-            height: 60,
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: borderColor))
-            ),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-              children: [
-                _buildFilterChip('ALL', 'For You'),
-                const SizedBox(width: 10),
-                _buildFilterChip('ACADEMIC', 'Academic 📚'),
-                const SizedBox(width: 10),
-                _buildFilterChip('GENERAL', 'General 📢'),
-                const SizedBox(width: 10),
-                _buildFilterChip('MARKET', 'Market 💼'),
-              ],
+      backgroundColor: scaffoldBg,
+      elevation: 0,
+      centerTitle: false, 
+      actions: [
+        // 🆕 NEW: A "Pill" button in the header instead of a FAB
+        Padding(
+          padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+          child: SizedBox(
+            height: 36, // Compact height
+            child: ElevatedButton.icon(
+              onPressed: _showCreatePostSheet,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)
+                ),
+              ),
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: const Text(
+                "Post", 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)
+              ),
             ),
           ),
+        ),
+      ],
+    ),
+    body: Column(
+      children: [
+        // Filter Chips (Same as before)
+        Container(
+          height: 60,
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: borderColor))
+          ),
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+            children: [
+              _buildFilterChip('ALL', 'For You'),
+              const SizedBox(width: 10),
+              _buildFilterChip('ACADEMIC', 'Academic 📚'),
+              const SizedBox(width: 10),
+              _buildFilterChip('GENERAL', 'General 📢'),
+              const SizedBox(width: 10),
+              _buildFilterChip('MARKET', 'Market 💼'),
+            ],
+          ),
+        ),
 
-          // Feed
-          Expanded(
-            child: FutureBuilder<List<dynamic>>(
-              future: ApiService.getCommunityPosts(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: DaystarSpinner(size: 120,)); 
-                }
-                
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return SingleChildScrollView(
-                    child: EmptyStateWidget(
-                      svgPath: 'assets/svgs/no_post.svg', 
-                      title: "Start the conversation",
-                      message: "The feed is empty. Tap the + button to share something with the campus!",
-                      actionLabel: "Create First Post",
-                      onActionPressed: _showCreatePostSheet,
-                    ),
-                  );
-                }
-
-                var posts = snapshot.data!;
-                if (_selectedCategory != 'ALL') {
-                  posts = posts.where((p) => p['category'] == _selectedCategory).toList();
-                }
-
-                return RefreshIndicator(
-                  onRefresh: () async { setState(() {}); },
-                  color: primaryColor,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 100), 
-                    itemCount: posts.length,
-                    separatorBuilder: (c, i) => Divider(height: 1, color: borderColor),
-                    itemBuilder: (context, index) {
-                      return _PostItem(
-                        post: posts[index], 
-                        primaryDark: primaryColor,
-                        onPostDeleted: () => setState((){}),
-                      );
-                    },
+        // Feed (Same as before)
+        Expanded(
+          child: FutureBuilder<List<dynamic>>(
+            future: ApiService.getCommunityPosts(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: DaystarSpinner(size: 120,)); 
+              }
+              
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return SingleChildScrollView(
+                  child: EmptyStateWidget(
+                    svgPath: 'assets/svgs/no_post.svg', 
+                    title: "Start the conversation",
+                    message: "The feed is empty. Be the first to post!",
+                    actionLabel: "Create First Post",
+                    onActionPressed: _showCreatePostSheet,
                   ),
                 );
-              },
-            ),
+              }
+
+              var posts = snapshot.data!;
+              if (_selectedCategory != 'ALL') {
+                posts = posts.where((p) => p['category'] == _selectedCategory).toList();
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async { setState(() {}); },
+                color: primaryColor,
+                child: _selectedCategory == 'MARKET'
+                  // MARKETPLACE MODE
+                  ? GridView.builder(
+                      padding: const EdgeInsets.all(10),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 0.75,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemCount: posts.length,
+                      itemBuilder: (context, index) {
+                        return _MarketPostCard(
+                          post: posts[index],
+                          onPostDeleted: () => setState((){}),
+                        );
+                      },
+                    )
+                  // STANDARD FEED MODE
+                  : ListView.separated(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.only(bottom: 100), 
+                      itemCount: posts.length,
+                      separatorBuilder: (c, i) => Divider(height: 1, color: borderColor),
+                      itemBuilder: (context, index) {
+                        return _PostItem(
+                          post: posts[index], 
+                          primaryDark: primaryColor,
+                          onPostDeleted: () => setState((){}),
+                        );
+                      },
+                    ),
+              );
+            },
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildFilterChip(String key, String label) {
     bool isSelected = _selectedCategory == key;
@@ -142,7 +182,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
     return GestureDetector(
       onTap: () => setState(() => _selectedCategory = key),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected 
@@ -168,7 +209,79 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 }
 
-// --- POST ITEM ---
+// 🆕 NEW COMPONENT: MARKET CARD (Grid Style)
+class _MarketPostCard extends StatelessWidget {
+  final Map<String, dynamic> post;
+  final VoidCallback onPostDeleted;
+
+  const _MarketPostCard({required this.post, required this.onPostDeleted});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))
+        ]
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: post['image'] != null
+                ? Image.network(post['image'], width: double.infinity, fit: BoxFit.cover)
+                : Container(
+                    color: isDark ? Colors.grey[800] : Colors.grey[200],
+                    child: Center(child: Icon(Icons.shopping_bag_outlined, size: 40, color: Colors.grey[400])),
+                  ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  post['content'],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 8,
+                      backgroundImage: post['avatar'] != null ? NetworkImage(post['avatar']) : null,
+                      child: post['avatar'] == null ? const Icon(Icons.person, size: 10) : null,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        post['username'], 
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// --- STANDARD POST ITEM ---
 class _PostItem extends StatefulWidget {
   final Map<String, dynamic> post;
   final Color primaryDark;
@@ -184,29 +297,56 @@ class _PostItem extends StatefulWidget {
   State<_PostItem> createState() => _PostItemState();
 }
 
-class _PostItemState extends State<_PostItem> {
+class _PostItemState extends State<_PostItem> with SingleTickerProviderStateMixin {
   late bool isLiked;
   late int likeCount;
-  late String displayContent;
-  late String displayCategory;
+  
+  // 🆕 Animation Controllers for Double Tap
+  late AnimationController _heartAnimController;
+  late Animation<double> _heartAnimation;
+  bool _showHeartOverlay = false;
 
   @override
   void initState() {
     super.initState();
     isLiked = widget.post['is_liked'] ?? false;
     likeCount = widget.post['likes'] ?? 0;
-    displayContent = widget.post['content'];
-    displayCategory = widget.post['category'];
+    
+    _heartAnimController = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _heartAnimation = Tween<double>(begin: 0.5, end: 1.2).animate(
+      CurvedAnimation(parent: _heartAnimController, curve: Curves.elasticOut)
+    );
+
+    _heartAnimController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if(mounted) setState(() => _showHeartOverlay = false);
+          _heartAnimController.reset();
+        });
+      }
+    });
   }
 
-  void _handleLike() async {
+  @override
+  void dispose() {
+    _heartAnimController.dispose();
+    super.dispose();
+  }
+
+  void _handleLike({bool isDoubleTap = false}) async {
+    if (isDoubleTap) {
+      setState(() => _showHeartOverlay = true);
+      _heartAnimController.forward();
+      if (isLiked) return; // Already liked, just show animation
+    }
+
     setState(() {
       isLiked = !isLiked;
       likeCount += isLiked ? 1 : -1;
     });
 
     final result = await ApiService.likePost(widget.post['id']);
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() {
         likeCount = result['likes'];
         isLiked = result['is_liked'];
@@ -214,28 +354,9 @@ class _PostItemState extends State<_PostItem> {
     }
   }
 
-  void _editPost() async {
-    // Note: Edit currently only supports text updates for simplicity
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => EditPostSheet(
-        initialContent: displayContent,
-        initialCategory: displayCategory,
-        postId: widget.post['id'],
-      ),
-    );
-
-    if (result != null && mounted) {
-      setState(() {
-        displayContent = result['content'];
-        displayCategory = result['category'];
-      });
-    }
-  }
-
+  // ... (Delete and Edit methods stay same) ...
   void _deletePost() async {
+    // ... existing logic ...
     bool confirm = await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -257,6 +378,26 @@ class _PostItemState extends State<_PostItem> {
     }
   }
 
+  void _editPost() async {
+     // Note: Edit currently only supports text updates for simplicity
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EditPostSheet(
+        initialContent: widget.post['content'],
+        initialCategory: widget.post['category'],
+        postId: widget.post['id'],
+      ),
+    );
+
+    if (result != null && mounted) {
+      // Refresh logic or setState if you pass updated data back
+      widget.onPostDeleted(); // HACK: reusing this callback to trigger parent refresh, or update local state
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
@@ -265,7 +406,7 @@ class _PostItemState extends State<_PostItem> {
     bool isAnon = widget.post['is_anonymous'] ?? false;
     
     Color badgeColor;
-    switch (displayCategory) {
+    switch (widget.post['category']) {
       case 'ACADEMIC': badgeColor = Colors.orange; break;
       case 'MARKET': badgeColor = Colors.green; break;
       default: badgeColor = Colors.blue;
@@ -297,7 +438,14 @@ class _PostItemState extends State<_PostItem> {
                         Text(widget.post['username'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)),
                         const SizedBox(width: 5),
                         if (widget.post['category'] != 'GENERAL')
-                          Text("• $displayCategory", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: badgeColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4)
+                            ),
+                            child: Text(widget.post['category'], style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor)),
+                          ),
                       ],
                     ),
                     Text(
@@ -327,25 +475,37 @@ class _PostItemState extends State<_PostItem> {
           Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 10),
             child: Text(
-              displayContent, 
+              widget.post['content'], 
               style: TextStyle(fontSize: 15, height: 1.4, color: textColor),
             ),
           ),
           
-          // DISPLAY IMAGE IF EXISTS
+          // 🆕 IMAGE WITH DOUBLE TAP & HEART OVERLAY
           if (widget.post['image'] != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  widget.post['image'],
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => const SizedBox.shrink(),
-                ),
+            GestureDetector(
+              onDoubleTap: () => _handleLike(isDoubleTap: true),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      widget.post['image'],
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  if (_showHeartOverlay)
+                    ScaleTransition(
+                      scale: _heartAnimation,
+                      child: const Icon(Icons.favorite, color: Colors.white, size: 80, shadows: [BoxShadow(blurRadius: 10, color: Colors.black26)]),
+                    ),
+                ],
               ),
             ),
+          
+          if (widget.post['image'] != null) const SizedBox(height: 10),
 
           // ACTION BAR
           Row(
@@ -354,7 +514,16 @@ class _PostItemState extends State<_PostItem> {
                 onTap: _handleLike,
                 child: Row(
                   children: [
-                    Icon(isLiked ? Icons.favorite : Icons.favorite_border_rounded, size: 26, color: isLiked ? Colors.red : textColor),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                      child: Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border_rounded, 
+                        key: ValueKey(isLiked),
+                        size: 26, 
+                        color: isLiked ? Colors.red : textColor
+                      ),
+                    ),
                     const SizedBox(width: 6),
                     if (likeCount > 0) 
                       Text("$likeCount", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)),
