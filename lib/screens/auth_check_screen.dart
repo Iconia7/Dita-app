@@ -4,7 +4,7 @@ import 'package:local_auth/local_auth.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
-import 'maintenance_screen.dart'; // <--- 1. IMPORT YOUR MAINTENANCE SCREEN HERE
+import 'maintenance_screen.dart';
 
 class AuthCheckScreen extends StatefulWidget {
   const AuthCheckScreen({super.key});
@@ -29,14 +29,10 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
     _fadeAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
     _animationController.forward();
     checkForUpdate();
-
-    // 2. CHANGE THIS LINE: Call the App Status check INSTEAD of Login Status
     _checkAppStatus(); 
   }
 
-  // 3. ADD THIS NEW FUNCTION HERE
   Future<void> _checkAppStatus() async {
-    // Artificial delay for splash effect (optional, moved here)
     await Future.delayed(const Duration(seconds: 1));
 
     try {
@@ -60,22 +56,16 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
       }
     } catch (e) {
       print("Status check failed (Offline?): $e");
-      // If check fails, we assume app is online and proceed
     }
-
-    // ✅ SYSTEM ONLINE: Now trigger the original login check
     _checkLoginStatus();
   }
 
-  // 4. UPDATE THIS FUNCTION (Remove the delay since we did it above)
   Future<void> _checkLoginStatus() async {
-    // (Delay removed because _checkAppStatus already waited)
 
     // 1. Check if we have saved data
     final userData = await ApiService.getUserLocally();
 
     if (userData != null) {
-      // ... (Rest of your existing login logic stays exactly the same) ...
       bool authenticated = false;
       try {
         final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
@@ -196,7 +186,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
                   
                   // App Name
                   const Text(
-                    "DITA",
+                    "Daystar IT Association",
                     style: TextStyle(
                       fontSize: 32, 
                       fontWeight: FontWeight.w900, 
@@ -236,7 +226,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
             right: 0,
             child: Center(
               child: Text(
-                "Verifying Identity...",
+                "Verifying Your Identity...",
                 style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
               ),
             ),

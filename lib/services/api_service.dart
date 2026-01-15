@@ -7,7 +7,7 @@ import 'package:http_parser/http_parser.dart';
 
 class ApiService {
   // CRITICAL: Ensure this matches your running server
-  static const String baseUrl = 'https://dita-app-backend.onrender.com/api';
+  static const String baseUrl = 'https://api.dita.co.ke/api';
 
   // --- 🔍 DEBUGGING HEADERS (For Normal JWT Auth) ---
   static Future<Map<String, String>> _getHeaders() async {
@@ -30,14 +30,8 @@ class ApiService {
     };
   }
 
-  // --- 🔐 NEW: SECURE RESET PASSWORD (Called by Firebase Modal) ---
-  // UPDATED: Now takes 'idToken' (from Firebase) instead of just phone
   static Future<bool> resetPasswordByPhone(String idToken, String newPassword) async {
     try {
-      print("🔐 Resetting Password securely...");
-      
-      // We send the Firebase ID Token in the Authorization header.
-      // The backend will verify this token to extract the phone number securely.
       final response = await http.post(
         Uri.parse('$baseUrl/auth/reset-password-phone/'), 
         headers: {
@@ -45,21 +39,16 @@ class ApiService {
           "Authorization": "Bearer $idToken" // <--- SEND FIREBASE TOKEN HERE
         },
         body: json.encode({
-          // We don't need to send 'phone' anymore, the backend extracts it from the token
           "new_password": newPassword,
         }),
       );
 
-      print("📡 Reset Response: ${response.statusCode} - ${response.body}");
-
       if (response.statusCode == 200) {
         return true;
       } else {
-        print("❌ Reset Failed Body: ${response.body}");
         return false;
       }
     } catch (e) {
-      print("❌ Reset Network Error: $e");
       return false;
     }
   }
@@ -67,7 +56,6 @@ class ApiService {
   // --- 🔍 LOGIN ---
   static Future<Map<String, dynamic>?> login(String username, String password) async {
     try {
-      print("🚀 Attempting Login for: $username");
       final response = await http.post(
         Uri.parse('$baseUrl/login/'),
         headers: {"Content-Type": "application/json"},

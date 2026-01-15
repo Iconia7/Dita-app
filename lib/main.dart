@@ -8,16 +8,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:awesome_notifications/awesome_notifications.dart'; 
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-// 1. DEFINE TOP-LEVEL BACKGROUND HANDLER
-// This must be outside any class and outside main()
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 
   print("🌙 Handling a background message: ${message.messageId}");
-
-  // We must initialize Awesome Notifications here again because 
-  // background tasks run in a separate isolate.
   await AwesomeNotifications().initialize(
     'resource://drawable/ic_notification', 
     [
@@ -33,8 +28,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     ],
     debug: true, 
   );
-
-  // Manually trigger the notification if it's an announcement
   if (message.data['type'] == 'announcement') {
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
@@ -59,19 +52,15 @@ void main() async {
   try {
     await Firebase.initializeApp();
     await MobileAds.instance.initialize();
-    
-    // 2. REGISTER THE BACKGROUND HANDLER
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     await NotificationService.initialize();
-    
-    // Safely attempt to get the token
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     try {
       String? token = await messaging.getToken();
       print("MY FCM TOKEN: $token"); 
     } catch (e) {
-      print("⚠️ FCM Token Error: $e"); // Log error but DON'T crash
+      print("⚠️ FCM Token Error: $e"); 
     }
 
   } catch (e) {
