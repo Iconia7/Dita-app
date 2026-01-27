@@ -31,6 +31,14 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   static const int rows = 30;
   static const int columns = 20;
   static const int baseSpeed = 200; 
+  // --- PLAYER SKILL TRACKING ---
+int _foodEaten = 0;
+int _crashes = 0;
+double _avgReactionMs = 0;
+DateTime _lastMoveTime = DateTime.now();
+double _playerMMR = 1000;
+
+
 
   // --- GAME ENTITIES ---
   List<Point<int>> _snake = [];
@@ -103,7 +111,10 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
       _totalUserPoints = 0;
     }
 
+
     final prefs = await SharedPreferences.getInstance();
+    _playerMMR = prefs.getDouble('snake_mmr') ?? 1000;
+
     if (mounted) {
       setState(() {
         _localHighScore = prefs.getInt('snake_high_score') ?? 0;
@@ -173,6 +184,9 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   // --- GAME LOOP ---
 
   void _startGame() {
+    if (_playerMMR > 1600) _generateObstacles(5);
+if (_playerMMR > 2000) _currentSpeed = 150;
+
     setState(() {
       _isPlaying = true;
       _isGameOver = false;
@@ -194,6 +208,8 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     setState(() {
       _moveSnake();
       _updateCombo();
+_adaptiveDifficultyTick();
+
     });
   }
 
@@ -208,6 +224,14 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   }
 
   void _moveSnake() {
+    final now = DateTime.now();
+final reaction = now.difference(_lastMoveTime).inMilliseconds;
+_lastMoveTime = now;
+
+_avgReactionMs = _avgReactionMs == 0
+  ? reaction.toDouble()
+  : (_avgReactionMs * 0.8 + reaction * 0.2);
+
     _direction = _nextDirection;
     
     Point<int> currentHead = _snake.first;
@@ -259,9 +283,35 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
     }
   }
 
+  void _adaptiveDifficultyTick() {
+  if (_foodEaten < 5) return;
+
+  final skillScore =
+      (_foodEaten * 2) -
+      (_crashes * 5) +
+      (300 - _avgReactionMs).clamp(-100, 200);
+
+  // SPAWN LOGIC
+  if (skillScore > 120 && _obstacles.length < 20) {
+    _generateObstacles(1);
+  }
+
+  if (skillScore > 200 && _currentSpeed > 90) {
+    _currentSpeed = (_currentSpeed * 0.93).toInt();
+    _startTimer();
+  }
+
+  if (skillScore < 40 && _currentSpeed < 240) {
+    _currentSpeed = (_currentSpeed * 1.1).toInt();
+    _startTimer();
+  }
+}
+
+
   // --- REVIVE / CRASH LOGIC ---
 
   void _handleCrash() {
+    _crashes++;
     _timer?.cancel(); 
     _effectTimer?.cancel();
     setState(() => _isPlaying = false);
@@ -319,6 +369,7 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
   void _handleEatFood() {
     HapticFeedback.lightImpact();
     _spawnExplosion(_snake.first, kDitaGold);
+    _foodEaten++;
     
     // Scoring & Points
     int points = 10 * _comboMultiplier * (_doubleScore ? 2 : 1);
@@ -457,6 +508,11 @@ class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderSt
       _isPlaying = false;
       _isGameOver = true;
     });
+    _playerMMR += (_score / 10) - (_crashes * 20);
+_playerMMR = _playerMMR.clamp(500, 2500);
+final prefs = await SharedPreferences.getInstance();
+await prefs.setDouble('snake_mmr', _playerMMR);
+
     
     await _saveGameData();
   }

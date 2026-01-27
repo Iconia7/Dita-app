@@ -99,7 +99,6 @@ class _PromoDialogWidget extends StatelessWidget {
           // or just print a message that we can't switch tabs easily from a Dialog without a provider.
           
           // BETTER OPTION: Push a new screen wrapper or rely on Main logic.
-          print("Navigate to Events Tab"); 
           break;
 
         case 'exams':

@@ -41,7 +41,6 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
             // LOGIC 1: WE ARE ON THE TIMETABLE PAGE
             if (lowerUrl.contains("studenttimetable")) {
                 if (!_hasExtracted) {
-                   print("🎯 Target Page Detected! Starting auto-extraction...");
                    // Keep loader ON while we extract
                    await Future.delayed(const Duration(seconds: 1)); // Wait for table render
                    _extractTimetable();
@@ -59,14 +58,12 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
                 lowerUrl.contains("account") || 
                 isRootPage) {
                 
-                print("🔐 Login/Home Page Detected ($url). Waiting for user input.");
                 setState(() => _isLoading = false); // <--- HIDE LOADER HERE
                 return;
             }
 
             // LOGIC 3: WE ARE SOMEWHERE ELSE (Likely Dashboard after successful login)
             // If we are logged in (not login page) but not on the timetable, force redirect.
-            print("🔄 Post-Login Page Detected ($url). Redirecting to Timetable...");
             setState(() => _isLoading = true); // Show loader while redirecting
             _controller.loadRequest(Uri.parse(_targetUrl));
           },
@@ -209,7 +206,6 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
       }
 
     } catch (e) {
-      print("Extraction Error: $e");
       setState(() => _isLoading = false);
       _showError("Extraction failed. Please try again.");
       _hasExtracted = false;

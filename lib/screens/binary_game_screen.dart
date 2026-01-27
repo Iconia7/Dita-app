@@ -36,6 +36,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   String _currentPlayer = "1"; 
   bool _isGameOver = false;
   bool _isAiThinking = false;
+  // --- AI LEARNING MEMORY ---
+final Map<int, int> _playerMoveFrequency = {}; // index -> count
+int _gamesPlayed = 0;
+
   
   // Winning Logic
   List<int>? _winningPattern; 
@@ -109,6 +113,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   void _handleTap(int index) {
     if (_board[index] != "" || _isGameOver || _isAiThinking) return;
+    // 👇 LEARN PLAYER BEHAVIOR
+  _playerMoveFrequency[index] = (_playerMoveFrequency[index] ?? 0) + 1;
 
     _triggerShake(); 
 
@@ -158,28 +164,116 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   // 🟢 UPDATED: Improved AI Probability Logic
-  int _findBestMove() {
-    double smartChance = 0.0;
-    
-    // Set probability of making the "Best Move"
-    switch (_difficulty) {
-      case GameDifficulty.easy: 
-        smartChance = 0.50; // 50% Smart, 50% Random
-        break;
-      case GameDifficulty.medium: 
-        smartChance = 0.75; // 75% Smart, 25% Random
-        break;
-      case GameDifficulty.hard: 
-        smartChance = 0.90; // 90% Smart, 10% Random
-        break;
-    }
+int _findBestMove() {
+  switch (_difficulty) {
+    case GameDifficulty.easy:
+      return _easyAI();
+    case GameDifficulty.medium:
+      return _mediumAI();
+    case GameDifficulty.hard:
+      return _hardAI();
+  }
+}
 
-    if (Random().nextDouble() < smartChance) {
-      return _getSmartMove();
-    } else {
-      return _getRandomMove();
+int _hardAI() {
+  int bestScore = -1000;
+  int bestMove = 0;
+
+  for (int i = 0; i < 9; i++) {
+    if (_board[i] == "") {
+      _board[i] = "0";
+      int score = _minimax(false, 0);
+      _board[i] = "";
+
+            // 🧠 LEARNING SCALE (AI adapts over time)
+      int learningBoost = min(_gamesPlayed, 20);
+
+      // Slight bias against player-favorite cells
+      score += (_playerMoveFrequency[i] ?? 0) * learningBoost;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = i;
+      }
     }
   }
+  return bestMove;
+}
+
+int _minimax(bool isMaximizing, int depth) {
+  if (_checkWin("0")) return 10 - depth;
+  if (_checkWin("1")) return depth - 10;
+  if (_board.every((e) => e != "")) return 0;
+
+  if (isMaximizing) {
+    int best = -1000;
+    for (int i = 0; i < 9; i++) {
+      if (_board[i] == "") {
+        _board[i] = "0";
+        best = max(best, _minimax(false, depth + 1));
+        _board[i] = "";
+      }
+    }
+    return best;
+  } else {
+    int best = 1000;
+    for (int i = 0; i < 9; i++) {
+      if (_board[i] == "") {
+        _board[i] = "1";
+        best = min(best, _minimax(true, depth + 1));
+        _board[i] = "";
+      }
+    }
+    return best;
+  }
+}
+
+
+int _easyAI() {
+  // 30% random stupidity 😅
+  if (Random().nextDouble() < 0.5) {
+    return _getRandomMove();
+  }
+  return _getSmartMove();
+}
+
+int _mediumAI() {
+  // 1. Win if possible
+  for (int i = 0; i < 9; i++) {
+    if (_board[i] == "") {
+      _board[i] = "0";
+      if (_checkWin("0")) { _board[i] = ""; return i; }
+      _board[i] = "";
+    }
+  }
+
+  // 2. Block player
+  for (int i = 0; i < 9; i++) {
+    if (_board[i] == "") {
+      _board[i] = "1";
+      if (_checkWin("1")) { _board[i] = ""; return i; }
+      _board[i] = "";
+    }
+  }
+
+  // 3. COUNTER PLAYER HABITS 🧠
+  int? mostPlayed;
+  int maxCount = 0;
+  _playerMoveFrequency.forEach((index, count) {
+    if (_board[index] == "" && count > maxCount) {
+      maxCount = count;
+      mostPlayed = index;
+    }
+  });
+
+  if (mostPlayed != null) return mostPlayed!;
+
+  // 4. Center or random
+  if (_board[4] == "") return 4;
+  return _getRandomMove();
+}
+
+
 
   // Calculates the mathematically best move (Win -> Block -> Center -> Random)
   int _getSmartMove() {
@@ -283,6 +377,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         debugPrint("Error syncing points: $e");
       }
     }
+    _gamesPlayed++;
+
 
     showDialog(
       context: context,

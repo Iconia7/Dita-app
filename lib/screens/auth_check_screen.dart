@@ -55,7 +55,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
         return; // Important: Exit here so we don't try to login
       }
     } catch (e) {
-      print("Status check failed (Offline?): $e");
     }
     _checkLoginStatus();
   }
@@ -84,7 +83,6 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
           authenticated = true;
         }
       } catch (e) {
-        print("Biometric Error: $e");
         authenticated = false;
       }
 
@@ -186,7 +184,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
                   
                   // App Name
                   const Text(
-                    "Daystar IT Association",
+                    "DITA APP",
                     style: TextStyle(
                       fontSize: 32, 
                       fontWeight: FontWeight.w900, 

@@ -83,7 +83,6 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
 
         // 1. SILENT VERIFICATION (Android Only)
         verificationCompleted: (PhoneAuthCredential credential) async {
-          print("✅ Silent Check Success!");
           // Auto-sign in the user
           await FirebaseAuth.instance.signInWithCredential(credential);
           
@@ -93,7 +92,6 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
 
         // 2. ERROR HANDLING
         verificationFailed: (FirebaseAuthException e) {
-          print("❌ Firebase Error: ${e.code} - ${e.message}");
           
           String errorMsg = "Verification Failed.";
           if (e.code == 'invalid-phone-number') errorMsg = "Invalid Phone Number.";

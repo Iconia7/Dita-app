@@ -99,11 +99,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       // Get the token from Firebase
       String? token = await FirebaseMessaging.instance.getToken();
       
-      print("My Device Token: $token"); // Debug print
+      // Debug print
       // Send it to Django
       await ApiService.updateFcmToken(_currentUser['id'], token!);
         } catch (e) {
-      print("Notification Init Error: $e");
     }
   }
 
@@ -121,7 +120,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         _currentUser = updatedData;
       });
 
-      print("New Avatar URL: ${_currentUser['avatar']}");
       
       if (_currentUser['is_paid_member'] == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -150,7 +148,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         return json.decode(response.body);
       }
     } catch (e) {
-      print("News Error: $e");
     }
     return [];
   }

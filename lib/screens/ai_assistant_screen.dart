@@ -218,7 +218,6 @@ $eventContext
         _isLoading = false;
       });
     } else {
-      print("API Error: ${resp.body}");
       setState(() {
         _history.add({'role': 'model', 'text': "My brain is offline (Error ${resp.statusCode})."});
         _isLoading = false;
@@ -226,7 +225,6 @@ $eventContext
     }
     _scrollToBottom();
   } catch (e) {
-    print("Exception: $e");
     setState(() {
       _history.add({'role': 'model', 'text': "Connection error."});
       _isLoading = false;

@@ -12,7 +12,6 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 
-  print("🌙 Handling a background message: ${message.messageId}");
   await AwesomeNotifications().initialize(
     'resource://drawable/ic_notification', 
     [
@@ -57,14 +56,11 @@ void main() async {
     await NotificationService.initialize();
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     try {
-      String? token = await messaging.getToken();
-      print("MY FCM TOKEN: $token"); 
+      await messaging.getToken();
     } catch (e) {
-      print("⚠️ FCM Token Error: $e"); 
     }
 
   } catch (e) {
-    print("⚠️ Initialization Error: $e");
   }
   
   await dotenv.load(fileName: ".env");

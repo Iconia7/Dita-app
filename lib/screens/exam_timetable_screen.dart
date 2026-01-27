@@ -138,7 +138,6 @@ class _ExamTimetableScreenState extends State<ExamTimetableScreen> { // Daystar 
       // passing 'examTime' as 'deadline' will ring 15 mins before the exam.
       // If you strictly want 30 mins, you need to update NotificationService to accept a 'scheduledTime' directly.
       
-      print("📅 Exam Alarm set for $code");
   }
 
   // --- HELPER: Days Remaining Logic ---
