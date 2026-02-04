@@ -7,89 +7,170 @@ class StudyGroupsScreen extends ConsumerWidget {
   const StudyGroupsScreen({super.key});
 
   @override
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupsAsync = ref.watch(studyGroupsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text("Study Groups 📚", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: Theme.of(context).primaryColor,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: groupsAsync.when(
-        data: (groups) => RefreshIndicator(
-          onRefresh: () => ref.read(studyGroupsProvider.notifier).loadGroups(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: groups.length,
-            itemBuilder: (context, index) {
-              final group = groups[index];
-              return Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  title: Text(
-                    "${group.courseCode}: ${group.name}",
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-                      Text(group.description),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(Icons.people, size: 16, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text("${group.memberCount} members", style: const TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  trailing: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: group.isMember ? Colors.grey : const Color(0xFFFFD700),
-                      foregroundColor: Colors.black,
-                    ),
-                    onPressed: () {
-                      if (group.isMember) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => StudyGroupChatScreen(group: group),
-                          ),
-                        );
-                      } else {
-                        ref.read(studyGroupsProvider.notifier).joinGroup(group.id);
-                      }
-                    },
-                    child: Text(group.isMember ? "Chat" : "Join"),
-                  ),
-                  onTap: group.isMember ? () {
-                     Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => StudyGroupChatScreen(group: group),
-                      ),
-                    );
-                  } : null,
-                ),
-              );
-            },
+        backgroundColor: Colors.transparent,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withOpacity(0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text("Error: $err")),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Container(
+         decoration: BoxDecoration(
+           color: isDark ? const Color(0xFF111827) : const Color(0xFFF9FAFB),
+         ),
+         child: Column(
+           children: [
+             // Search Bar Placeholder (Functional search requires provider filtering update, purely visual for now)
+             Container(
+               padding: const EdgeInsets.fromLTRB(16, 110, 16, 16), // Top padding for transparent app bar
+               decoration: BoxDecoration(
+                 color: Theme.of(context).primaryColor.withOpacity(0.05),
+                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+               ),
+               child: TextField(
+                 decoration: InputDecoration(
+                   hintText: "Search groups...",
+                   prefixIcon: const Icon(Icons.search),
+                   filled: true,
+                   fillColor: isDark ? const Color(0xFF1F2937) : Colors.white,
+                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                 ),
+               ),
+             ),
+             Expanded(
+               child: groupsAsync.when(
+                 data: (groups) => RefreshIndicator(
+                   onRefresh: () => ref.read(studyGroupsProvider.notifier).loadGroups(),
+                   child: ListView.builder(
+                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                     itemCount: groups.length,
+                     itemBuilder: (context, index) {
+                       final group = groups[index];
+                       return Container(
+                         margin: const EdgeInsets.only(bottom: 16),
+                         decoration: BoxDecoration(
+                           color: isDark ? const Color(0xFF1F2937) : Colors.white,
+                           borderRadius: BorderRadius.circular(20),
+                           boxShadow: [
+                             BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.05), blurRadius: 10, offset: const Offset(0, 4))
+                           ],
+                         ),
+                         child: Material(
+                           color: Colors.transparent,
+                           child: InkWell(
+                             borderRadius: BorderRadius.circular(20),
+                             onTap: group.isMember ? () {
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => StudyGroupChatScreen(group: group)));
+                             } : null,
+                             child: Padding(
+                               padding: const EdgeInsets.all(16),
+                               child: Column(
+                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                 children: [
+                                   Row(
+                                     children: [
+                                       Container(
+                                         padding: const EdgeInsets.all(12),
+                                         decoration: BoxDecoration(
+                                           gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
+                                           borderRadius: BorderRadius.circular(15),
+                                           boxShadow: [BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))],
+                                         ),
+                                         child: Text(
+                                           group.courseCode, 
+                                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                                         ),
+                                       ),
+                                       const SizedBox(width: 12),
+                                       Expanded(
+                                         child: Column(
+                                           crossAxisAlignment: CrossAxisAlignment.start,
+                                           children: [
+                                             Text(
+                                               group.name,
+                                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                               maxLines: 1, overflow: TextOverflow.ellipsis,
+                                             ),
+                                             const SizedBox(height: 4),
+                                             Row(
+                                               children: [
+                                                 Icon(Icons.people_rounded, size: 14, color: Colors.grey[500]),
+                                                 const SizedBox(width: 4),
+                                                 Text("${group.memberCount} members", style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                                               ],
+                                             ),
+                                           ],
+                                         ),
+                                       ),
+                                       if (group.isMember)
+                                          const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
+                                     ],
+                                   ),
+                                   if (group.description.isNotEmpty) ...[
+                                     const SizedBox(height: 12),
+                                     Text(
+                                       group.description,
+                                       maxLines: 2,
+                                       overflow: TextOverflow.ellipsis,
+                                       style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                     ),
+                                   ],
+                                   if (!group.isMember) ...[
+                                     const SizedBox(height: 16),
+                                     SizedBox(
+                                       width: double.infinity,
+                                       child: ElevatedButton(
+                                         style: ElevatedButton.styleFrom(
+                                           backgroundColor: Theme.of(context).primaryColor,
+                                           foregroundColor: Colors.white,
+                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                           padding: const EdgeInsets.symmetric(vertical: 12),
+                                         ),
+                                         onPressed: () {
+                                           ref.read(studyGroupsProvider.notifier).joinGroup(group.id);
+                                         },
+                                         child: const Text("Join Group", style: TextStyle(fontWeight: FontWeight.bold)),
+                                       ),
+                                     ),
+                                   ]
+                                 ],
+                               ),
+                             ),
+                           ),
+                         ),
+                       );
+                     },
+                   ),
+                 ),
+                 loading: () => const Center(child: CircularProgressIndicator()),
+                 error: (err, stack) => Center(child: Text("Error: $err")),
+               ),
+             ),
+           ],
+         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateGroupDialog(context, ref),
-        label: const Text("Create Group", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        icon: const Icon(Icons.add, color: Colors.black),
-        backgroundColor: const Color(0xFFFFD700),
+        label: const Text("Create Group", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.add, color: Colors.white),
+        backgroundColor: Theme.of(context).primaryColor,
+        elevation: 4,
       ),
     );
   }
