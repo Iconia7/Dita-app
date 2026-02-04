@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ui'; // Required for BackdropFilter (Glassmorphism)
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dita_app/screens/ai_assistant_screen.dart';
 import 'package:dita_app/screens/attendance_history_screen.dart';
 import 'package:dita_app/screens/class_timetable_screen.dart';
@@ -10,6 +11,7 @@ import 'package:dita_app/screens/leaderboard_screen.dart';
 import 'package:dita_app/screens/profile_screen.dart';
 import 'package:dita_app/screens/qr_scanner_screen.dart';
 import 'package:dita_app/screens/search_screen.dart';
+import 'package:dita_app/screens/study_groups_screen.dart';
 import 'package:dita_app/screens/tasks_screen.dart';
 import 'package:dita_app/widgets/dita_loader.dart';
 import 'package:dita_app/widgets/empty_state_widget.dart';
@@ -21,20 +23,34 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../data/models/event_model.dart';
+import '../data/models/announcement_model.dart'; // NEW
+import '../data/models/resource_model.dart';
+import '../providers/event_provider.dart';
+import '../providers/announcement_provider.dart'; // NEW
+import '../providers/resource_provider.dart';
 import '../services/api_service.dart';
 import 'pay_fees_screen.dart';
+import 'package:dita_app/providers/network_provider.dart';
+import 'package:dita_app/widgets/skeleton_loader.dart';
+import 'package:dita_app/widgets/bouncing_button.dart';
 import 'dart:io';
+import '../data/models/user_model.dart';
+import '../providers/auth_provider.dart';
+import '../providers/community_provider.dart';
+import '../utils/app_logger.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../providers/timetable_provider.dart';
 
-class HomeScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-  const HomeScreen({super.key, required this.user});
+class HomeScreen extends ConsumerStatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  late Map<String, dynamic> _currentUser;
+class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProviderStateMixin {
+
   int _currentIndex = 0;
   
   // Animation
@@ -45,7 +61,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _currentUser = widget.user;
+
+    
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -60,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _syncNotificationToken();
     WidgetsBinding.instance.addPostFrameCallback((_) {
      PromoPopup.checkAndShow(context);
+     ref.read(timetableProvider.notifier).loadTimetable(); // Pre-load for widget
   });  
   }
 
@@ -75,10 +93,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       );
 
       File file = File(image.path);
-      bool success = await ApiService.uploadProfilePicture(_currentUser['id'], file);
+      bool success = await ref.read(authProvider.notifier).uploadProfilePicture(file);
 
       if (success) {
-        await _refreshData(); // Reload user data from server to get new URL
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(backgroundColor: Colors.green, content: Text("Profile updated!")),
@@ -96,13 +113,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   void _syncNotificationToken() async {
     try {
-      // Get the token from Firebase
       String? token = await FirebaseMessaging.instance.getToken();
-      
-      // Debug print
-      // Send it to Django
-      await ApiService.updateFcmToken(_currentUser['id'], token!);
-        } catch (e) {
+      if (token != null) {
+        await ref.read(authProvider.notifier).updateFcmToken(token);
+      }
+    } catch (e) {
+      AppLogger.error('FCM Sync Error', error: e);
     }
   }
 
@@ -113,44 +129,30 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _refreshData() async {
-    final updatedData = await ApiService.getUserDetails(_currentUser['id']);
-    if (updatedData != null) {
-      await ApiService.saveUserLocally(updatedData);
-      setState(() {
-        _currentUser = updatedData;
-      });
-
-      
-      if (_currentUser['is_paid_member'] == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.teal,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(20),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            content: const Row(
-              children: [
-                Icon(Icons.verified, color: Colors.white),
-                SizedBox(width: 10),
-                Text("Membership Verified", style: TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
+    await ref.read(authProvider.notifier).refresh();
+    ref.read(timetableProvider.notifier).loadTimetable(); // Update widget
+    
+    final userModel = ref.read(currentUserProvider);
+    if (userModel?.isPaidMember == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.teal,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          content: const Row(
+            children: [
+              Icon(Icons.verified, color: Colors.white),
+              SizedBox(width: 10),
+              Text("Membership Verified", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
-  Future<List<dynamic>> _fetchAnnouncements() async {
-    try {
-      final response = await http.get(Uri.parse('${ApiService.baseUrl}/announcements/'));
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      }
-    } catch (e) {
-    }
-    return [];
-  }
+
 
 // --- 1. STYLISH ANNOUNCEMENT DIALOG ---
 void _showNotificationsDialog() {
@@ -195,66 +197,85 @@ void _showNotificationsDialog() {
                   ),
                   const Divider(),
                   Expanded(
-                    child: FutureBuilder<List<dynamic>>(
-                      future: _fetchAnnouncements(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: DaystarSpinner(size: 120));
-                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return Center(
+                    child: Consumer(
+                      builder: (context, ref, child) {
+                        final announcementsAsync = ref.watch(announcementProvider);
+                        
+                        return announcementsAsync.when(
+                          loading: () => const SkeletonList(
+                            skeleton: AnnouncementSkeleton(),
+                            itemCount: 4,
+                          ),
+                          error: (error, stack) => Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.notifications_off_outlined, size: 60, color: Colors.grey[300]),
+                                const Icon(Icons.error_outline, size: 60, color: Colors.redAccent),
                                 const SizedBox(height: 10),
-                                Text("All caught up!", style: TextStyle(color: Colors.grey[500])),
+                                Text("Failed to load announcements", style: TextStyle(color: Colors.grey[500])),
+                                TextButton(
+                                  onPressed: () => ref.refresh(announcementProvider),
+                                  child: const Text("Retry"),
+                                )
                               ],
                             ),
-                          );
-                        }
-                        
-                        return ListView.builder(
-                          itemCount: snapshot.data!.length,
-                          itemBuilder: (context, index) {
-                            final item = snapshot.data![index];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 15),
-                              padding: const EdgeInsets.all(15),
-                              decoration: BoxDecoration(
-                                color: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF4F6F9), // 🟢 Dynamic Item BG
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: Colors.grey.withOpacity(0.1)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                          ),
+                          data: (announcements) {
+                            if (announcements.isEmpty) {
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.notifications_off_outlined, size: 60, color: Colors.grey[300]),
+                                    const SizedBox(height: 10),
+                                    Text("All caught up!", style: TextStyle(color: Colors.grey[500])),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            return ListView.builder(
+                              itemCount: announcements.length,
+                              itemBuilder: (context, index) {
+                                final item = announcements[index];
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 15),
+                                  padding: const EdgeInsets.all(15),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF4F6F9), // 🟢 Dynamic Item BG
+                                    borderRadius: BorderRadius.circular(15),
+                                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: isDark ? Colors.white10 : primaryColor.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text("NEWS", 
-                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, 
-                                            color: isDark ? Colors.white : primaryColor)),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: isDark ? Colors.white10 : primaryColor.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(item.category?.toUpperCase() ?? "NEWS", 
+                                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, 
+                                                color: isDark ? Colors.white : primaryColor)),
+                                          ),
+                                          const Spacer(),
+                                          Text(
+                                            DateFormat('MMM d, h:mm a').format(item.datePosted),
+                                            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                          ),
+                                        ],
                                       ),
-                                      const Spacer(),
-                                      Text(
-                                        DateFormat('MMM d, h:mm a').format(DateTime.parse(item['date_posted'])),
-                                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(item.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+                                      const SizedBox(height: 5),
+                                      Text(item.messageBody, style: TextStyle(fontSize: 14, color: isDark ? Colors.grey[400] : Colors.grey[600], height: 1.4)),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(item['title'],
-                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, 
-                                      color: Theme.of(context).textTheme.bodyLarge?.color)),
-                                  const SizedBox(height: 4),
-                                  Text(item['message'],
-                                      style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700], fontSize: 13, height: 1.4)),
-                                ],
-                              ),
+                                );
+                              },
                             );
                           },
                         );
@@ -497,16 +518,14 @@ void _openScanner() async {
         }
 
         // 4. Call Backend
-        var response = await ApiService.markAttendance(eventId);
+        var response = await ref.read(eventProvider.notifier).markAttendance(eventId);
 
         if (mounted) {
           // 5. Handle Success
           if (response != null && response.containsKey('new_points')) {
             
-            // Update Points locally
-            setState(() {
-              _currentUser['points'] = response['new_points'];
-            });
+            // Refresh user data to get new points
+            ref.read(authProvider.notifier).refresh();
 
             _showSuccessDialog(
               "Check-in Complete! ✅", 
@@ -540,15 +559,16 @@ void _openScanner() async {
 
 
 
-    void _checkAndPromptPayment() {
-    bool isPaid = _currentUser['is_paid_member'] ?? false;
+  void _checkAndPromptPayment() {
+    final user = ref.read(currentUserProvider);
+    bool isPaid = user?.isPaidMember ?? false;
     if (!isPaid) {
       // Show the Pay Sheet immediately
       showModalBottomSheet(
         context: context,
         isScrollControlled: true, // Allows full height
         backgroundColor: Colors.transparent,
-        builder: (context) => PayFeesSheet(user: _currentUser),
+        builder: (context) => const PayFeesSheet(),
       ).then((result) {
         // If they paid successfully (result == true), refresh data
         if (result == true) {
@@ -564,7 +584,7 @@ void _openScanner() async {
     context: context,
     isScrollControlled: true, // IMPORTANT: Allows sheet to resize for keyboard
     backgroundColor: Colors.transparent, // Allows rounded corners to show
-    builder: (context) => PayFeesSheet(user: _currentUser),
+    builder: (context) => const PayFeesSheet(),
   ).then((value) {
     // This runs when the sheet closes
     // If we passed 'true' back from the sheet (meaning payment success), refresh data
@@ -576,7 +596,8 @@ void _openScanner() async {
 
   @override
   Widget build(BuildContext context) {
-    bool isPaid = _currentUser['is_paid_member'] ?? false;
+    final user = ref.watch(currentUserProvider);
+    bool isPaid = user?.isPaidMember ?? false;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
   final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
@@ -584,18 +605,64 @@ void _openScanner() async {
   final accentGold = const Color(0xFFFFD700);
 
     final List<Widget> pages = [
-      _buildDesignerHomeTab(isPaid),
-      _buildEventsTab(),
-      _buildResourcesTab(isPaid),
+      _buildDesignerHomeTab(user, isPaid),
+      _buildEventsTab(user),
+      _buildResourcesTab(user, isPaid),
       const CommunityScreen(),
       _buildNewsTab(),
     ];
+
+    final isOnline = ref.watch(isOnlineProvider);
+
+    // 🆕 Auto-Sync Logic: Refresh data when coming back online
+    ref.listen<bool>(isOnlineProvider, (previous, next) {
+      if (next == true && (previous == false || previous == null)) {
+        AppLogger.info('Back online! Auto-syncing data...');
+        _refreshData(); // Refreshes Auth + Current User
+        ref.read(announcementProvider.notifier).refresh();
+        ref.read(communityProvider.notifier).refresh();
+        ref.read(eventProvider.notifier).refresh();
+        ref.read(resourceProvider.notifier).refresh();
+      }
+    });
 
     return Scaffold(
       backgroundColor: scaffoldBg,
       // extendBody allows the content to flow behind the floating nav bar
       extendBody: true, 
-      body: pages[_currentIndex],
+      body: Column(
+        children: [
+          // 🆕 Offline Banner
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: isOnline ? 0 : 30,
+            width: double.infinity,
+            color: Colors.redAccent,
+            child: isOnline 
+              ? const SizedBox.shrink()
+              : const Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.wifi_off, color: Colors.white, size: 14),
+                      SizedBox(width: 8),
+                      Text(
+                        "You are currently offline. Using cached data.",
+                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+          ),
+          
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: pages,
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: _buildFloatingBottomNav(),
       floatingActionButton: FloatingActionButton(
     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantScreen())),
@@ -608,15 +675,15 @@ void _openScanner() async {
   }
 
   // --- 1. DESIGNER HOME TAB ---
-  Widget _buildDesignerHomeTab(bool isPaid) {
+  Widget _buildDesignerHomeTab(UserModel? user, bool isPaid) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
   // 🟢 Dark Mode Gradient: Deeper/Darker
   final gradientColors = isDark 
       ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
       : [const Color(0xFF003366), const Color(0xFF004C99)];
     bool isExpiringSoon = false;
-if (isPaid && _currentUser['membership_expiry'] != null) {
-  final expiry = DateTime.parse(_currentUser['membership_expiry']);
+if (isPaid && user?.membershipExpiry != null) {
+  final expiry = DateTime.parse(user!.membershipExpiry!);
   final daysLeft = expiry.difference(DateTime.now()).inDays;
   if (daysLeft <= 7 && daysLeft >= 0) {
     isExpiringSoon = true;
@@ -659,28 +726,31 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
                       children: [
                         Row(
                           children: [
-                            GestureDetector(
-                              onTap: _pickAndUploadImage, // <--- TRIGGER UPLOAD
-                              child: Hero(
-                                tag: 'profile_pic',
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+                            Semantics(
+                              label: "Change profile picture",
+                              button: true,
+                              child: GestureDetector(
+                                onTap: _pickAndUploadImage, // <--- TRIGGER UPLOAD
+                                child: Hero(
+                                  tag: 'home_profile_pic',
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 24,
+                                      backgroundColor: Colors.grey[200],
+                                      backgroundImage: (user?.avatar != null && user!.avatar!.isNotEmpty)
+                                          ? CachedNetworkImageProvider(user.avatar!) 
+                                          : null,
+                                      child: (user?.avatar == null || user!.avatar!.isEmpty)
+                                          ? Icon(Icons.person, color: Colors.grey[400])
+                                          : null,
+                                    ),
                                   ),
-                                  child: CircleAvatar(
-  radius: 24,
-  backgroundColor: Colors.grey[200],
-  // 1. Check if avatar exists and is not empty
-  backgroundImage: (_currentUser['avatar'] != null && _currentUser['avatar'].toString().isNotEmpty)
-      ? NetworkImage(_currentUser['avatar']) 
-      : null, // Set to null if no image, so child Icon shows
-  child: (_currentUser['avatar'] == null || _currentUser['avatar'].toString().isEmpty)
-      ? Icon(Icons.person, color: Colors.grey[400]) // Fallback Icon
-      : null,
-),
                                 ),
                               ),
                             ),
@@ -689,10 +759,10 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text("Welcome back,", style: TextStyle(color: Colors.white70, fontSize: 14)),
-                                Text(
-                                  (_currentUser['username'] ?? "Student").split(' ')[0], 
-                                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
-                                ),
+                                  Text(
+                                    (user?.username ?? "Student").split(' ')[0], 
+                                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+                                  ),
                               ],
                             ),
                           ],
@@ -701,6 +771,7 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
                         Stack(
                           children: [
                             IconButton(
+                              tooltip: "Notifications",
                               icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
                               onPressed: _showNotificationsDialog,
                             ),
@@ -724,8 +795,8 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
     final result = await showSearch( // 🛑 CAPTURE RESULT HERE
       context: context, 
       delegate: DitaSearchDelegate(
-        ApiService.getEvents(), 
-        ApiService.getResources() 
+        ref.read(eventRepositoryProvider).getEvents().then((r) => r.fold((_) => [], (v) => v)), 
+        ref.read(resourceRepositoryProvider).getResources().then((r) => r.fold((_) => [], (v) => v))
       )
     );
     
@@ -784,19 +855,19 @@ if (isPaid && _currentUser['membership_expiry'] != null) {
                           _buildQuickAction(
   Icons.school_rounded, 
   "Exams", 
-  () => Navigator.push(context, MaterialPageRoute(builder: (_) => ExamTimetableScreen(user: _currentUser)))
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExamTimetableScreen()))
 ),
 const SizedBox(width: 15),
 _buildQuickAction(
   Icons.school_rounded, 
   "Classes", 
-  () => Navigator.push(context, MaterialPageRoute(builder: (_) => ClassTimetableScreen()))
+  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ClassTimetableScreen()))
 ),
 const SizedBox(width: 15),
                           _buildQuickAction(
          Icons.checklist_rtl_rounded, 
          "Planner", 
-         () => Navigator.push(context, MaterialPageRoute(builder: (_) => TasksScreen(user: _currentUser)))
+         () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TasksScreen()))
       ),
       const SizedBox(width: 15),
                           _buildQuickAction(Icons.payment, "Pay Fees", _showPaymentSheet),
@@ -807,12 +878,15 @@ const SizedBox(width: 15),
                               Icons.videogame_asset_rounded, 
                               "Play Games", 
                               () async {
-                                // 1. Wait for the user to finish playing
-                                await Navigator.push(context, MaterialPageRoute(builder: (_) => GamesListScreen(user: _currentUser)));
-                                
-                                // 2. Refresh the profile data (points) when they return
+                                await Navigator.push(context, MaterialPageRoute(builder: (_) => const GamesListScreen()));
                                 _refreshData(); 
                               }
+                          ),
+                          const SizedBox(width: 15),
+                          _buildQuickAction(
+                              Icons.group_work_rounded, 
+                              "Study Groups", 
+                              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyGroupsScreen()))
                           ),
 
                         ],
@@ -872,7 +946,7 @@ const SizedBox(width: 15),
   ),
 
                   // THE ID CARD
-                  _buildPremiumIDCard(isPaid),
+                  _buildPremiumIDCard(user, isPaid),
 
                   const SizedBox(height: 30),
 
@@ -887,12 +961,12 @@ const SizedBox(width: 15),
     onTap: () {
         Navigator.push(
           context, 
-          MaterialPageRoute(builder: (_) => AttendanceHistoryScreen(userId: _currentUser['id']))
+          MaterialPageRoute(builder: (_) => const AttendanceHistoryScreen())
         );
     },
     child: _buildStatCard(
       "Attendance", 
-      "${_currentUser['attendance_percentage'] ?? 0}%", 
+      "${user?.attendancePercentage ?? 0}%", 
       Icons.bar_chart, 
       Colors.purple
     ),
@@ -905,7 +979,7 @@ const SizedBox(width: 15),
           context, 
           MaterialPageRoute(builder: (_) => LeaderboardScreen())
         );
-    },child: _buildStatCard("Points", "${_currentUser['points'] ?? 0}", Icons.stars, const Color(0xFFFFD700))),)
+    },child: _buildStatCard("Points", "${user?.points ?? 0}", Icons.stars, const Color(0xFFFFD700))),)
                     ],
                   ),
 
@@ -928,6 +1002,17 @@ const SizedBox(width: 15),
                   child: FutureBuilder<List<dynamic>>(
                     future: ApiService.getEvents(),
                     builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: 3,
+                          itemBuilder: (context, index) => const Padding(
+                            padding: EdgeInsets.only(right: 15),
+                            child: CardSkeleton(),
+                          ),
+                        );
+                      }
+                      
                       if (!snapshot.hasData || snapshot.data!.isEmpty) {
                         return Container(
                           width: double.infinity,
@@ -1004,7 +1089,7 @@ const SizedBox(width: 15),
   // --- WIDGETS ---
 
   Widget _buildQuickAction(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
+    return BouncingButton(
       onTap: onTap,
       child: Column(
         children: [
@@ -1015,7 +1100,7 @@ const SizedBox(width: 15),
               borderRadius: BorderRadius.circular(15),
               border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
-            child: Icon(icon, color: Color(0xFFFFD700), size: 26),
+            child: Icon(icon, color: const Color(0xFFFFD700), size: 26),
           ),
           const SizedBox(height: 8),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
@@ -1024,7 +1109,7 @@ const SizedBox(width: 15),
     );
   }
 
-  Widget _buildPremiumIDCard(bool isPaid) {
+  Widget _buildPremiumIDCard(UserModel? user, bool isPaid) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: 200,
@@ -1079,13 +1164,13 @@ const SizedBox(width: 15),
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _currentUser['username'] ?? "USER NAME", 
+                            user?.username ?? "USER NAME", 
                             style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _currentUser['admission_number'] ?? "00-0000", 
+                            user?.admissionNumber ?? "00-0000", 
                             style: TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 1.5),
                           ),
                         ],
@@ -1100,7 +1185,7 @@ const SizedBox(width: 15),
                         borderRadius: BorderRadius.circular(8)
                       ),
                       child: QrImageView(
-                        data: _currentUser['admission_number'] ?? "000",
+                        data: user?.admissionNumber ?? "000",
                         size: 50,
                         padding: EdgeInsets.zero,
                       ),
@@ -1209,9 +1294,8 @@ const SizedBox(width: 15),
 
   // --- PLACEHOLDER TABS ---
 // --- TAB 2: EVENTS (LIVE DATA) ---
-  Widget _buildEventsTab() {
-    // 🟢 Check membership status
-    bool isPaid = _currentUser['is_paid_member'] ?? false;
+  Widget _buildEventsTab(UserModel? user) {
+    bool isPaid = user?.isPaidMember ?? false;
     
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -1222,44 +1306,65 @@ const SizedBox(width: 15),
         centerTitle: true,
         automaticallyImplyLeading: false, 
       ),
-      body: FutureBuilder<List<dynamic>>(
-        future: ApiService.getEvents(), 
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: DaystarSpinner(size: 120));
-          }
+      body: Consumer(
+        builder: (context, ref, child) {
+          final eventsAsync = ref.watch(eventProvider);
           
-          if (snapshot.hasError) {
-            return Center(child: Text("Error loading events", style: TextStyle(color: Colors.grey[600])));
-          }
+          return eventsAsync.when(
+            data: (events) {
+              if (events.isEmpty) {
+                return EmptyStateWidget(
+                  svgPath: 'assets/svgs/no_events.svg',
+                  title: "No Upcoming Events",
+                  message: "Looks like the calendar is clear for now. Check back later for new activities!",
+                  actionLabel: "Refresh",
+                  onActionPressed: () => ref.read(eventProvider.notifier).refresh(),
+                );
+              }
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return EmptyStateWidget(
-              svgPath: 'assets/svgs/no_events.svg',
-              title: "No Upcoming Events",
-              message: "Looks like the calendar is clear for now. Check back later for new activities!",
-              actionLabel: "Refresh",
-              onActionPressed: () => setState(() {}),
-            );
-          }
-
-          final events = snapshot.data!;
-          
-          return ListView.builder(
-            padding: const EdgeInsets.all(20),
-            itemCount: events.length,
-            itemBuilder: (context, index) {
-              return EventCard(
-                event: snapshot.data![index],
-                userId: _currentUser['id'],
-                primaryDark: Theme.of(context).primaryColor,
-                isPaid: isPaid, // 🟢 PASS PAYMENT STATUS
-                onUnlockPressed: _showPaymentSheet, // 🟢 Callback to open payment sheet
-                onRsvpChanged: (bool isJoining, String title) {
-                  _showRSVPDialog(isJoining, title);
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await ref.read(eventProvider.notifier).refresh();
                 },
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: events.length,
+                  itemBuilder: (context, index) {
+                    return EventCard(
+                      event: events[index],
+                      userId: user?.id ?? 0,
+                      primaryDark: Theme.of(context).primaryColor,
+                      isPaid: isPaid, // 🟢 PASS PAYMENT STATUS
+                      onUnlockPressed: _showPaymentSheet, // 🟢 Callback to open payment sheet
+                      onRsvpChanged: (bool isJoining, String title) {
+                        _showRSVPDialog(isJoining, title);
+                      },
+                    );
+                  },
+                ),
               );
             },
+            loading: () => const SkeletonList(
+              padding: EdgeInsets.all(20),
+              skeleton: CardSkeleton(),
+              itemCount: 3,
+            ),
+            error: (error, stack) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('Failed to load events', style: TextStyle(fontSize: 18)),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => ref.read(eventProvider.notifier).refresh(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
@@ -1267,7 +1372,7 @@ const SizedBox(width: 15),
     );
   }
 
-Widget _buildResourcesTab(bool isPaid) {
+Widget _buildResourcesTab(UserModel? user, bool isPaid) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   final cardColor = Theme.of(context).cardColor;
   final primaryDark = Theme.of(context).primaryColor;
@@ -1294,109 +1399,113 @@ Widget _buildResourcesTab(bool isPaid) {
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
-      body: FutureBuilder<List<dynamic>>(
-        future: ApiService.getResources(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: DaystarSpinner(size: 120));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-  return const EmptyStateWidget(
-    svgPath: 'assets/svgs/no_resources.svg',
-    title: "Library Empty",
-    message: "We couldn't find any resources. Please check your internet connection.",
-  );
-}
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(20),
-            itemCount: snapshot.data!.length,
-            itemBuilder: (context, index) {
-              final res = snapshot.data![index];
-              final type = res['resource_type'] ?? 'LINK';
-
-              // --- 1. DYNAMIC ICON LOGIC ---
-              IconData icon = Icons.description;
-              Color color = Colors.grey;
-              String actionLabel = "Open";
-
-              switch (type) {
-                case 'PDF':
-                  icon = Icons.picture_as_pdf;
-                  color = Colors.red;
-                  actionLabel = "Download";
-                  break;
-                case 'PPT':
-                  icon = Icons.slideshow;
-                  color = Colors.orange;
-                  actionLabel = "Download";
-                  break;
-                case 'DOC': // Word
-                  icon = Icons.article;
-                  color = Colors.blue[800]!;
-                  actionLabel = "Download";
-                  break;
-                case 'XLS': // Excel
-                  icon = Icons.table_chart;
-                  color = Colors.green[700]!;
-                  actionLabel = "Download";
-                  break;
-                case 'ZIP': // Archive
-                  icon = Icons.folder_zip;
-                  color = Colors.purple;
-                  actionLabel = "Download";
-                  break;
-                case 'IMG': // Image
-                  icon = Icons.image;
-                  color = Colors.teal;
-                  actionLabel = "View";
-                  break;
-                case 'LINK':
-                  icon = Icons.link;
-                  color = Colors.blue;
-                  actionLabel = "Visit";
-                  break;
-                default:
-                  icon = Icons.insert_drive_file;
-                  color = Colors.grey;
+      body: Consumer(
+        builder: (context, ref, child) {
+          final resourcesAsync = ref.watch(resourceProvider);
+          
+          return resourcesAsync.when(
+            data: (resources) {
+              if (resources.isEmpty) {
+                return const EmptyStateWidget(
+                  svgPath: 'assets/svgs/no_resources.svg',
+                  title: "Library Empty",
+                  message: "We couldn't find any resources. Please check your internet connection.",
+                );
               }
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 15),
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2))
-                    ]),
-                child: Row(
-                  children: [
-                    // Icon Box
-                    Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                            color: color.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: Icon(icon, color: color, size: 28)),
-                    const SizedBox(width: 15),
-                    
-                    // Title & Desc
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await ref.read(resourceProvider.notifier).refresh();
+                },
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: resources.length,
+                  itemBuilder: (context, index) {
+                    final res = resources[index];
+                    final type = res.fileExtension.toUpperCase();
+
+                    // --- 1. DYNAMIC ICON LOGIC ---
+                    IconData icon = Icons.description;
+                    Color color = Colors.grey;
+                    String actionLabel = "Open";
+
+                    switch (type) {
+                      case 'PDF':
+                        icon = Icons.picture_as_pdf;
+                        color = Colors.red;
+                        actionLabel = "Download";
+                        break;
+                      case 'PPT':
+                        icon = Icons.slideshow;
+                        color = Colors.orange;
+                        actionLabel = "Download";
+                        break;
+                      case 'DOC': // Word
+                        icon = Icons.article;
+                        color = Colors.blue[800]!;
+                        actionLabel = "Download";
+                        break;
+                      case 'XLS': // Excel
+                        icon = Icons.table_chart;
+                        color = Colors.green[700]!;
+                        actionLabel = "Download";
+                        break;
+                      case 'ZIP': // Archive
+                        icon = Icons.folder_zip;
+                        color = Colors.purple;
+                        actionLabel = "Download";
+                        break;
+                      case 'IMG': // Image
+                        icon = Icons.image;
+                        color = Colors.teal;
+                        actionLabel = "View";
+                        break;
+                      case 'LINK':
+                        icon = Icons.link;
+                        color = Colors.blue;
+                        actionLabel = "Visit";
+                        break;
+                      default:
+                        icon = Icons.insert_drive_file;
+                        color = Colors.grey;
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 15),
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(15),
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2))
+                          ]),
+                      child: Row(
                         children: [
-                          Text(res['title'],
+                          // Icon Box
+                          Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                  color: color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Icon(icon, color: color, size: 28)),
+                          const SizedBox(width: 15),
+                          
+                          // Title & Desc
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(res.title,
                               style:  TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 16,color: Theme.of(context).textTheme.bodyLarge?.color)),
-                          if (res['description'] != null &&
-                              res['description'].toString().isNotEmpty)
+                          if (res.description != null &&
+                              res.description!.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 4.0),
-                              child: Text(res['description'],
+                              child: Text(res.description!,
                                   style: TextStyle(
                                       color: isDark ? Colors.grey[400] :Colors.grey[600], fontSize: 12),
                                   maxLines: 1,
@@ -1410,9 +1519,9 @@ Widget _buildResourcesTab(bool isPaid) {
                     // Action Button
                     ElevatedButton(
                       onPressed: () async {
-                        String? urlToOpen = res['file'];
-                        if (urlToOpen == null || urlToOpen.isEmpty) {
-                          urlToOpen = res['link'];
+                        String? urlToOpen = res.fileUrl;
+                        if (type == 'LINK') {
+                          urlToOpen = res.fileUrl;
                         }
 
                         if (urlToOpen != null && urlToOpen.isNotEmpty) {
@@ -1442,16 +1551,40 @@ Widget _buildResourcesTab(bool isPaid) {
                 ),
               );
             },
+          ),
           );
         },
-      ),
-    );
-  }
-  Widget _buildNewsTab() =>  ProfileScreen(user: _currentUser);
+        loading: () => const SkeletonList(
+          padding: EdgeInsets.all(20),
+          skeleton: CardSkeleton(hasImage: false),
+          itemCount: 6,
+        ),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 60, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text('Failed to load resources', style: TextStyle(fontSize: 18)),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => ref.read(resourceProvider.notifier).refresh(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  ),
+);
+}
+  Widget _buildNewsTab() => const ProfileScreen();
 }
 
-class EventCard extends StatefulWidget {
-  final Map<String, dynamic> event;
+class EventCard extends ConsumerStatefulWidget {
+  final EventModel event;
   final int userId;
   final Color primaryDark;
   final bool isPaid; // 🟢 New Parameter
@@ -1469,22 +1602,22 @@ class EventCard extends StatefulWidget {
   });
 
   @override
-  State<EventCard> createState() => _EventCardState();
+  ConsumerState<EventCard> createState() => _EventCardState();
 }
 
-class _EventCardState extends State<EventCard> {
+class _EventCardState extends ConsumerState<EventCard> {
   late bool _hasRsvped;
   bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
-    _hasRsvped = widget.event['has_rsvped'] ?? false;
+    _hasRsvped = widget.event.hasRsvpd;
   }
 
   @override
   Widget build(BuildContext context) {
-    final DateTime date = DateTime.parse(widget.event['date']);
+    final DateTime date = widget.event.date;
     final String day = DateFormat('dd').format(date);
     final String month = DateFormat('MMM').format(date).toUpperCase();
     final String time = DateFormat('h:mm a').format(date);
@@ -1504,11 +1637,14 @@ class _EventCardState extends State<EventCard> {
             decoration: BoxDecoration(
               color: widget.primaryDark.withOpacity(0.1),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              image: widget.event['image'] != null 
-                  ? DecorationImage(image: NetworkImage(widget.event['image']), fit: BoxFit.cover) 
+              image: widget.event.image != null 
+                  ? DecorationImage(
+                      image: CachedNetworkImageProvider(widget.event.image!), 
+                      fit: BoxFit.cover
+                    ) 
                   : null,
             ),
-            child: widget.event['image'] == null ? Center(child: Icon(Icons.image, color: Colors.grey[400], size: 40)) : null,
+            child: widget.event.image == null ? Center(child: Icon(Icons.image, color: Colors.grey[400], size: 40)) : null,
           ),
           Padding(
             padding: const EdgeInsets.all(15),
@@ -1531,9 +1667,9 @@ class _EventCardState extends State<EventCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.event['title'], style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(widget.event.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color), maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 5),
-                      Row(children: [Icon(Icons.location_on, size: 14, color: Colors.grey[500]), const SizedBox(width: 4), Text(widget.event['venue'], style: TextStyle(fontSize: 12, color: Colors.grey[500]))]),
+                      Row(children: [Icon(Icons.location_on, size: 14, color: Colors.grey[500]), const SizedBox(width: 4), Text(widget.event.location ?? 'TBA', style: TextStyle(fontSize: 12, color: Colors.grey[500]))]), // Changed from venue
                       const SizedBox(height: 4),
                       Row(children: [Icon(Icons.access_time_filled, size: 14, color: Colors.grey[500]), const SizedBox(width: 4), Text(time, style: TextStyle(fontSize: 12, color: Colors.grey[500]))]),
                     ],
@@ -1556,14 +1692,14 @@ class _EventCardState extends State<EventCard> {
                             setState(() => _isProcessing = true);
                             
                             bool isNowJoining = !_hasRsvped;
-                            bool success = await ApiService.rsvpEvent(widget.event['id']);
+                            final result = await ref.read(eventProvider.notifier).rsvpEvent(widget.event.id);
                             
                             if (mounted) {
                               setState(() => _isProcessing = false);
                               
-                              if(success) {
+                              if(result != null) {
                                 setState(() => _hasRsvped = isNowJoining);
-                                widget.onRsvpChanged(isNowJoining, widget.event['title']);
+                                widget.onRsvpChanged(isNowJoining, widget.event.title);
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text("Could not update RSVP.")));
                               }

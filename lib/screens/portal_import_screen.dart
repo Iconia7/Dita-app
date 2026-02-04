@@ -7,14 +7,18 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class PortalImportScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/models/timetable_model.dart';
+import '../providers/timetable_provider.dart';
+
+class PortalImportScreen extends ConsumerStatefulWidget {
   const PortalImportScreen({super.key});
 
   @override
-  State<PortalImportScreen> createState() => _PortalImportScreenState();
+  ConsumerState<PortalImportScreen> createState() => _PortalImportScreenState();
 }
 
-class _PortalImportScreenState extends State<PortalImportScreen> {
+class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
   late final WebViewController _controller;
   bool _isLoading = true;
   bool _hasExtracted = false; 
@@ -215,13 +219,14 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
   // --- HELPERS ---
   String _cleanDay(String dayRaw) {
     String d = dayRaw.toUpperCase();
-    if (d.contains("MON")) return "MON";
-    if (d.contains("TUE")) return "TUE";
-    if (d.contains("WED")) return "WED";
-    if (d.contains("THU")) return "THU";
-    if (d.contains("FRI")) return "FRI";
-    if (d.contains("SAT")) return "SAT";
-    return "MON"; 
+    if (d.contains("MON")) return "Monday";
+    if (d.contains("TUE")) return "Tuesday";
+    if (d.contains("WED")) return "Wednesday";
+    if (d.contains("THU")) return "Thursday";
+    if (d.contains("FRI")) return "Friday";
+    if (d.contains("SAT")) return "Saturday";
+    if (d.contains("SUN")) return "Sunday";
+    return "Monday"; 
   }
 
   String _convertTo24Hour(String timeStr) {
@@ -243,45 +248,50 @@ class _PortalImportScreenState extends State<PortalImportScreen> {
     }
   }
 
-  Future<void> _saveClasses(List<Map<String, dynamic>> newClasses) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<dynamic> existing = [];
-    if (prefs.containsKey('my_classes')) {
-      existing = json.decode(prefs.getString('my_classes')!);
-    }
+  Future<void> _saveClasses(List<Map<String, dynamic>> newClassesData) async {
+    List<TimetableModel> models = [];
     
-    for(var cls in newClasses) {
-       // Remove duplicates based on ID
-       var oldIndex = existing.indexWhere((e) => e['code'] == cls['code']);
-       if (oldIndex != -1) {
-         // Cancel old notification
-         await NotificationService.cancelNotification(existing[oldIndex]['id']);
-         existing.removeAt(oldIndex);
-       }
-       existing.add(cls);
+    for(var data in newClassesData) {
+       final model = TimetableModel(
+         id: data['id'],
+         type: 'class',
+         title: data['title'],
+         code: data['code'],
+         venue: data['venue'],
+         lecturer: data['lecturer'],
+         dayOfWeek: data['day'],
+         startTime: data['startTime'],
+         endTime: data['endTime'],
+       );
+       models.add(model);
 
        // Schedule Notification
-       int dayIndex = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].indexOf(cls['day']) + 1;
        TimeOfDay t = TimeOfDay(
-         hour: int.parse(cls['startTime'].split(":")[0]), 
-         minute: int.parse(cls['startTime'].split(":")[1])
+         hour: int.parse(model.startTime.split(":")[0]), 
+         minute: int.parse(model.startTime.split(":")[1])
        );
        
        await NotificationService.scheduleClassNotification(
-         id: cls['id'],
-         title: cls['code'],
-         venue: cls['venue'],
-         dayOfWeek: dayIndex,
+         id: model.id,
+         title: model.code ?? model.title,
+         venue: model.venue ?? 'TBA',
+         dayOfWeek: model.dayNumber + 1, // dayNumber is 0-indexed (Mon=0), scheduleClassNotification expects 1-indexed (Mon=1)
          startTime: t,
        );
     }
 
-    await prefs.setString('my_classes', json.encode(existing));
+    final success = await ref.read(timetableProvider.notifier).saveTimetable(models);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Success! Imported ${newClasses.length} classes."), backgroundColor: Colors.green)
-      );
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Success! Imported ${models.length} classes."), backgroundColor: Colors.green)
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to save classes locally."), backgroundColor: Colors.red)
+        );
+      }
       
       // Navigate to Timetable Screen
       Navigator.of(context).pushReplacement(

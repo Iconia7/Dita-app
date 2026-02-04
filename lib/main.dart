@@ -8,6 +8,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:awesome_notifications/awesome_notifications.dart'; 
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+// Phase 2: State Management & Offline Storage
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/storage/local_storage.dart';
+import 'utils/app_logger.dart';
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -61,11 +66,23 @@ void main() async {
     }
 
   } catch (e) {
+    AppLogger.error('Firebase initialization error', error: e);
   }
   
+  // Load environment variables
   await dotenv.load(fileName: ".env");
 
-  runApp(const DitaApp());
+  // Phase 2: Initialize Hive for offline storage
+  try {
+    await LocalStorage.init();
+    AppLogger.success('Phase 2 foundation initialized');
+  } catch (e, stackTrace) {
+    AppLogger.error('Failed to initialize local storage', 
+      error: e, stackTrace: stackTrace);
+  }
+
+  // Phase 2: Wrap app with ProviderScope for Riverpod
+  runApp(const ProviderScope(child: DitaApp()));
 }
 
 class DitaApp extends StatelessWidget {

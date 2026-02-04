@@ -4,16 +4,24 @@ import 'package:local_auth/local_auth.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'home_screen.dart';
+import 'login_screen.dart';
+import 'onboarding_screen.dart';
 import 'maintenance_screen.dart';
+import '../core/storage/local_storage.dart';
+import '../core/storage/storage_keys.dart';
 
-class AuthCheckScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
+
+class AuthCheckScreen extends ConsumerStatefulWidget {
   const AuthCheckScreen({super.key});
 
   @override
-  State<AuthCheckScreen> createState() => _AuthCheckScreenState();
+  ConsumerState<AuthCheckScreen> createState() => _AuthCheckScreenState();
 }
 
-class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProviderStateMixin {
+class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTickerProviderStateMixin {
   final LocalAuthentication auth = LocalAuthentication();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -60,11 +68,12 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
   }
 
   Future<void> _checkLoginStatus() async {
+    // We'll watch the authProvider in the build method or listen to it.
+    // However, the biometrics should only happen if we have a cached user.
+    
+    final user = await ref.read(userLocalDataSourceProvider).getCachedUser();
 
-    // 1. Check if we have saved data
-    final userData = await ApiService.getUserLocally();
-
-    if (userData != null) {
+    if (user != null) {
       bool authenticated = false;
       try {
         final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
@@ -88,26 +97,40 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> with SingleTickerProv
 
       if (mounted) {
         if (authenticated) {
-          _navigateToHome(userData);
+          _navigateToHome();
         } else {
-          _navigateToLogin();
+          // Check for onboarding before login
+          _checkOnboarding();
         }
       }
     } else {
-      _navigateToLogin();
+      if (mounted) {
+        _checkOnboarding();
+      }
     }
   }
 
+  void _checkOnboarding() {
+    final hasSeenOnboarding = LocalStorage.getItem<bool>(StorageKeys.settingsBox, StorageKeys.hasSeenOnboarding) ?? false;
+
+    if (hasSeenOnboarding) {
+      _navigateToLogin();
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const OnboardingScreen())
+      );
+    }
+  }
   @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
   }
 
-  void _navigateToHome(Map<String, dynamic> user) {
+  void _navigateToHome() {
     Navigator.pushReplacement(
       context, 
-      MaterialPageRoute(builder: (_) => HomeScreen(user: user))
+      MaterialPageRoute(builder: (_) => const HomeScreen())
     );
   }
 

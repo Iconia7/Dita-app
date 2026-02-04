@@ -1,13 +1,13 @@
-import 'package:dita_app/services/ads_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
+import 'package:dita_app/services/ads_helper.dart';
 import 'package:dita_app/screens/binary_game_screen.dart'; 
 import 'package:dita_app/screens/ram_optimizer.dart';
 import 'package:dita_app/screens/snake_game.dart';
 
-class GamesListScreen extends StatelessWidget {
-  final Map<String, dynamic> user;
-
-  const GamesListScreen({super.key, required this.user});
+class GamesListScreen extends ConsumerWidget {
+  const GamesListScreen({super.key});
 
   void _navigateToGame(BuildContext context, Widget screen) {
     Navigator.push(
@@ -17,7 +17,7 @@ class GamesListScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).primaryColor;
 
@@ -65,7 +65,7 @@ class GamesListScreen extends StatelessWidget {
                       icon: Icons.memory,
                       color: Colors.green,
                       isDark: isDark,
-                      onTap: () => _navigateToGame(context, RamOptimizerScreen(user: user)),
+                      onTap: () => _navigateToGame(context, const RamOptimizerScreen()),
                     ),
 
                     const SizedBox(height: 16),
@@ -77,7 +77,7 @@ class GamesListScreen extends StatelessWidget {
                       icon: Icons.grid_3x3,
                       color: Colors.cyan,
                       isDark: isDark,
-                      onTap: () => _navigateToGame(context, GameScreen(user: user)), // Removed userId as it's likely inside user map
+                      onTap: () => _navigateToGame(context, const GameScreen()), 
                     ),
 
                     const SizedBox(height: 16),
@@ -89,7 +89,7 @@ class GamesListScreen extends StatelessWidget {
                       icon: Icons.timeline, 
                       color: Colors.purpleAccent,
                       isDark: isDark,
-                      onTap: () => _navigateToGame(context, SnakeGameScreen(user: user)),
+                      onTap: () => _navigateToGame(context, const SnakeGameScreen()),
                     ),
                     
                     const SizedBox(height: 30),

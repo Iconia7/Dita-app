@@ -1,23 +1,27 @@
+import 'package:dita_app/data/models/user_model.dart';
+import 'package:dita_app/providers/auth_provider.dart';
 import 'package:dita_app/services/ads_helper.dart';
 import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/api_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../data/models/leaderboard_model.dart';
+import '../providers/leaderboard_provider.dart';
 import '../widgets/dita_loader.dart';
+import '../widgets/skeleton_loader.dart';
 
-class LeaderboardScreen extends StatefulWidget {
+class LeaderboardScreen extends ConsumerStatefulWidget {
   const LeaderboardScreen({super.key});
 
   @override
-  State<LeaderboardScreen> createState() => _LeaderboardScreenState();
+  ConsumerState<LeaderboardScreen> createState() => _LeaderboardScreenState();
 }
 
-class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProviderStateMixin {
+class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with TickerProviderStateMixin {
   final Color _gold = const Color(0xFFFFD700);
   final Color _silver = const Color(0xFFC0C0C0);
   final Color _bronze = const Color(0xFFCD7F32);
-
-  late Future<List<dynamic>> _leaderboardFuture;
   
   // Animations
   late AnimationController _glowController;
@@ -32,7 +36,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _loadData();
     
     _glowController = AnimationController(
       vsync: this,
@@ -52,16 +55,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
     _slideController.forward();
   }
 
-  void _loadData() {
-    _leaderboardFuture = ApiService.getLeaderboard();
-  }
-
   void _refreshLeaderboard() {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _loadData();
-      _slideController.forward(from: 0);
-    });
+    ref.read(leaderboardProvider.notifier).refresh();
+    _slideController.forward(from: 0);
   }
 
   @override
@@ -74,7 +71,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
     super.dispose();
   }
 
-  Widget _buildPodium(BuildContext context, List<dynamic> users) {
+  Widget _buildPodium(BuildContext context, List<LeaderboardModel> users) {
     if (users.length < 3) return const SizedBox();
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -214,7 +211,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
 
   Widget _buildPodiumPlace(
     BuildContext context, {
-    required Map<String, dynamic> user,
+    required LeaderboardModel user,
     required int rank,
     required double height,
     required Color color,
@@ -247,8 +244,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
               child: CircleAvatar(
                 radius: isWinner ? 40 : 32,
                 backgroundColor: color.withOpacity(0.3),
-                backgroundImage: user['avatar'] != null ? NetworkImage(user['avatar']) : null,
-                child: user['avatar'] == null 
+                backgroundImage: user.avatar != null ? CachedNetworkImageProvider(user.avatar!) : null,
+                child: user.avatar == null 
                   ? Icon(Icons.person, color: color, size: isWinner ? 40 : 32)
                   : null,
               ),
@@ -263,7 +260,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
         
         // Username
         Text(
-          user['username'] ?? "Unknown",
+          user.username,
           style: TextStyle(
             fontSize: isWinner ? 14 : 12,
             fontWeight: FontWeight.bold,
@@ -289,7 +286,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
             ],
           ),
           child: Text(
-            "${user['points']} pts",
+            "${user.points} pts",
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -397,113 +394,141 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
             ),
           ],
         ),
-        body: FutureBuilder<List<dynamic>>(
-          future: _leaderboardFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: DaystarSpinner(size: 120));
-            }
+        body: Consumer(
+          builder: (context, ref, child) {
+            final leaderboardAsync = ref.watch(leaderboardProvider);
 
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return EmptyStateWidget(
-                svgPath: 'assets/svgs/no_ranks.svg',
-                title: "The Throne is Empty!",
-                message: "No one has earned points yet. Be the first to attend an event and claim the top spot!",
-                actionLabel: "Find Events",
-                onActionPressed: () => Navigator.pop(context),
-              );
-            }
+            return leaderboardAsync.when(
+              data: (leaderboard) {
+                if (leaderboard.isEmpty) {
+                  return EmptyStateWidget(
+                    svgPath: 'assets/svgs/no_ranks.svg',
+                    title: "The Throne is Empty!",
+                    message: "No one has earned points yet. Be the first to attend an event and claim the top spot!",
+                    actionLabel: "Find Events",
+                    onActionPressed: () => Navigator.pop(context),
+                  );
+                }
 
-            final users = snapshot.data!;
-
-            return RefreshIndicator(
-              onRefresh: () async {
-                _refreshLeaderboard();
-                await _leaderboardFuture;
-              },
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  // Podium Section for Top 3
-                  if (users.length >= 3)
-                    SliverToBoxAdapter(
-                      child: _buildPodium(context, users),
-                    ),
-                  
-                  // Section Header
-                  SliverToBoxAdapter(
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(15, 20, 15, 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            primaryColor.withOpacity(0.2),
-                            primaryColor.withOpacity(0.05),
-                          ],
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await ref.read(leaderboardProvider.notifier).refresh();
+                  },
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      // Podium Section for Top 3
+                      if (leaderboard.length >= 3)
+                        SliverToBoxAdapter(
+                          child: _buildPodium(context, leaderboard),
                         ),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.format_list_numbered, color: primaryColor, size: 20),
-                          const SizedBox(width: 10),
-                          Text(
-                            users.length > 3 ? "ALL RANKINGS" : "RANKINGS",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: primaryColor,
-                              letterSpacing: 1,
+                      
+                      // Section Header
+                      SliverToBoxAdapter(
+                        child: Container(
+                          margin: const EdgeInsets.fromLTRB(15, 20, 15, 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                primaryColor.withOpacity(0.2),
+                                primaryColor.withOpacity(0.05),
+                              ],
                             ),
+                            borderRadius: BorderRadius.circular(15),
                           ),
-                          const Spacer(),
-                          Text(
-                            "${users.length} Students",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: subTextColor,
-                            ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.format_list_numbered, color: primaryColor, size: 20),
+                              const SizedBox(width: 10),
+                              Text(
+                                leaderboard.length > 3 ? "ALL RANKINGS" : "RANKINGS",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryColor,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                "${leaderboard.length} Students",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: subTextColor,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  
-                  // Rankings List
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        // Skip top 3 if they're shown in podium
-                        final actualIndex = users.length >= 3 ? index + 3 : index;
-                        if (actualIndex >= users.length) return null;
-                        
-                        final user = users[actualIndex];
-                        final int rank = actualIndex + 1;
+                      
+                      // Rankings List
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            // Skip top 3 if they're shown in podium
+                            final actualIndex = leaderboard.length >= 3 ? index + 3 : index;
+                            if (actualIndex >= leaderboard.length) return null;
+                            
+                            final user = leaderboard[actualIndex];
+                            final int rank = actualIndex + 1;
 
-                        return SlideTransition(
-                          position: _slideAnimation,
-                          child: _buildRankCard(
-                            context,
-                            user: user,
-                            rank: rank,
-                            isDark: isDark,
-                            cardColor: cardColor,
-                            primaryColor: primaryColor,
-                            textColor: textColor,
-                            subTextColor: subTextColor,
-                          ),
-                        );
-                      },
-                      childCount: users.length >= 3 ? users.length - 3 : users.length,
+                            return SlideTransition(
+                              position: _slideAnimation,
+                              child: _buildRankCard(
+                                context,
+                                user: user,
+                                rank: rank,
+                                isDark: isDark,
+                                cardColor: cardColor,
+                                primaryColor: primaryColor,
+                                textColor: textColor,
+                                subTextColor: subTextColor,
+                              ),
+                            );
+                          },
+                          childCount: leaderboard.length >= 3 ? leaderboard.length - 3 : leaderboard.length,
+                        ),
+                      ),
+                      
+                      // Bottom padding
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 20),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SkeletonList(
+                padding: EdgeInsets.only(top: 20),
+                skeleton: LeaderboardSkeleton(),
+                itemCount: 10,
+              ),
+              error: (error, stack) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load leaderboard',
+                      style: TextStyle(fontSize: 18, color: textColor),
                     ),
-                  ),
-                  
-                  // Bottom padding
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 20),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      error.toString(),
+                      style: TextStyle(fontSize: 14, color: subTextColor),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => ref.read(leaderboardProvider.notifier).refresh(),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -514,7 +539,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
 
   Widget _buildRankCard(
     BuildContext context, {
-    required Map<String, dynamic> user,
+    required LeaderboardModel user,
     required int rank,
     required bool isDark,
     required Color cardColor,
@@ -605,8 +630,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
                     CircleAvatar(
                       radius: 28,
                       backgroundColor: primaryColor.withOpacity(0.1),
-                      backgroundImage: user['avatar'] != null ? NetworkImage(user['avatar']) : null,
-                      child: user['avatar'] == null 
+                      backgroundImage: user.avatar != null ? CachedNetworkImageProvider(user.avatar!) : null,
+                      child: user.avatar== null 
                         ? Icon(Icons.person, color: primaryColor, size: 28)
                         : null,
                     ),
@@ -638,7 +663,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        user['username'] ?? "Unknown",
+                        user.username,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -653,7 +678,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
                           const SizedBox(width: 5),
                           Expanded(
                             child: Text(
-                              user['program'] ?? "Student",
+                              user.program ?? "Student",
                               style: TextStyle(color: subTextColor, fontSize: 12),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -695,7 +720,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        "${user['points']}",
+                        "${user.points}",
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,

@@ -2,6 +2,9 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../core/storage/local_storage.dart';
+import '../core/storage/storage_keys.dart';
+import '../utils/app_logger.dart';
 
 class NotificationService {
   // 1. Firebase Instance
@@ -16,9 +19,9 @@ class NotificationService {
     if (!isEnabled) {
       // If turning off, cancel all pending schedules immediately
       await AwesomeNotifications().cancelAllSchedules();
-      print("🚫 All scheduled notifications cancelled.");
+      AppLogger.info('All scheduled notifications cancelled');
     } else {
-      print("✅ Notifications enabled.");
+      AppLogger.info('Notifications enabled');
     }
   }
 
@@ -81,7 +84,7 @@ class NotificationService {
   // --- NEW: HANDLE BACKEND MESSAGES ---
   static void _listenToFirebaseMessages() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('🔥 FCM Message Received: ${message.data['title']}');
+      AppLogger.info('FCM Message Received: ${message.data['title']}');
       
       if (message.data['type'] == 'announcement') {
         _showCustomFirebaseNotification(message);
@@ -129,14 +132,16 @@ class NotificationService {
   }) async {
     // 🛑 CHECK TOGGLE BEFORE SCHEDULING
     if (!_notificationsEnabled) {
-      print("🔕 Notification skipped: User has disabled reminders.");
+      AppLogger.debug('Notification skipped: User has disabled reminders');
       return;
     }
     
     // 1. Determine Type
     bool isExam = title.toLowerCase().contains("exam");
     
-    // --- EXISTING LOGIC: Evening Before (or 15 min for tasks) ---
+    // --- DYNAMIC LOGIC: Fetch lead times from settings ---
+    final int leadTimeMins = LocalStorage.getItem<int>(StorageKeys.settingsBox, 'task_lead_time') ?? 15;
+    
     DateTime primaryReminderTime;
     
     if (isExam) {
@@ -144,8 +149,8 @@ class NotificationService {
         DateTime dayBefore = deadline.subtract(const Duration(days: 1));
         primaryReminderTime = DateTime(dayBefore.year, dayBefore.month, dayBefore.day, 20, 0);
     } else {
-        // STRATEGY: "Urgency" -> 15 minutes before the task
-        primaryReminderTime = deadline.subtract(const Duration(minutes: 15));
+        // STRATEGY: User-defined lead time before the task
+        primaryReminderTime = deadline.subtract(Duration(minutes: leadTimeMins));
     }
 
     // --- NEW LOGIC: 1 Hour Before Exam ---
@@ -179,10 +184,10 @@ class NotificationService {
         }
     }
 
-    print("\n🔔 --- SCHEDULING ALARM 1 ---");
-    print("📌 Type: ${isExam ? 'EXAM (Night Before)' : 'TASK (15m Before)'}");
-    print("📝 Title: '$title'");
-    print("⏰ Ring Time: $primaryReminderTime");
+    AppLogger.debug('--- SCHEDULING ALARM 1 ---');
+    AppLogger.debug('Type: ${isExam ? 'EXAM (Night Before)' : 'TASK (15m Before)'}');
+    AppLogger.debug('Title: $title');
+   AppLogger.debug('Ring Time: $primaryReminderTime');
 
     // 5. Schedule Primary Alarm
     await AwesomeNotifications().createNotification(
@@ -207,8 +212,8 @@ class NotificationService {
     // 6. Schedule Secondary Alarm (1 Hour Before) - EXAMS ONLY
     if (isExam && secondaryReminderTime != null) {
        if (secondaryReminderTime.isAfter(DateTime.now())) {
-          print("\n🔔 --- SCHEDULING ALARM 2 (1 Hour Before) ---");
-          print("⏰ Ring Time: $secondaryReminderTime");
+          AppLogger.debug('--- SCHEDULING ALARM 2 (1 Hour Before) ---');
+          AppLogger.debug('Ring Time: $secondaryReminderTime');
           
           int id1Hour = ("$id" "_1hr").hashCode; 
 
@@ -232,7 +237,6 @@ class NotificationService {
           );
        }
     }
-    print("-----------------------------------\n");
   }
 
   static Future<void> scheduleClassNotification({
@@ -244,7 +248,7 @@ class NotificationService {
   }) async {
     // 🛑 CHECK TOGGLE BEFORE SCHEDULING
     if (!_notificationsEnabled) {
-      print("🔕 Notification skipped: User has disabled reminders.");
+      AppLogger.debug('Notification skipped: User has disabled reminders');
       return;
     }
     
@@ -280,12 +284,12 @@ class NotificationService {
       ),
     );
 
-    // ==========================================
-    // ALARM 2: The "30 Minutes Before"
+    // ALARM 2: The User-Defined Lead Time
     // ==========================================
 
+    final int classLeadTime = LocalStorage.getItem<int>(StorageKeys.settingsBox, 'class_lead_time') ?? 30;
     int totalMinutes = startTime.hour * 60 + startTime.minute;
-    int reminderMinutes = totalMinutes - 30; // 30 minutes before
+    int reminderMinutes = totalMinutes - classLeadTime; 
     int reminderWeekday = dayOfWeek;
 
     if (reminderMinutes < 0) {
@@ -304,7 +308,7 @@ class NotificationService {
         id: id30Min,
         channelKey: 'dita_planner_channel_v4', // Ensure v4 is used
         title: '🔔 Upcoming Class: $title',
-        body: 'Starts in 30 mins ($formattedTime) at $venue.',
+        body: 'Starts in $classLeadTime mins ($formattedTime) at $venue.',
         notificationLayout: NotificationLayout.Default,
         
         // --- CHANGED HERE ---
@@ -326,7 +330,7 @@ class NotificationService {
       ),
     );
 
-    print("✅ Scheduled Dual Alarms for $title (IDs: $id & $id30Min)");
+    AppLogger.success('Scheduled Dual Alarms for $title (IDs: $id & $id30Min)');
   }
 
   // --- FEATURE: CANCEL BOTH REMINDERS ---
@@ -338,6 +342,6 @@ class NotificationService {
     int id30Min = ("$id" "_30").hashCode;
     await AwesomeNotifications().cancel(id30Min);
     
-    print("🚫 Cancelled both alarms for Class ID: $id");
+    AppLogger.info('Cancelled both alarms for Class ID: $id');
   }
 }

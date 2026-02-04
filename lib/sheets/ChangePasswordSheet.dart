@@ -1,21 +1,15 @@
-import 'package:dita_app/services/api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
 
-class ChangePasswordSheet extends StatefulWidget {
-  final Map<String, dynamic> user;
-  final Color primaryDark;
-
-  const ChangePasswordSheet({
-    super.key, 
-    required this.user, 
-    required this.primaryDark,
-  });
+class ChangePasswordSheet extends ConsumerStatefulWidget {
+  const ChangePasswordSheet({super.key});
 
   @override
-  State<ChangePasswordSheet> createState() => _ChangePasswordSheetState();
+  ConsumerState<ChangePasswordSheet> createState() => _ChangePasswordSheetState();
 }
 
-class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
+class _ChangePasswordSheetState extends ConsumerState<ChangePasswordSheet> {
   final TextEditingController _oldController = TextEditingController();
   final TextEditingController _newController = TextEditingController();
   bool _isLoading = false;
@@ -35,25 +29,35 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
 
     setState(() => _isLoading = true);
     
-    // API Call
-    bool success = await ApiService.changePassword( 
-      widget.user['id'],
-      oldPass, 
+    // Call Provider Method
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return;
+
+    final success = await ref.read(authProvider.notifier).changePassword(
+      currentUser.id,
+      oldPass,
       newPass
     );
     
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    Navigator.pop(context); // Close sheet
-    
-    // Show final feedback
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success ? "Password changed successfully!" : "Error: Incorrect old password or server error."),
-        backgroundColor: success ? Colors.green : Colors.red,
-      )
-    );
+    if (success) {
+      Navigator.pop(context); // Close sheet
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Password changed successfully!"),
+          backgroundColor: Colors.green,
+        )
+      );
+    } else {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Error: Incorrect old password or server error."),
+          backgroundColor: Colors.red,
+        )
+      );
+    }
   }
 
 @override

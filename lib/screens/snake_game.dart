@@ -7,6 +7,9 @@ import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dita_app/services/api_service.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
+
 // --- THEME CONSTANTS ---
 const Color kDeepSlate = Color(0xFF0F172A);
 const Color kSurface = Color(0xFF1E293B);
@@ -15,18 +18,17 @@ const Color kNeonGreen = Color(0xFF4ADE80);
 const Color kNeonRed = Color(0xFFEF4444);
 const Color kDitaGold = Color(0xFFFFD700);
 
-class SnakeGameScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-  const SnakeGameScreen({super.key, required this.user});
+class SnakeGameScreen extends ConsumerStatefulWidget {
+  const SnakeGameScreen({super.key});
 
   @override
-  State<SnakeGameScreen> createState() => _SnakeGameScreenState();
+  ConsumerState<SnakeGameScreen> createState() => _SnakeGameScreenState();
 }
 
 enum Direction { up, down, left, right }
 enum PowerUpType { doubleScore, speedBoost, slowMo, ghostMode, megaPoint }
 
-class _SnakeGameScreenState extends State<SnakeGameScreen> with TickerProviderStateMixin {
+class _SnakeGameScreenState extends ConsumerState<SnakeGameScreen> with TickerProviderStateMixin {
   // --- CONFIG ---
   static const int rows = 30;
   static const int columns = 20;
@@ -105,11 +107,8 @@ double _playerMMR = 1000;
   }
 
   Future<void> _loadData() async {
-    if (widget.user['points'] != null) {
-      _totalUserPoints = int.tryParse(widget.user['points'].toString()) ?? 0;
-    } else {
-      _totalUserPoints = 0;
-    }
+    final user = ref.read(currentUserProvider);
+    _totalUserPoints = user?.points ?? 0;
 
 
     final prefs = await SharedPreferences.getInstance();
@@ -529,13 +528,9 @@ await prefs.setDouble('snake_mmr', _playerMMR);
         setState(() => _localHighScore = _score);
       }
 
-      int userId = 0;
-      if (widget.user['id'] is int) {
-        userId = widget.user['id'];
-      } else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
-
-      if (userId != 0) {
-        await ApiService.updateUser(userId, {"points": _totalUserPoints});
+      final user = ref.read(currentUserProvider);
+      if (user != null) {
+        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _totalUserPoints});
       }
     } catch (e) {
       debugPrint("Error saving snake data: $e");

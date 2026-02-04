@@ -116,10 +116,29 @@ cd dita_app
 flutter pub get
 ```
 
-**Configure Environment Variables**: Create a `.env` file in the `assets/` folder (or root):
+**Configure Environment Variables**: 
+
+> **⚠️ SECURITY WARNING**: Never commit your `.env` file to version control! It contains sensitive API keys.
+
+1. Copy the example environment file:
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` and add your actual API keys:
 ```env
-GOOGLE_API_KEY=your_gemini_api_key
-API_BASE_URL=http://127.0.0.1:8000/api
+# Google Gemini API Key (for AI Assistant)
+# Get your key from: https://makersuite.google.com/app/apikey
+GOOGLE_API_KEY=your_gemini_api_key_here
+
+# Backend API Base URL
+# Development: http://localhost:8000/api
+# Staging: https://staging-api.dita.co.ke/api
+# Production: https://api.dita.co.ke/api
+API_BASE_URL=https://api.dita.co.ke/api
+
+# Environment (development, staging, production)
+ENVIRONMENT=development
 ```
 
 **Run the App**:

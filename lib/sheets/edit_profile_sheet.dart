@@ -1,25 +1,17 @@
-// You will need to bring the _buildDialogInput method over or define it again.
-// For simplicity, I'll keep the logic inline here.
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
 
 // --- Widget Helper (from ProfileScreen) ---
 
-class EditProfileSheet extends StatefulWidget {
-  final Map<String, dynamic> user;
-  final Function(Map<String, dynamic>) onProfileSaved;
-
-  const EditProfileSheet({
-    super.key, 
-    required this.user, 
-    required this.onProfileSaved,
-  });
+class EditProfileSheet extends ConsumerStatefulWidget {
+  const EditProfileSheet({super.key});
 
   @override
-  State<EditProfileSheet> createState() => _EditProfileSheetState();
+  ConsumerState<EditProfileSheet> createState() => _EditProfileSheetState();
 }
 
-class _EditProfileSheetState extends State<EditProfileSheet> {
+class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
   bool _isSaving = false;
 
   late final TextEditingController _admController;
@@ -31,11 +23,12 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   @override
   void initState() {
     super.initState();
-    _admController = TextEditingController(text: widget.user['admission_number']);
-    _programController = TextEditingController(text: widget.user['program']);
-    _phoneController = TextEditingController(text: widget.user['phone_number']);
-    _emailController = TextEditingController(text: widget.user['email']);
-    _selectedYear = widget.user['year_of_study'] ?? 1;
+    final user = ref.read(currentUserProvider);
+    _admController = TextEditingController(text: user?.admissionNumber);
+    _programController = TextEditingController(text: user?.program);
+    _phoneController = TextEditingController(text: user?.phoneNumber);
+    _emailController = TextEditingController(text: user?.email);
+    _selectedYear = user?.yearOfStudy ?? 1;
   }
 
   Future<void> _updateProfile() async {
@@ -50,16 +43,16 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       "email": _emailController.text,
     };
 
-    bool success = await ApiService.updateUser(widget.user['id'], data);
+    // Use AuthProvider
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    
+    final success = await ref.read(authProvider.notifier).updateUser(user.id, data);
+
     if (!mounted) return;
 
     if (success) {
-      final freshData = await ApiService.getUserDetails(widget.user['id']);
-      if (freshData != null) {
-        await ApiService.saveUserLocally(freshData);
-        widget.onProfileSaved(freshData); // Use the callback
-        if (mounted) Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
     } else {
       setState(() => _isSaving = false);
       // Show error message on the main screen (SnackBar or Dialog)

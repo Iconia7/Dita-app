@@ -1,18 +1,19 @@
 import 'package:dita_app/screens/forgot_password_modal.dart';
 import 'package:dita_app/screens/register_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Import for AutofillHints
-import '../services/api_service.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
 import 'home_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -57,52 +58,47 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
-  void _handleLogin() async {
-    // Save form fields to trigger autofill save prompt
+  Future<void> _handleLogin() async {
     TextInput.finishAutofillContext();
     
     if (!_formKey.currentState!.validate()) return;
-    // Dismiss keyboard
     FocusScope.of(context).unfocus();
 
     setState(() => _isLoading = true);
 
-    final userData = await ApiService.login(
+    // Use Riverpod Provider for Login
+    final success = await ref.read(authProvider.notifier).login(
       _usernameController.text,
       _passwordController.text,
     );
 
     setState(() => _isLoading = false);
 
-    if (userData != null) {
-      await ApiService.saveUserLocally(userData);
-      
-      if (mounted) {
-        // UX IMPROVEMENT: We send everyone to HomeScreen now.
-        // The HomeScreen handles the "Locked" state if they haven't paid.
+    if (success && mounted) {
+      // Get the user from the provider state
+      final user = ref.read(currentUserProvider);
+      if (user != null) {
         Navigator.pushReplacement(
           context, 
-          MaterialPageRoute(builder: (_) => HomeScreen(user: userData))
+          MaterialPageRoute(builder: (_) => const HomeScreen()) 
         );
       }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 10),
-                Text('Invalid credentials. Check username or password.'),
-              ],
-            ),
-            backgroundColor: Colors.red[800],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            margin: const EdgeInsets.all(20),
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Invalid credentials. Check username or password.'),
+            ],
           ),
-        );
-      }
+          backgroundColor: Colors.red[800],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          margin: const EdgeInsets.all(20),
+        ),
+      );
     }
   }
 
@@ -110,20 +106,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 🟢 2. DYNAMIC COLORS
-    // Light Mode: Dita Blue -> Lighter Blue
-    // Dark Mode:  Deep Slate -> Dita Blue (Subtler, darker gradient)
     final gradientColors = isDark 
         ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
         : [const Color(0xFF003366), const Color(0xFF004C99)];
 
     final scaffoldBg = isDark ? const Color(0xFF0F172A) : const Color(0xFF003366);
-    final cardColor = Theme.of(context).cardColor; // White (Light) or Slate 800 (Dark)
+    final cardColor = Theme.of(context).cardColor;
+    
     return Scaffold(
       backgroundColor: scaffoldBg,
       body: Stack(
         children: [
-          // 1. BACKGROUND GRADIENT
           Container(
             height: MediaQuery.of(context).size.height * 0.5,
             decoration: BoxDecoration(
@@ -143,7 +136,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
 
-          // 2. MAIN CONTENT
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -154,11 +146,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     position: _slideAnimation,
                     child: Column(
                       children: [
-                        // LOGO AREA
                         Hero(
                           tag: 'logo',
                           child: Container(
-                            height: 100, // Slightly larger for impact
+                            height: 100, 
                             width: 100,
                             decoration: BoxDecoration(
                               color: Colors.white,
@@ -172,9 +163,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               ],
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(15.0), // Add padding so the logo isn't touching the edges
+                              padding: const EdgeInsets.all(15.0),
                               child: Image.asset(
-                                'assets/icon/icon.png', // <--- YOUR NEW LOGO ASSET
+                                'assets/icon/icon.png', 
                                 fit: BoxFit.contain,
                               ),
                             ),
@@ -192,7 +183,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         
                         const SizedBox(height: 40),
 
-                        // CARD AREA
                         Container(
                           padding: const EdgeInsets.all(50),
                           decoration: BoxDecoration(
@@ -208,22 +198,20 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                           child: Form(
                             key: _formKey,
-                            child: AutofillGroup( // 🟢 WRAP FIELDS IN AUTOFILL GROUP
+                            child: AutofillGroup(
                               child: Column(
                                 children: [
-                                  // Username
                                   _buildStylishInput(
                                     controller: _usernameController,
                                     hint: "Admission / Username",
                                     icon: Icons.person_outline_rounded,
                                     validator: (v) => v!.isEmpty ? "Username is required" : null,
                                     isDark: isDark,
-                                    autofillHints: const [AutofillHints.username], // 🟢 ADD AUTOFILL HINT
+                                    autofillHints: const [AutofillHints.username],
                                   ),
 
                                   const SizedBox(height: 20),
 
-                                  // Password
                                   _buildStylishInput(
                                     controller: _passwordController,
                                     hint: "Password",
@@ -231,10 +219,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                     isPassword: true,
                                     validator: (v) => v!.isEmpty ? "Password is required" : null,
                                     isDark: isDark,
-                                    autofillHints: const [AutofillHints.password], // 🟢 ADD AUTOFILL HINT
+                                    autofillHints: const [AutofillHints.password],
                                   ),
 
-                                  // Forgot Password
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton(
@@ -249,7 +236,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
                                   const SizedBox(height: 20),
 
-                                  // Login Button
                                   SizedBox(
                                     width: double.infinity,
                                     height: 55,
@@ -283,7 +269,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
                         const SizedBox(height: 30),
 
-                        // FOOTER
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -327,16 +312,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     bool isPassword = false,
     String? Function(String?)? validator,
     required bool isDark,
-    Iterable<String>? autofillHints, // 🟢 Accept autofill hints
+    Iterable<String>? autofillHints,
   }) {
-    final fillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA); // Dark Navy or Light Grey
+    final fillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
     final iconColor = isDark ? Colors.white54 : Colors.grey[500];
     final textColor = isDark ? Colors.white : Colors.black87;
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       validator: validator,
-      autofillHints: autofillHints, // 🟢 Set autofill hints
+      autofillHints: autofillHints,
       style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
       decoration: InputDecoration(
         filled: true,
@@ -358,7 +343,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.transparent)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          // 🟢 Focus color: Gold in dark mode, Blue in light mode
           borderSide: BorderSide(color: isDark ? const Color(0xFFFFD700) : const Color(0xFF004C99), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.red, width: 1.5)),  

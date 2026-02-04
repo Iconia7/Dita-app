@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
@@ -153,12 +154,17 @@ class _PromoDialogWidget extends StatelessWidget {
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
                   child: imageUrl != null 
-                    ? Image.network(
-                        imageUrl!,
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl!,
                         height: 180,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (c,e,s) => _buildPlaceholder(context),
+                        placeholder: (context, url) => Container(
+                          height: 180,
+                          color: Theme.of(context).primaryColor.withOpacity(0.05),
+                          child: const Center(child: CircularProgressIndicator()),
+                        ),
+                        errorWidget: (context, url, error) => _buildPlaceholder(context),
                       )
                     : _buildPlaceholder(context),
                 ),

@@ -1,39 +1,42 @@
 import 'dart:async';
-import 'dart:convert';
+import 'package:intl/intl.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
-import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/widgets/dita_loader.dart';
+import 'package:dita_app/widgets/skeleton_loader.dart';
+import 'package:dita_app/widgets/empty_state_widget.dart';
+import 'package:dita_app/providers/timetable_provider.dart';
+import 'package:dita_app/data/models/timetable_model.dart';
 import 'portal_import_screen.dart';
-import '../services/notification.dart';
 
-class ClassTimetableScreen extends StatefulWidget {
+class ClassTimetableScreen extends ConsumerStatefulWidget {
   const ClassTimetableScreen({super.key});
 
   @override
-  State<ClassTimetableScreen> createState() => _ClassTimetableScreenState();
+  ConsumerState<ClassTimetableScreen> createState() => _ClassTimetableScreenState();
 }
 
-class _ClassTimetableScreenState extends State<ClassTimetableScreen> with SingleTickerProviderStateMixin {
+class _ClassTimetableScreenState extends ConsumerState<ClassTimetableScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   Timer? _timer;
   final Color _liveGreen = const Color(0xFF10B981);   // Emerald 500
 
   final List<String> _days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-  List<dynamic> _classes = [];
 
   @override
   void initState() {
     super.initState();
     int todayIndex = DateTime.now().weekday - 1; 
     _tabController = TabController(length: 7, initialIndex: todayIndex, vsync: this);
-    _loadClasses();
+    
+    // Timer for live class updates
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
-    if (mounted) {
-      setState(() {}); // Updates the UI
-      _checkAndShowProgress(); // 🟢 Check for notification updates
-    }
-  });
+      if (mounted) {
+        setState(() {}); // Updates the UI
+        _checkAndShowProgress();
+      }
+    });
   }
 
   @override
@@ -43,42 +46,54 @@ class _ClassTimetableScreenState extends State<ClassTimetableScreen> with Single
     super.dispose();
   }
 
-// Run this inside your Timer loop
-void _checkAndShowProgress() {
-  final now = DateTime.now();
-  final dayClasses = _classes.where((c) => c['day'] == _days[now.weekday - 1]).toList();
+  // Helper to get classes from provider
+  List<TimetableModel> _getClasses() {
+    final asyncData = ref.read(timetableProvider); // Use read for non-reactive access in timer
+    return asyncData.value?.where((item) => item.isClass).toList() ?? [];
+  }
 
-  bool activeNotificationFound = false;
-
-  for (var c in dayClasses) {
-    final startMinutes = _timeToMinutes(c['startTime']);
-    final endMinutes = _timeToMinutes(c['endTime']);
-    final currentMinutes = now.hour * 60 + now.minute;
-
-    // 1. IS CLASS LIVE? (Start < Now < End)
-    if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
-      _updateProgressNotification(c);
-      activeNotificationFound = true;
-      break; // Only show one live class at a time
-    }
+  // Run this inside your Timer loop
+  void _checkAndShowProgress() {
+    final now = DateTime.now();
+    final allClasses = _getClasses();
+    // Assuming backend returns short day names (MON, TUE), need to match
+    // Or if backend returns full names, need to truncate/map. 
+    // TimetableModel tries to parse day, assuming model handles format.
+    // For now assuming model.dayOfWeek matches _days format or is normalized.
+    // Actually TimetableModel defaults dayOfWeek to 'Monday', 'Tuesday' etc.
+    // We need to map 'MON' to 'Monday' or vice versa.
+    // Let's assume standard 'Monday' in model and map _days to full names for comparison?
+    // The previous code used _days=['MON'...] and dayClasses.where((c) => c['day'] == _days[...])
     
-    // 2. DID CLASS JUST FINISH? (End < Now < End + 5 mins)
-    // This catches the moment the class ends so we can show "Done"
-    else if (currentMinutes >= endMinutes && currentMinutes < endMinutes + 5) {
-      _showCompletionNotification(c);
-      activeNotificationFound = true;
+    // Fix: Map standard full day names from model to short names if needed, or vice-versa.
+    // Let's use standard full names for logic.
+    String currentDayName = DateFormat('EEEE').format(now); // Monday, Tuesday...
+    
+    final dayClasses = allClasses.where((c) => c.dayOfWeek == currentDayName).toList();
+
+    bool activeNotificationFound = false;
+
+    for (var c in dayClasses) {
+      final startMinutes = _timeToMinutes(c.startTime);
+      final endMinutes = _timeToMinutes(c.endTime);
+      final currentMinutes = now.hour * 60 + now.minute;
+
+      if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
+        _updateProgressNotification(c);
+        activeNotificationFound = true;
+        break; 
+      }
+      else if (currentMinutes >= endMinutes && currentMinutes < endMinutes + 5) {
+        _showCompletionNotification(c);
+        activeNotificationFound = true;
+      }
+    }
+
+    if (!activeNotificationFound) {
+      AwesomeNotifications().cancelNotificationsByChannelKey('live_class_monitor');
     }
   }
 
-  // 3. CLEANUP
-  // If no classes are live or just finished, ensure we don't have stuck notifications
-  if (!activeNotificationFound) {
-    // You might want to cancel specific IDs or all from this channel
-    AwesomeNotifications().cancelNotificationsByChannelKey('live_class_monitor');
-  }
-}
-
-// 🟢 HELPER: Calculates percentage (0.0 to 1.0)
   double _calculateProgress(String start, String end) {
     try {
       final now = DateTime.now();
@@ -87,102 +102,68 @@ void _checkAndShowProgress() {
       final endMinutes = _timeToMinutes(end);
 
       if (endMinutes <= startMinutes) return 0.0;
-
       final totalDuration = endMinutes - startMinutes;
       final elapsed = currentMinutes - startMinutes;
-
-      // Return value between 0.0 and 1.0
       return (elapsed / totalDuration).clamp(0.0, 1.0);
     } catch (e) {
       return 0.0;
     }
   }
 
-Future<void> _updateProgressNotification(Map<String, dynamic> classData) async {
-  double progress = _calculateProgress(classData['startTime'], classData['endTime']);
-  int progressInt = (progress * 100).toInt();
+  Future<void> _updateProgressNotification(TimetableModel c) async {
+    double progress = _calculateProgress(c.startTime, c.endTime);
+    int progressInt = (progress * 100).toInt();
 
-  await AwesomeNotifications().createNotification(
-    content: NotificationContent(
-      id: classData['id'], 
-      channelKey: 'live_class_monitor',
-      title: 'Ongoing: ${classData['code']}',
-      body: 'Ends at ${classData['endTime']} • ${classData['venue']}',
-      
-      // PROGRESS LAYOUT
-      notificationLayout: NotificationLayout.ProgressBar,
-      progress: progressInt.toDouble(), 
-      
-      // STICKY BEHAVIOR
-      locked: true,             // User cannot swipe away
-      autoDismissible: false,   // Tap does not dismiss
-      category: NotificationCategory.Progress,
-      payload: {'class_id': classData['id'].toString()},
-    ),
-    actionButtons: [
-      NotificationActionButton(
-        key: 'STOP_MONITOR', 
-        label: 'End Monitor', 
-        actionType: ActionType.DismissAction
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: c.id, 
+        channelKey: 'live_class_monitor',
+        title: 'Ongoing: ${c.code ?? c.title}',
+        body: 'Ends at ${c.endTime} • ${c.venue ?? "Online"}',
+        notificationLayout: NotificationLayout.ProgressBar,
+        progress: progressInt.toDouble(), 
+        locked: true,
+        autoDismissible: false,
+        category: NotificationCategory.Progress,
+        payload: {'class_id': c.id.toString()},
       ),
-    ],
-  );
-}
-
-Future<void> _showCompletionNotification(Map<String, dynamic> classData) async {
-  await AwesomeNotifications().createNotification(
-    content: NotificationContent(
-      id: classData['id'], // Reuses ID to replace the progress bar
-      channelKey: 'live_class_monitor', // Use same channel
-      
-      // SUCCESS MESSAGE
-      title: 'Class Dismissed! 🎉', 
-      body: '${classData['code']} has ended. Enjoy your break!',
-      
-      // STANDARD LAYOUT (Removes Progress Bar)
-      notificationLayout: NotificationLayout.Default,
-      progress: null, 
-      
-      // UNLOCKED BEHAVIOR (Key Change!)
-      locked: false,            // User CAN swipe it away now
-      autoDismissible: true,    // Tap dismisses it
-      wakeUpScreen: true,       // Light up screen (optional)
-      category: NotificationCategory.Status,
-    ),
-    // No action buttons needed, or add a "Open App" button
-  );
-}
-
-  Future<void> _loadClasses() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? data = prefs.getString('my_classes');
-    if (data != null && mounted) {
-      setState(() {
-        _classes = json.decode(data);
-      });
-    } else {
-      setState(() => _classes = []);
-    }
+      actionButtons: [
+        NotificationActionButton(
+          key: 'STOP_MONITOR', 
+          label: 'End Monitor', 
+          actionType: ActionType.DismissAction
+        ),
+      ],
+    );
   }
 
-  Future<void> _clearAllClasses() async {
-    for (var c in _classes) {
-      if (c['id'] != null) await NotificationService.cancelNotification(c['id']);
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('my_classes');
-    _loadClasses();
+  Future<void> _showCompletionNotification(TimetableModel c) async {
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: c.id, 
+        channelKey: 'live_class_monitor',
+        title: 'Class Dismissed! 🎉', 
+        body: '${c.code ?? c.title} has ended. Enjoy your break!',
+        notificationLayout: NotificationLayout.Default,
+        progress: null, 
+        locked: false,
+        autoDismissible: true,
+        wakeUpScreen: true,
+        category: NotificationCategory.Status,
+      ),
+    );
   }
 
-  // --- LOGIC ---
-  bool _isClassLive(Map<String, dynamic> cls) {
-    int currentDayIndex = DateTime.now().weekday;
-    int classDayIndex = _days.indexOf(cls['day']) + 1;
+  bool _isClassLive(TimetableModel cls) {
+    int currentDayIndex = DateTime.now().weekday; // 1 = Mon, 7 = Sun
+    // Map cls.dayOfWeek (e.g. 'Monday') to index
+    int classDayIndex = cls.dayNumber + 1; // dayNumber is 0-indexed (0=Mon)
+    
     if (classDayIndex != currentDayIndex) return false;
 
     int nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
-    int startMinutes = _timeToMinutes(cls['startTime']);
-    int endMinutes = _timeToMinutes(cls['endTime']);
+    int startMinutes = _timeToMinutes(cls.startTime);
+    int endMinutes = _timeToMinutes(cls.endTime);
 
     return nowMinutes >= startMinutes && nowMinutes < endMinutes;
   }
@@ -196,16 +177,17 @@ Future<void> _showCompletionNotification(Map<String, dynamic> classData) async {
     }
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final primaryColor = Theme.of(context).primaryColor;
     final accentGold = const Color(0xFFFFD700);
 
+    final timetableAsync = ref.watch(timetableProvider);
+
     return Scaffold(
-      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
+      backgroundColor: scaffoldBg,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
@@ -229,7 +211,6 @@ Future<void> _showCompletionNotification(Map<String, dynamic> classData) async {
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          // 🟢 Dark Mode Gradient check (optional, or keep blue for brand)
                           colors: isDark 
                               ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
                               : [const Color(0xFF003366), const Color(0xFF003366)], 
@@ -253,16 +234,19 @@ Future<void> _showCompletionNotification(Map<String, dynamic> classData) async {
               actions: [
                  PopupMenuButton<String>(
                   icon: const Icon(Icons.tune, color: Colors.white),
-                  color: Theme.of(context).cardColor, // 🟢 Dynamic Menu BG
+                  color: Theme.of(context).cardColor,
                   onSelected: (value) {
                     if (value == 'sync') {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen())).then((_) => _loadClasses());
-                    } else if (value == 'clear') _clearAllClasses();
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const PortalImportScreen()))
+                          .then((_) => ref.refresh(timetableProvider));
+                    } else if (value == 'refresh') {
+                      ref.read(timetableProvider.notifier).refresh();
+                    }
                   },
                   itemBuilder: (BuildContext context) => [
                     const PopupMenuItem(value: 'sync', child: Row(children: [Icon(Icons.sync, size: 18), SizedBox(width: 8), Text("Sync Portal")])),
                     const PopupMenuDivider(),
-                    const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 8), Text("Clear All", style: TextStyle(color: Colors.red))])),
+                    const PopupMenuItem(value: 'refresh', child: Row(children: [Icon(Icons.refresh, size: 18), SizedBox(width: 8), Text("Refresh")])),
                   ],
                 )
               ],
@@ -280,56 +264,73 @@ Future<void> _showCompletionNotification(Map<String, dynamic> classData) async {
                       BoxShadow(color: accentGold.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))
                     ]
                   ),
-                  labelColor: const Color(0xFF003366), // Selected text always Dark Blue (on Gold)
-                  unselectedLabelColor: isDark ? Colors.grey[400] : Colors.grey[600], // 🟢 Dynamic Unselected
+                  labelColor: const Color(0xFF003366),
+                  unselectedLabelColor: isDark ? Colors.grey[400] : Colors.grey[600],
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                   tabs: _days.map((d) => Tab(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(d),
+                      child: Text(d), // Display strict 'MON' etc.
                     ),
                   )).toList(),
                 ),
-                scaffoldBg, // 🟢 Pass the background color to the delegate
+                scaffoldBg,
               ),
               pinned: true,
             ),
           ];
         },
-        body: TabBarView(
-          controller: _tabController,
-          children: _days.map((day) => _buildDayTimeline(day)).toList(),
+        body: timetableAsync.when(
+          loading: () => const TimetableSkeleton(),
+          error: (err, stack) => Center(child: Text('Error: $err')),
+          data: (allData) {
+            // Filter only classes
+            final classes = allData.where((item) => item.isClass).toList();
+            
+            return TabBarView(
+              controller: _tabController,
+              children: _days.map((dayShort) => _buildDayTimeline(dayShort, classes)).toList(),
+            );
+          }
         ),
       ),
     );
   }
 
-Widget _buildEmptyState() {
-  return EmptyStateWidget(
-    svgPath: 'assets/svgs/no_data.svg', // Ensure you add this SVG asset
-    title: "No Classes Yet",
-    message: "Sync your portal or add classes manually to get started.",
-    actionLabel: "Sync Now",
-    onActionPressed: () {
-      Navigator.push(
-        context, 
-        MaterialPageRoute(builder: (_) => const PortalImportScreen())
-      ).then((_) => _loadClasses());
-    },
-  );
-}
+  Widget _buildEmptyState() {
+    return EmptyStateWidget(
+      svgPath: 'assets/svgs/no_data.svg',
+      title: "No Classes Yet",
+      message: "Sync your portal or add classes manually to get started.",
+      actionLabel: "Sync Now",
+      onActionPressed: () {
+        Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (_) => const PortalImportScreen())
+        ).then((_) => ref.refresh(timetableProvider));
+      },
+    );
+  }
 
-  Widget _buildDayTimeline(String day) {
-    // 🟢 Theme Helpers
+  Widget _buildDayTimeline(String dayShort, List<TimetableModel> allClasses) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
 
-    if (_classes.isEmpty) return _buildEmptyState();
+    if (allClasses.isEmpty) return _buildEmptyState();
 
-    final dayClasses = _classes.where((c) => c['day'] == day).toList();
-    dayClasses.sort((a, b) => a['startTime'].compareTo(b['startTime'])); 
+    // Map 'MON' to 'Monday' for filtering
+    // Helper map
+    final map = {
+      'MON': 'Monday', 'TUE': 'Tuesday', 'WED': 'Wednesday', 
+      'THU': 'Thursday', 'FRI': 'Friday', 'SAT': 'Saturday', 'SUN': 'Sunday'
+    };
+    final dayFull = map[dayShort] ?? dayShort;
+
+    // Filter classes for this day
+    final dayClasses = allClasses.where((c) => c.dayOfWeek == dayFull).toList();
+    dayClasses.sort((a, b) => a.startTime.compareTo(b.startTime)); 
 
     if (dayClasses.isEmpty) {
       return Center(
@@ -356,25 +357,23 @@ Widget _buildEmptyState() {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. TIME COLUMN
               SizedBox(
                 width: 50,
                 child: Column(
                   children: [
                     Text(
-                      c['startTime'], 
-                      style: TextStyle(fontWeight: FontWeight.bold, color: isLive ? _liveGreen : textColor) // 🟢
+                      c.startTime, 
+                      style: TextStyle(fontWeight: FontWeight.bold, color: isLive ? _liveGreen : textColor)
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      c['endTime'], 
-                      style: TextStyle(fontSize: 12, color: subTextColor) // 🟢
+                      c.endTime, 
+                      style: TextStyle(fontSize: 12, color: subTextColor)
                     ),
                   ],
                 ),
               ),
 
-              // 2. TIMELINE LINE
               Column(
                 children: [
                   Container(
@@ -382,18 +381,17 @@ Widget _buildEmptyState() {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: isLive ? _liveGreen : (isDark ? Colors.grey[700] : Colors.white), // 🟢 Darker dot for dark mode
+                      color: isLive ? _liveGreen : (isDark ? Colors.grey[700] : Colors.white),
                       border: Border.all(color: isLive ? _liveGreen : (isDark ? Colors.grey[600]! : Colors.grey[300]!), width: 2),
                       shape: BoxShape.circle,
                       boxShadow: isLive ? [BoxShadow(color: _liveGreen.withOpacity(0.5), blurRadius: 6, spreadRadius: 1)] : null
                     ),
                   ),
                   if (!isLast) 
-                    Expanded(child: Container(width: 2, color: isDark ? Colors.grey[800] : Colors.grey[200])), // 🟢 Darker line
+                    Expanded(child: Container(width: 2, color: isDark ? Colors.grey[800] : Colors.grey[200])),
                 ],
               ),
 
-              // 3. CARD CONTENT
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 20),
@@ -407,8 +405,7 @@ Widget _buildEmptyState() {
     );
   }
 
-  Widget _buildClassCard(Map<String, dynamic> c, bool isLive) {
-    // 🟢 Theme Helpers
+  Widget _buildClassCard(TimetableModel c, bool isLive) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = Theme.of(context).cardColor;
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
@@ -416,7 +413,7 @@ Widget _buildEmptyState() {
 
     return Container(
       decoration: BoxDecoration(
-        color: cardColor, // 🟢 Dynamic Card BG
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
         border: isLive ? Border.all(color: _liveGreen, width: 1.5) : Border.all(color: Colors.transparent),
         boxShadow: [
@@ -437,13 +434,14 @@ Widget _buildEmptyState() {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onLongPress: () => _deleteSingleClass(c['id']), 
+            onLongPress: () {
+               // Deletion not yet implemented in provider for read-only timetable
+            },
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // HEADER: Code & Live Badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -454,9 +452,9 @@ Widget _buildEmptyState() {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          c['code'], 
+                          c.code ?? c.title.substring(0, 3).toUpperCase(), 
                           style: TextStyle(
-                            color: isLive ? Colors.white : Theme.of(context).primaryColor, // 🟢
+                            color: isLive ? Colors.white : Theme.of(context).primaryColor,
                             fontWeight: FontWeight.w800,
                             fontSize: 12
                           )
@@ -472,22 +470,20 @@ Widget _buildEmptyState() {
                   ),
                   const SizedBox(height: 12),
                   
-                  // TITLE
                   Text(
-                    "Class at ${c['venue']}",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor), // 🟢
+                    "Class at ${c.venue ?? 'N/A'}",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
                   ),
                   const SizedBox(height: 8),
 
-                  // DETAILS ROW
                   Row(
                     children: [
                       Icon(Icons.person_outline, size: 16, color: subTextColor),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          c['lecturer'] == "Unknown" ? "Lecturer N/A" : c['lecturer'], 
-                          style: TextStyle(color: subTextColor, fontSize: 13), // 🟢
+                          (c.lecturer == null || c.lecturer == "Unknown") ? "Lecturer N/A" : c.lecturer!,
+                          style: TextStyle(color: subTextColor, fontSize: 13),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -502,21 +498,10 @@ Widget _buildEmptyState() {
       ),
     );
   }
-
-  Future<void> _deleteSingleClass(int id) async {
-    if (id != 0) await NotificationService.cancelNotification(id);
-    final prefs = await SharedPreferences.getInstance(); 
-    List<dynamic> current = json.decode(prefs.getString('my_classes') ?? '[]');
-    current.removeWhere((item) => item['id'] == id);
-    await prefs.setString('my_classes', json.encode(current));
-    _loadClasses();
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Class removed")));
-  }
 }
 
-// --- HELPER FOR STICKY TAB BAR ---
 class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
-  _SliverAppBarDelegate(this._tabBar, this._bgColor); // 🟢 Accept BG Color
+  _SliverAppBarDelegate(this._tabBar, this._bgColor);
   final TabBar _tabBar;
   final Color _bgColor;
 
@@ -528,13 +513,13 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      color: _bgColor, // 🟢 Use Dynamic BG Color
+      color: _bgColor,
       child: _tabBar,
     );
   }
 
   @override
   bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
-    return _bgColor != oldDelegate._bgColor; // Rebuild if color changes (Dark Mode Switch)
+    return _bgColor != oldDelegate._bgColor;
   }
 }

@@ -1,24 +1,25 @@
 import 'package:dita_app/screens/privacy_policy_screen.dart';
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProviderStateMixin {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   
   // Controllers
-  final _usernameController = TextEditingController(); // New field for display name
+  final _usernameController = TextEditingController(); 
   final _admController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPassController = TextEditingController();
-  final _emailController = TextEditingController(); // Add this
+  final _emailController = TextEditingController(); 
   
   // Dropdown Values
   String? _selectedProgram;
@@ -67,18 +68,23 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   @override
   void dispose() {
     _animationController.dispose();
+    _usernameController.dispose();
+    _admController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPassController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
 
 void _showRegistrationErrorDialog(String? errorMsg) {
-    // 🟢 Update Dialog Theme
     final cardColor = Theme.of(context).cardColor;
     
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: cardColor, // 🟢
+        backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         contentPadding: EdgeInsets.zero,
         content: Column(
@@ -130,122 +136,113 @@ void _showRegistrationErrorDialog(String? errorMsg) {
     );
   }
 
-void _handleRegister() async {
-  if (!_formKey.currentState!.validate()) return;
-  if (!_agreedToTerms) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Please agree to the Terms & Privacy Policy to continue."),
-        backgroundColor: Colors.orange,
-      )
-    );
-    return;
-  }
-  FocusScope.of(context).unfocus();
+  Future<void> _handleRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (!_agreedToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please agree to the Terms & Privacy Policy to continue."),
+          backgroundColor: Colors.orange,
+        )
+      );
+      return;
+    }
+    FocusScope.of(context).unfocus();
 
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  final data = {
-    "username": _usernameController.text.trim(), 
-    "admission_number": _admController.text.trim(),
-    "phone_number": _phoneController.text.trim(),
-    "email": _emailController.text.trim(),
-    "password": _passwordController.text,
-    "program": _selectedProgram ?? "Applied Computer Science", 
-    "year_of_study": _selectedYear ?? 1 
-  };
+    final data = {
+      "username": _usernameController.text.trim(), 
+      "admission_number": _admController.text.trim(),
+      "phone_number": _phoneController.text.trim(),
+      "email": _emailController.text.trim(),
+      "password": _passwordController.text,
+      "program": _selectedProgram ?? "Applied Computer Science", 
+      "year_of_study": _selectedYear ?? 1 
+    };
 
-  // --- UPDATED LOGIC HERE ---
-  // Returns NULL if success, or a String if failed
-  String? errorMsg = await ApiService.registerUser(data);
+    // Use Riverpod Provider for Registration
+    final success = await ref.read(authProvider.notifier).register(data);
 
-  setState(() => _isLoading = false);
+    setState(() => _isLoading = false);
 
-  if (errorMsg == null && mounted) {
-    // SUCCESS
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(backgroundColor: Colors.green, content: Text("Account Created! Please Login."))
-    );
-    Navigator.pop(context); // Go back to login
-  } else if (mounted) {
-    // FAILURE - Show the specific error from backend
-    _showRegistrationErrorDialog(errorMsg);
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.green, content: Text("Account Created! Please Login."))
+      );
+      Navigator.pop(context); // Go back to login
+    } else if (mounted) {
+      // Get error from provider state
+      final error = ref.read(authProvider).error;
+      _showRegistrationErrorDialog(error?.toString() ?? "Registration failed");
+    }
   }
-}
 
-String? _validatePhoneNumber(String? value) {
-  if (value == null || value.isEmpty) {
-    return "Phone number is required";
-  }
-  // Remove spaces, dashes, or non-digit characters for checking length
-  String cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+  String? _validatePhoneNumber(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Phone number is required";
+    }
+    String cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
 
-  if (cleanedValue.length != 10) {
-    return "Phone number must be exactly 10 digits";
+    if (cleanedValue.length != 10) {
+      return "Phone number must be exactly 10 digits";
+    }
+    
+    if (!cleanedValue.startsWith('07') && !cleanedValue.startsWith('01')) {
+      return "Number must start with 07 or 01";
+    }
+    
+    return null;
   }
-  
-  // Check if it starts with 07 or 01
-  if (!cleanedValue.startsWith('07') && !cleanedValue.startsWith('01')) {
-    return "Number must start with 07 or 01";
-  }
-  
-  return null;
-}
 
-String? _validateAdmission(String? value) {
-  if (value == null || value.isEmpty) {
-    return "Admission number is required";
+  String? _validateAdmission(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Admission number is required";
+    }
+    final RegExp admRegex = RegExp(r'^\d{2}-\d{4}[A-Za-z]?$');
+    if (!admRegex.hasMatch(value)) {
+      return "Invalid Daystar admission format (e.g., 00-0000)";
+    }
+    return null;
   }
-  // Regex matches: 00-0000, 00-0000X, where 0 is digit and X is letter.
-  final RegExp admRegex = RegExp(r'^\d{2}-\d{4}[A-Za-z]?$');
-  if (!admRegex.hasMatch(value)) {
-    return "Invalid Daystar admission format (e.g., 00-0000)";
-  }
-  return null;
-}
 
-// Basic RFC 5322 Email Validation
-String? _validateEmail(String? value) {
-  if (value == null || value.isEmpty) {
-    return "Email is required";
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Email is required";
+    }
+    final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(value)) {
+      return "Invalid email address format";
+    }
+    return null;
   }
-  final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-  if (!emailRegex.hasMatch(value)) {
-    return "Invalid email address format";
-  }
-  return null;
-}
 
-// Confirmation check
-String? _validateConfirmPassword(String? value) {
-  if (value == null || value.isEmpty) {
-    return "Confirm password is required";
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Confirm password is required";
+    }
+    if (value != _passwordController.text) {
+      return "Passwords do not match";
+    }
+    return null;
   }
-  if (value != _passwordController.text) {
-    return "Passwords do not match";
-  }
-  return null;
-}
 
-@override
+  @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = Theme.of(context).cardColor;
     final primaryColor = Theme.of(context).primaryColor;
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     final fillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F7FA);
 
-    // 🟢 Dynamic Gradient
     final gradientColors = isDark 
         ? [const Color(0xFF0F172A), const Color(0xFF003366)] 
         : [const Color(0xFF003366), const Color(0xFF004C99)];
     
     return Scaffold(
-      backgroundColor: gradientColors[0], // Match top gradient
+      backgroundColor: gradientColors[0], 
       body: Stack(
         children: [
-          // 1. BACKGROUND GRADIENT
           Container(
             height: MediaQuery.of(context).size.height * 0.5,
             decoration: BoxDecoration(
@@ -259,13 +256,12 @@ String? _validateConfirmPassword(String? value) {
               children: [
                 Positioned(
                   right: -50, top: -50,
-                  child: Icon(Icons.hub, size: 300, color: Colors.white.withOpacity(0.05)),
+                  child: Icon(Icons.hub, size: 300, color: Colors.white.withValues(alpha: 0.05)),
                 ),
               ],
             ),
           ),
 
-          // 2. MAIN CONTENT
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -297,19 +293,18 @@ String? _validateConfirmPassword(String? value) {
                         ),
                         Text(
                           "Join the DITA Community",
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
                         ),
                         
                         const SizedBox(height: 30),
 
-                        // CARD FORM
                         Container(
                           padding: const EdgeInsets.all(25),
                           decoration: BoxDecoration(
-                            color: cardColor, // 🟢 Dynamic BG
+                            color: cardColor, 
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30, offset: const Offset(0, 15))
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 30, offset: const Offset(0, 15))
                             ],
                           ),
                           child: Form(
@@ -386,7 +381,6 @@ String? _validateConfirmPassword(String? value) {
 
                                 const SizedBox(height: 30),
                                 
-                                // Terms Checkbox
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -394,7 +388,7 @@ String? _validateConfirmPassword(String? value) {
                                       height: 24, width: 24,
                                       child: Checkbox(
                                         value: _agreedToTerms,
-                                        activeColor: primaryColor, // 🟢
+                                        activeColor: primaryColor,
                                         onChanged: (bool? value) {
                                           setState(() => _agreedToTerms = value ?? false);
                                         },
@@ -407,7 +401,7 @@ String? _validateConfirmPassword(String? value) {
                                         onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
                                         child: Wrap(
                                           children: [
-                                            Text("I agree to the ", style: TextStyle(color: isDark ? Colors.grey[400] : Colors.black54, fontSize: 14)), // 🟢
+                                            Text("I agree to the ", style: TextStyle(color: isDark ? Colors.grey[400] : Colors.black54, fontSize: 14)),
                                             GestureDetector(
                                               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
                                               child: Text("Terms & Privacy Policy", 
@@ -423,14 +417,13 @@ String? _validateConfirmPassword(String? value) {
 
                                 const SizedBox(height: 10),
 
-                                // SIGN UP BUTTON
                                 SizedBox(
                                   width: double.infinity,
                                   height: 55,
                                   child: ElevatedButton(
                                     onPressed: _isLoading ? null : _handleRegister,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: isDark ? const Color(0xFFFFD700) : primaryColor, // 🟢 Gold on Dark
+                                      backgroundColor: isDark ? const Color(0xFFFFD700) : primaryColor,
                                       foregroundColor: isDark ? primaryColor : Colors.white,
                                       elevation: 5,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -447,7 +440,6 @@ String? _validateConfirmPassword(String? value) {
                         
                         const SizedBox(height: 20),
                         
-                        // Footer
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -487,12 +479,12 @@ String? _validateConfirmPassword(String? value) {
       obscureText: isPassword ? _obscurePassword : false,
       keyboardType: keyboardType,
       validator: validator ?? (v) => v!.isEmpty ? "Required" : null,
-      style: TextStyle(fontWeight: FontWeight.w600, color: textColor), // 🟢
+      style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
       decoration: InputDecoration(
         filled: true,
-        fillColor: inputFill, // 🟢
+        fillColor: inputFill,
         hintText: hint,
-        hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey[400], fontSize: 14), // 🟢
+        hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey[400], fontSize: 14),
         prefixIcon: Icon(icon, color: Colors.grey[500]),
         suffixIcon: isPassword
             ? IconButton(
@@ -501,19 +493,19 @@ String? _validateConfirmPassword(String? value) {
               )
             : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-        errorBorder: OutlineInputBorder( // Custom error border color
+        errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: const BorderSide(color: Colors.red, width: 1.5),
         ),
-        focusedErrorBorder: OutlineInputBorder( // Retains error border when focused
+        focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: const BorderSide(color: Colors.red, width: 1.5),
         ),
-        enabledBorder: OutlineInputBorder( // Default non-focused state
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide(color: Colors.transparent),
         ),
-        focusedBorder: OutlineInputBorder( // Blue border when focused
+        focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide(color: isDark ? const Color(0xFFFFD700) : const Color(0xFF004C99), width: 1.5),
         ),
@@ -522,8 +514,7 @@ String? _validateConfirmPassword(String? value) {
     );
   }
 
-  // Helper for Dropdowns
-Widget _buildDropdown({
+  Widget _buildDropdown({
     required String hint,
     required IconData icon,
     required dynamic value,
@@ -536,16 +527,16 @@ Widget _buildDropdown({
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: inputFill, borderRadius: BorderRadius.circular(15)), // 🟢
+      decoration: BoxDecoration(color: inputFill, borderRadius: BorderRadius.circular(15)), 
       child: DropdownButtonFormField(
         initialValue: value,
-        dropdownColor: Theme.of(context).cardColor, // 🟢
-        style: TextStyle(fontWeight: FontWeight.w600, color: textColor), // 🟢
+        dropdownColor: Theme.of(context).cardColor, 
+        style: TextStyle(fontWeight: FontWeight.w600, color: textColor), 
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: Colors.grey[500]),
           border: InputBorder.none,
           hintText: hint,
-          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey[400], fontSize: 14), // 🟢
+          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey[400], fontSize: 14), 
         ),
         icon: Icon(Icons.arrow_drop_down_circle, color: primaryColor),
         items: items.map((item) {

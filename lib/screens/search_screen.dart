@@ -1,9 +1,12 @@
-import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:flutter/material.dart';
+import '../data/models/event_model.dart';
+import '../data/models/resource_model.dart';
+import '../widgets/skeleton_loader.dart';
+import '../widgets/empty_state_widget.dart';
 
 class DitaSearchDelegate extends SearchDelegate {
-  final Future<List<dynamic>> eventsFuture;
-  final Future<List<dynamic>> resourcesFuture;
+  final Future<List<EventModel>> eventsFuture;
+  final Future<List<ResourceModel>> resourcesFuture;
 
   DitaSearchDelegate(this.eventsFuture, this.resourcesFuture);
 
@@ -64,15 +67,10 @@ class DitaSearchDelegate extends SearchDelegate {
       future: Future.wait([eventsFuture, resourcesFuture]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: primaryColor), // 🟢 Dynamic Loader
-                const SizedBox(height: 15),
-                Text("Searching database...", style: TextStyle(color: subTextColor)),
-              ],
-            ),
+          return const SkeletonList(
+            padding: EdgeInsets.all(20),
+            skeleton: CardSkeleton(hasImage: false),
+            itemCount: 5,
           );
         }
 
@@ -80,15 +78,15 @@ class DitaSearchDelegate extends SearchDelegate {
           return Center(child: Text("Could not load search data.", style: TextStyle(color: subTextColor)));
         }
 
-        final List<dynamic> events = snapshot.data![0];
-        final List<dynamic> resources = snapshot.data![1];
+        final List<EventModel> events = snapshot.data![0] as List<EventModel>;
+        final List<ResourceModel> resources = snapshot.data![1] as List<ResourceModel>;
 
         return _filterAndDisplayData(context, events, resources);
       },
     );
   }
 
-  Widget _filterAndDisplayData(BuildContext context, List<dynamic> events, List<dynamic> resources) {
+  Widget _filterAndDisplayData(BuildContext context, List<EventModel> events, List<ResourceModel> resources) {
     // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).primaryColor;
@@ -96,8 +94,8 @@ class DitaSearchDelegate extends SearchDelegate {
     final subTextColor = Theme.of(context).textTheme.labelSmall?.color;
     final cardColor = Theme.of(context).cardColor;
 
-    final eventResults = events.where((e) => e['title'].toString().toLowerCase().contains(query.toLowerCase())).toList();
-    final resourceResults = resources.where((r) => r['title'].toString().toLowerCase().contains(query.toLowerCase())).toList();
+    final eventResults = events.where((e) => e.title.toLowerCase().contains(query.toLowerCase())).toList();
+    final resourceResults = resources.where((r) => r.title.toLowerCase().contains(query.toLowerCase())).toList();
 
     if (query.isEmpty) {
       return Center(
@@ -144,10 +142,10 @@ class DitaSearchDelegate extends SearchDelegate {
                   decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
                   child: Icon(Icons.calendar_month, color: primaryColor, size: 20)
                 ),
-                title: Text(e['title'], style: TextStyle(fontWeight: FontWeight.bold, color: textColor)), // 🟢
-                subtitle: Text(e['venue'] ?? "No Venue", style: TextStyle(color: subTextColor)),
+                title: Text(e.title, style: TextStyle(fontWeight: FontWeight.bold, color: textColor)), // 🟢
+                subtitle: Text(e.location ?? "No Venue", style: TextStyle(color: subTextColor)),
                 onTap: () {
-                  close(context, {'tabIndex': 1, 'id': e['id']}); 
+                  close(context, {'tabIndex': 1, 'id': e.id}); 
                 },
               ),
             )),
@@ -168,19 +166,19 @@ class DitaSearchDelegate extends SearchDelegate {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: (r['resource_type'] == 'PDF' ? Colors.red : Colors.blue).withOpacity(0.1),
+                    color: (r.category.toUpperCase() == 'PDF' ? Colors.red : Colors.blue).withOpacity(0.1),
                     shape: BoxShape.circle
                   ),
                   child: Icon(
-                    r['resource_type'] == 'PDF' ? Icons.picture_as_pdf : Icons.link, 
-                    color: r['resource_type'] == 'PDF' ? Colors.red : Colors.blue, 
+                    r.category.toUpperCase() == 'PDF' ? Icons.picture_as_pdf : Icons.link, 
+                    color: r.category.toUpperCase() == 'PDF' ? Colors.red : Colors.blue, 
                     size: 20
                   )
                 ),
-                title: Text(r['title'], style: TextStyle(fontWeight: FontWeight.bold, color: textColor)), // 🟢
-                subtitle: Text(r['description'] ?? "", style: TextStyle(color: subTextColor)),
+                title: Text(r.title, style: TextStyle(fontWeight: FontWeight.bold, color: textColor)), // 🟢
+                subtitle: Text(r.description ?? "", style: TextStyle(color: subTextColor)),
                 onTap: () async {
-                  close(context, {'tabIndex': 2, 'id': r['id']}); 
+                  close(context, {'tabIndex': 2, 'id': r.id}); 
                 },
               ),
             )),

@@ -1,22 +1,25 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
+import 'package:dita_app/providers/achievement_provider.dart';
 import 'package:dita_app/screens/privacy_policy_screen.dart';
 import 'package:dita_app/services/notification.dart';
 import 'package:dita_app/sheets/ChangePasswordSheet.dart';
 import 'package:dita_app/sheets/edit_profile_sheet.dart';
+import 'package:dita_app/screens/reminder_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'login_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-
-  const ProfileScreen({super.key, required this.user});
+class ProfileScreen extends ConsumerStatefulWidget {
+  const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  late Map<String, dynamic> _currentUser;
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  // late Map<String, dynamic> _currentUser; // REMOVED: Use Provider
   final bool _isUpdating = false;
   // Initialize with the current state from the service
   bool _isNotificationsEnabled = NotificationService.isEnabled; 
@@ -24,26 +27,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _currentUser = widget.user;
+    // _currentUser = widget.user; // REMOVED
   }
 
   // --- 1. EDIT PROFILE LOGIC ---
   void _showEditDialog() {
+    // Get current user from provider to ensure it's fresh
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, 
       backgroundColor: Colors.transparent, 
-      builder: (context) => EditProfileSheet(
-        user: _currentUser,
-        onProfileSaved: (updatedUser) {
-          setState(() {
-            _currentUser = updatedUser;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Profile Updated Successfully!"), backgroundColor: Colors.green)
-          );
-        },
-      ),
+      builder: (context) => const EditProfileSheet(),
     );
   }
 
@@ -52,10 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: true, 
       backgroundColor: Colors.transparent, 
-      builder: (context) => ChangePasswordSheet(
-        user: _currentUser,
-        primaryDark: Theme.of(context).primaryColor,
-      ),
+      builder: (context) => const ChangePasswordSheet(),
     );
   }
 
@@ -89,6 +83,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final cardColor = Theme.of(context).cardColor;
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+
+    // WATCH USER PROVIDER
+    final user = ref.watch(currentUserProvider);
+    final userMap = user?.toJson() ?? {};
 
     return Scaffold(
       backgroundColor: primaryColor, 
@@ -127,44 +125,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Stack(
                         alignment: Alignment.bottomRight,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(4), 
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.2), 
-                            ),
-                            child: CircleAvatar(
-                              radius: 50,
-                              backgroundColor: Colors.white,
-                              backgroundImage: _currentUser['avatar'] != null 
-                                  ? NetworkImage(_currentUser['avatar']) 
-                                  : null,
-                              child: _currentUser['avatar'] == null 
-                                  ? Icon(Icons.person_rounded, size: 60, color: primaryColor)
-                                  : null,
+                          Hero(
+                            tag: 'profile_pic',
+                            child: Container(
+                              padding: const EdgeInsets.all(4), 
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.2), 
+                              ),
+                              child: CircleAvatar(
+                                radius: 50,
+                                backgroundColor: Colors.white,
+                                backgroundImage: userMap['avatar'] != null 
+                                    ? CachedNetworkImageProvider(userMap['avatar']) 
+                                    : null,
+                                child: userMap['avatar'] == null 
+                                    ? Icon(Icons.person_rounded, size: 60, color: primaryColor)
+                                    : null,
+                              ),
                             ),
                           ),
-                          GestureDetector(
-                            onTap: _showEditDialog,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.orange,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: primaryColor, width: 2), 
+                          Semantics(
+                            label: "Edit Profile",
+                            button: true,
+                            child: GestureDetector(
+                              onTap: _showEditDialog,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: primaryColor, width: 2), 
+                                ),
+                                child: const Icon(Icons.edit, color: Colors.white, size: 16),
                               ),
-                              child: const Icon(Icons.edit, color: Colors.white, size: 16),
                             ),
                           )
                         ],
                       ),
                       const SizedBox(height: 15),
                       Text(
-                        (_currentUser['username'] ?? "Student").toUpperCase(),
+                        (userMap['username'] ?? "Student").toUpperCase(),
                         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       Text(
-                        _currentUser['email'] ?? "No Email",
+                        userMap['email'] ?? "No Email",
                         style: TextStyle(color: Colors.white.withOpacity(0.7)),
                       ),
                     ],
@@ -208,15 +213,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ],
                             ),
                             Divider(color: isDark ? Colors.white10 : Colors.grey[200]), 
-                            _buildDetailRow(Icons.badge_outlined, "Admission No", _currentUser['admission_number'] ?? "-", Colors.blueAccent, textColor!),
+                            _buildDetailRow(Icons.badge_outlined, "Admission No", userMap['admission_number'] ?? "-", Colors.blueAccent, textColor!),
                             const SizedBox(height: 25), 
-                            _buildDetailRow(Icons.school_outlined, "Program", _currentUser['program'] ?? "-", Colors.blueAccent, textColor),
+                            _buildDetailRow(Icons.school_outlined, "Program", userMap['program'] ?? "-", Colors.blueAccent, textColor),
                             const SizedBox(height: 25),
-                            _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${_currentUser['year_of_study'] ?? 1}", Colors.blueAccent, textColor),
+                            _buildDetailRow(Icons.calendar_today_outlined, "Year of Study", "Year ${userMap['year_of_study'] ?? 1}", Colors.blueAccent, textColor),
                             const SizedBox(height: 25),
-                            _buildDetailRow(Icons.phone_iphone_rounded, "Phone", _currentUser['phone_number'] ?? "-", Colors.blueAccent, textColor),
+                            _buildDetailRow(Icons.phone_iphone_rounded, "Phone", userMap['phone_number'] ?? "-", Colors.blueAccent, textColor),
                           ],
                         ),
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      // ACHIEVEMENTS SECTION (Phase 4)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 10, bottom: 10),
+                          child: const Text("Achievements 🏆", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orangeAccent)), 
+                        ),
+                      ),
+                      
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final achievementsAsync = ref.watch(userAchievementsProvider);
+
+                          return achievementsAsync.when(
+                            data: (achievements) {
+                              if (achievements.isEmpty) {
+                                return Container(
+                                  padding: const EdgeInsets.all(15),
+                                  decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(20)),
+                                  child: const Center(child: Text("Start completing tasks to earn badges!", style: TextStyle(fontSize: 12, color: Colors.grey))),
+                                );
+                              }
+
+                              return SizedBox(
+                                height: 100,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: achievements.length,
+                                  itemBuilder: (context, index) {
+                                    final ach = achievements[index];
+                                    return Tooltip(
+                                      message: ach.description,
+                                      child: Container(
+                                        width: 80,
+                                        margin: const EdgeInsets.only(right: 15),
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: cardColor,
+                                          borderRadius: BorderRadius.circular(15),
+                                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            (ach.iconUrl != null && ach.iconUrl!.isNotEmpty)
+                                              ? Image.network(ach.iconUrl!, height: 40, width: 40)
+                                              : const Icon(Icons.stars, color: Color(0xFFFFD700), size: 40),
+                                            const SizedBox(height: 5),
+                                            Text(ach.name, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 1),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                            loading: () => const Center(child: CircularProgressIndicator()),
+                            error: (err, stack) => const Text("Failed to load achievements"),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: 30),
@@ -253,23 +323,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: const Icon(Icons.notifications_active_outlined, color: Colors.blueAccent, size: 20),
                                 ),
                                 onChanged: (value) async {
-                                    setState(() {
-                                        _isNotificationsEnabled = value;
-                                    });
+                                    if (mounted) {
+                                      setState(() {
+                                          _isNotificationsEnabled = value;
+                                      });
+                                    }
                                     // Call Service to toggle logic
                                     await NotificationService.toggleNotifications(value);
                                     
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                            content: Text(value ? "Reminders Enabled ✅" : "Reminders Disabled 🔕"),
-                                            duration: const Duration(seconds: 1),
-                                        )
-                                    );
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                              content: Text(value ? "Reminders Enabled ✅" : "Reminders Disabled 🔕"),
+                                              duration: const Duration(seconds: 1),
+                                          )
+                                      );
+                                    }
                                 },
                             ),
                             Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
 
-                            _buildActionTile(Icons.lock_outline, "Change Password", Colors.redAccent, _showChangePasswordDialog, textColor),
+                            _buildActionTile(Icons.notifications_active_outlined, "Reminder Settings", Colors.blueAccent, () {
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => const ReminderSettingsScreen()));
+                            }, textColor),
+                            Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
+                            _buildActionTile(Icons.lock_outline, "Change Password", Colors.redAccent, () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true, 
+                                  backgroundColor: Colors.transparent, 
+                                  builder: (context) => const ChangePasswordSheet(),
+                                );
+                            }, textColor),
                             Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
                             _buildActionTile(Icons.chat_bubble_outline_rounded, "Chat on WhatsApp", Colors.green, _openWhatsApp, textColor),
                             Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
@@ -288,12 +373,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: TextButton.icon(
-                          onPressed: () {
-                            Navigator.pushAndRemoveUntil(
-                              context, 
-                              MaterialPageRoute(builder: (_) => const LoginScreen()),
-                              (route) => false,
-                            );
+                          onPressed: () async {
+                            // Use Auth Provider Logout
+                            await ref.read(authProvider.notifier).logout();
+                            if (mounted) {
+                              Navigator.pushAndRemoveUntil(
+                                context, 
+                                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                (route) => false,
+                              );
+                            }
                           },
                           icon: const Icon(Icons.logout_rounded, color: Colors.red),
                           label: const Text("Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),

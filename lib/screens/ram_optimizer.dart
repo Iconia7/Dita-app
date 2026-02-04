@@ -7,15 +7,17 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dita_app/services/api_service.dart';
 
-class RamOptimizerScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-  const RamOptimizerScreen({super.key, required this.user});
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
+
+class RamOptimizerScreen extends ConsumerStatefulWidget {
+  const RamOptimizerScreen({super.key});
 
   @override
-  State<RamOptimizerScreen> createState() => _RamOptimizerScreenState();
+  ConsumerState<RamOptimizerScreen> createState() => _RamOptimizerScreenState();
 }
 
-class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProviderStateMixin {
+class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with TickerProviderStateMixin {
   // --- CONFIG ---
   static const int gridSize = 8;
   static const double gridSpacing = 4.0;
@@ -156,11 +158,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
   }
 
   Future<void> _loadData() async {
-    if (widget.user['points'] != null) {
-      _currentTotalPoints = int.tryParse(widget.user['points'].toString()) ?? 0;
-    } else {
-      _currentTotalPoints = 0;
-    }
+    final user = ref.read(currentUserProvider);
+    _currentTotalPoints = user?.points ?? 0;
+    
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
@@ -531,13 +531,9 @@ class _RamOptimizerScreenState extends State<RamOptimizerScreen> with TickerProv
         await prefs.setInt('ram_high_score', _scoreKB);
         setState(() => _localHighScore = _scoreKB);
       }
-      int userId = 0;
-      if (widget.user['id'] is int) {
-        userId = widget.user['id'];
-      } else if (widget.user['id'] is String) userId = int.tryParse(widget.user['id']) ?? 0;
-
-      if (userId != 0) {
-        await ApiService.updateUser(userId, {"points": _currentTotalPoints});
+      final user = ref.read(currentUserProvider);
+      if (user != null) {
+        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _currentTotalPoints});
       }
     } catch (e) {
       debugPrint("Save Error: $e");

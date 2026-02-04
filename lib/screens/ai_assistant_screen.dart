@@ -1,236 +1,152 @@
-// lib/screens/ai_assistant_screen.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../services/api_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../providers/ai_provider.dart';
+import '../providers/timetable_provider.dart';
+import '../data/models/timetable_model.dart';
+import '../widgets/quiz_card.dart';
 
-class AiAssistantScreen extends StatefulWidget {
+class AiAssistantScreen extends ConsumerStatefulWidget {
   const AiAssistantScreen({super.key});
 
   @override
-  State<AiAssistantScreen> createState() => _AiAssistantScreenState();
+  ConsumerState<AiAssistantScreen> createState() => _AiAssistantScreenState();
 }
 
-class _AiAssistantScreenState extends State<AiAssistantScreen> {
-  late final String _apiKey;
+class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool _isLoading = false;
-
-  // UI history
-  final List<Map<String, String>> _history = [
-    {'role': 'assistant', 'text': 'Hello! I am DITA AI. Ask me about your exams, classes, or upcoming events! 🎓'}
-  ];
-
+  
+  late stt.SpeechToText _speech;
+  late FlutterTts _tts;
+  bool _isListening = false;
+  bool _voiceMode = false;
+  
+  // File Attachment
+  File? _selectedFile;
+  String? _base64File;
+  String? _mimeType;
 
   @override
   void initState() {
     super.initState();
-    // Ensure you call dotenv.load() in main.dart before runApp (example below).
-    _apiKey = dotenv.env['GOOGLE_API_KEY'] ?? '';
-    if (_apiKey.isEmpty) {
-      // Fail fast in dev so you know to add the key
-      _history.insert(0, {'role': 'assistant', 'text': 'API key not found. Add GOOGLE_API_KEY in .env'});
-    }
+    _speech = stt.SpeechToText();
+    _tts = FlutterTts();
+    _initTts();
   }
 
-Future<void> _sendMessage() async {
-  final message = _textController.text.trim();
-  if (message.isEmpty) return;
+  Future<void> _initTts() async {
+    await _tts.setLanguage("en-US");
+    await _tts.setPitch(1.0);
+    await _tts.setSpeechRate(0.5);
+  }
 
-  setState(() {
-    _history.add({'role': 'user', 'text': message});
-    _isLoading = true;
-    _textController.clear();
-  });
-  _scrollToBottom();
-
-  try {
-    // --- 1. CONTEXT INJECTION (THE NEW MAGIC) ---
-    
-    // A. Fetch Events (Existing)
-    String eventContext = '';
-    try {
-      final events = await ApiService.getEvents();
-      if (events.isNotEmpty) {
-        eventContext = "\n\n📢 **UPCOMING SCHOOL EVENTS:**\n${events.take(3).map((e) => "- ${e['title']} (${e['date']} @ ${e['venue']})").join("\n")}";
-      }
-    } catch (_) {}
-
-    // B. Fetch User Context (Name, Points)
-    String userContext = '';
-    final user = await ApiService.getUserLocally();
-    if (user != null) {
-      userContext = """
-      \n\n👤 **CURRENT STUDENT PROFILE:**
-      - **Name:** ${user['username']}
-      - **Program:** ${user['program']}
-      - **Current Points:** ${user['points']} (Check Leaderboard for rank)
-      - **Membership:** ${user['is_paid_member'] ? 'Gold Member 🌟' : 'Standard'}
-      """;
-    }
-
-    // C. Fetch Cached Exams (From SharedPrefs)
-    String examContext = '';
-    final prefs = await SharedPreferences.getInstance();
-    String? cachedExams = prefs.getString('cached_exams');
-    if (cachedExams != null) {
-      List<dynamic> exams = json.decode(cachedExams); 
-      if (exams.isNotEmpty) {
-        // Sort to find the next one
-        exams.sort((a, b) => DateTime.parse(a['date']).compareTo(DateTime.parse(b['date'])));
-        // Filter only future exams
-        final upcoming = exams.where((e) => DateTime.parse(e['date']).isAfter(DateTime.now())).take(3).toList();
-        
-        if (upcoming.isNotEmpty) {
-          examContext = "\n\n📅 **YOUR UPCOMING EXAMS:**\n${upcoming.map((e) => "- ${e['course_code']}: ${e['title']} on ${e['date']} at ${e['venue']}").join("\n")}";
-        } else {
-          examContext = "\n\n📅 **YOUR EXAMS:** No upcoming exams found in local cache.";
-        }
-      }
-    }
-
-    // --- 2. DEFINE SYSTEM PROMPT (UPDATED) ---
-    final systemText = """
-You are DITA AI, the intelligent, friendly, and tech-savvy virtual assistant for Daystar University students.
-Your goal is to make student life easier by navigating the DITA App and the Campus environment.
-
-**1. YOUR PERSONA:**
-- **Tone:** Professional yet approachable, encouraging, and student-friendly.
-- **Values:** You uphold Daystar's values of Excellence, Transformation, and Servant Leadership.
-- **Identity:** You are not just a bot; you are a fellow "tech-enthusiast" helping students succeed.
-
-**2. DEEP CAMPUS KNOWLEDGE (LOCATIONS & NAVIGATION):**
-* **Athi River Campus:**
-    - **ICT Building:** The tech hub. DITA Office (Ground Floor), School of Science Admin (1st Floor), Lecturer Offices.
-    - **BCC (Bible College Center):** Located after the SBE block. Contains computer labs and classrooms BCC 1-12.
-    - **SBE (School of Business and Economics):** The large block before BCC.
-    - **Library (Agape Library):** The main resource center for study and research.
-    - **The Garage:** Common student hangout and eatery area.
-    - **Hope Center:** Large auditorium for chapel and major events.
-    - **Transport:** School buses pick up at the main gate. Check the notice board for schedules.
-* **Nairobi Campus (Valley Road):**
-    - **DAC (Daystar Academic Center):** The main administration building housing lecture halls and offices.
-    - **Library:** Located within the DAC building.
-
-**3. ACADEMIC & EXAM SURVIVAL GUIDE:**
-- **Exam Rules:** - Arrive 30 minutes early. 
-    - **Mandatory:** Student ID & Exam Card (Clear fees to obtain this).
-    - No phones or smartwatches allowed in the exam room.
-- **Grading:**
-    - **Pass Mark:** 41% (Below this is a Retake).
-    - **Attendance:** You must attend at least 75% of classes to sit for exams.
-- **GPA:** Your Grade Point Average determines your academic standing. Use the 'GPA Calculator' in the app to check.
-
-**4. MASTERING THE DITA APP (FEATURES & HOW-TO):**
-* **📱 Community Hub (New!):**
-    - A social feed for students.
-    - **Categories:** Academic (Help), Market (Sell items), General.
-    - **How to Post:** Click the 'box' icon in the top-right of the Community tab.
-    - **Rules:** Be respectful. Owners can delete their own posts.
-* **🕵️ Lost & Found (New!):**
-    - Found something? Post a picture! Lost something? Check the feed.
-    - **Found it?** If you are the owner, click "Mark as Found" to close the case.
-* **🏆 Leaderboard (Gamification):**
-    - Earn points by attending DITA events and scanning the QR code.
-    - **Ranks:** The top 3 students get Gold, Silver, and Bronze trophies.
-* **📅 Timetables:**
-    - **Exams:** Your exams load offline from cache! Click 'Refresh' to sync.
-    - **Classes:** You can manually add classes or sync from the portal (requires login).
-* **📚 Resources:**
-    - Access past papers and notes. Locked for non-paid members (Standard). Pay KES 200 via M-Pesa to unlock Gold status.
-
-**5. TROUBLESHOOTING & SUPPORT:**
-- **"App is offline":** Check internet. If server is down, "Maintenance Mode" will appear.
-- **"Login failed":** Use "Forgot Password" on the login screen.
-- **"Upload failed":** Check your internet connection.
-
-**6. CONTEXT AWARENESS (USE THIS DATA TO ANSWER):**
-$userContext
-$examContext
-$eventContext
-
-**BEHAVIORAL GUIDELINES:**
-- **Personalize:** If you know the user's name from the context above, use it occassionally.
-- **Be Helpful:** If they ask "When is my next exam?", LOOK at the "YOUR UPCOMING EXAMS" section above and answer. If the list is empty, tell them to add units in the Exams tab.
-- **Length:** Keep answers concise (max 3-4 sentences).
-""";
-
-    // 3) Build History
-    List<Map<String, dynamic>> apiContents = [];
-    for (final m in _history) {
-      apiContents.add({
-        "role": (m['role'] == 'user') ? "user" : "model",
-        "parts": [
-          {"text": m['text']}
-        ]
-      });
-    }
-
-    // 4) Build Request Body
-    final body = {
-      "contents": apiContents,
-      "system_instruction": {
-        "parts": [
-          {"text": systemText}
-        ]
-      },
-      "generationConfig": {
-        "temperature": 0.7,
-        "maxOutputTokens": 1500, // Increased to allow full code responses
-        "topP": 0.9,
-      }
-    };
-
-    // 5) CALL API (Using v1beta + gemini-2.5-flash)
-    // Note: We use 'v1beta' here as it often supports the newest models best
-    final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey');
-
-    final resp = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
     );
 
-    if (resp.statusCode == 200) {
-      final data = jsonDecode(resp.body);
-      String assistantText = "I'm not sure.";
-      
-      if (data['candidates'] != null && data['candidates'].isNotEmpty) {
-        final candidate = data['candidates'][0];
-        // Check if the model stopped because it hit a limit
-        if (candidate['finishReason'] == 'MAX_TOKENS') {
-          debugPrint("Warning: Response was cut off due to token limit.");
-        }
+    if (result != null) {
+      if(mounted) {
+        setState(() {
+          _selectedFile = File(result.files.single.path!);
+          // Simple mime type guess
+          final ext = result.files.single.extension?.toLowerCase();
+          if (ext == 'pdf') _mimeType = 'application/pdf';
+          else if (ext == 'png') _mimeType = 'image/png';
+          else _mimeType = 'image/jpeg';
+        });
         
-        final parts = candidate['content']['parts'];
-        if (parts != null && parts.isNotEmpty) {
-          assistantText = parts[0]['text'];
-        }
+        final bytes = await _selectedFile!.readAsBytes();
+        _base64File = base64Encode(bytes);
       }
-      
-      setState(() {
-        _history.add({'role': 'model', 'text': assistantText});
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _history.add({'role': 'model', 'text': "My brain is offline (Error ${resp.statusCode})."});
-        _isLoading = false;
-      });
     }
-    _scrollToBottom();
-  } catch (e) {
+  }
+
+  void _clearFile() {
     setState(() {
-      _history.add({'role': 'model', 'text': "Connection error."});
-      _isLoading = false;
+      _selectedFile = null;
+      _base64File = null;
+      _mimeType = null;
     });
   }
-}
+
+  Future<void> _listen() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          if (val == 'done' || val == 'notListening') {
+             if(mounted) {
+               setState(() => _isListening = false);
+               // AUTO-SEND if voice mode is on and we have text
+               if (_voiceMode && _textController.text.isNotEmpty) {
+                 _sendMessage();
+               }
+             }
+          }
+        },
+        onError: (val) => debugPrint('onError: $val'),
+      );
+
+      if (available) {
+        setState(() => _isListening = true);
+        _speech.listen(
+          onResult: (val) {
+            if (mounted) {
+              setState(() {
+                _textController.text = val.recognizedWords;
+              });
+            }
+          },
+        );
+      } else {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('Speech recognition not available')),
+           );
+        }
+      }
+    } else {
+      setState(() => _isListening = false);
+      _speech.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _scrollController.dispose();
+    _tts.stop();
+    super.dispose();
+  }
+
+  Future<void> _sendMessage() async {
+    final message = _textController.text.trim();
+    if (message.isEmpty && _selectedFile == null) return;
+
+    // PREVENT DOUBLE-SEND
+    if (ref.read(chatProvider).isLoading) return;
+
+    final base64 = _base64File;
+    final mime = _mimeType;
+
+    _textController.clear();
+    _clearFile(); // Clear UI immediately
+
+    await ref.read(chatProvider.notifier).sendMessage(
+      message.isEmpty ? "Analyze this document" : message,
+      base64File: base64,
+      mimeType: mime
+    );
+    _scrollToBottom();
+  }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -246,24 +162,58 @@ $eventContext
 
  @override
   Widget build(BuildContext context) {
-    // 🟢 Theme Helpers
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).primaryColor;
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     
+    final chatState = ref.watch(chatProvider);
+    
     // Dynamic message bubble colors
     final userBubbleColor = isDark ? primaryColor : const Color(0xFF003366);
-    final botBubbleColor = isDark ? const Color(0xFF1E293B) : Colors.white; // Slate 800 vs White
-    final inputFillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F6F9); // Dark Navy vs Light Grey
+    final botBubbleColor = isDark ? const Color(0xFF1E293B) : Colors.white; 
+    final inputFillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F6F9); 
+
+    // Scroll to bottom when new message arrives
+    ref.listen(chatProvider, (previous, next) {
+      if (previous?.history.length != next.history.length) {
+        _scrollToBottom();
+        
+        // VOICE MODE: Speak back the last message if it's from the assistant
+        if (_voiceMode && next.history.last.role == 'assistant') {
+          final lastMsg = next.history.last.text;
+          // Don't speak raw JSON quiz data
+          if (!(lastMsg.trim().startsWith('{') && lastMsg.contains('"questions"'))) {
+            _tts.speak(lastMsg);
+          } else {
+             _tts.speak("I've generated a quiz for you. Good luck!");
+          }
+        }
+      }
+    });
 
     return Scaffold(
-      backgroundColor: scaffoldBg, // 🟢 Dynamic BG
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
         title: const Text("DITA Assistant 🤖", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: primaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(_voiceMode ? Icons.volume_up : Icons.volume_off, color: Colors.white),
+            tooltip: "Toggle Voice Mode",
+            onPressed: () {
+              setState(() => _voiceMode = !_voiceMode);
+              if (!_voiceMode) _tts.stop();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_sweep, color: Colors.white),
+            tooltip: "Clear History",
+            onPressed: () => ref.read(chatProvider.notifier).clearHistory(),
+          )
+        ],
       ),
       body: Column(
         children: [
@@ -271,10 +221,10 @@ $eventContext
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.all(15),
-              itemCount: _history.length,
+              itemCount: chatState.history.length,
               itemBuilder: (context, index) {
-                final msg = _history[index];
-                final isUser = msg['role'] == 'user';
+                final msg = chatState.history[index];
+                final isUser = msg.role == 'user';
                 return Align(
                   alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
@@ -282,7 +232,7 @@ $eventContext
                     padding: const EdgeInsets.all(12),
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
                     decoration: BoxDecoration(
-                      color: isUser ? userBubbleColor : botBubbleColor, // 🟢 Dynamic Bubbles
+                      color: isUser ? userBubbleColor : botBubbleColor,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(15),
                         topRight: const Radius.circular(15),
@@ -294,59 +244,187 @@ $eventContext
                       ],
                     ),
                     child: isUser
-                        ? Text(msg['text']!, style: const TextStyle(color: Colors.white))
-                        : MarkdownBody(
-                            data: msg['text']!,
-                            styleSheet: MarkdownStyleSheet(
-                              p: TextStyle(fontSize: 15, height: 1.4, color: textColor), // 🟢 Dynamic Text
-                              strong: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.blueAccent : Colors.blue),
-                              listBullet: TextStyle(color: textColor),
-                            ),
-                          ),
+                        ? Text(msg.text, style: const TextStyle(color: Colors.white))
+                        : _buildBotMessageContent(msg.text, textColor, isDark),
                   ),
                 );
               },
             ),
           ),
-          if (_isLoading)
+          if (chatState.isLoading)
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
             ),
           
+          if (chatState.error != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(chatState.error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+            ),
+
+          // CONTEXTUAL SUGGESTIONS
+          _buildContextualSuggestions(ref),
+
           // INPUT AREA
           Container(
             padding: const EdgeInsets.all(15),
-            color: isDark ? botBubbleColor : Colors.white, // 🟢 Input Bar Background
-            child: Row(
+            color: isDark ? botBubbleColor : Colors.white,
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    style: TextStyle(color: textColor), // 🟢 Dynamic Input Text
-                    decoration: InputDecoration(
-                      hintText: "Ask about events, exams...",
-                      hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
-                      filled: true,
-                      fillColor: inputFillColor, // 🟢 Dynamic Input Field BG
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                if (_selectedFile != null)
+                   Padding(
+                     padding: const EdgeInsets.only(bottom: 10),
+                     child: Row(
+                       children: [
+                         Container(
+                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                           decoration: BoxDecoration(
+                             color: primaryColor.withOpacity(0.1),
+                             borderRadius: BorderRadius.circular(15),
+                             border: Border.all(color: primaryColor.withOpacity(0.3))
+                           ),
+                           child: Row(
+                             children: [
+                               Icon(Icons.attach_file, size: 16, color: primaryColor),
+                               const SizedBox(width: 5),
+                               Text(
+                                 _selectedFile!.path.split(Platform.pathSeparator).last,
+                                 style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold),
+                                 overflow: TextOverflow.ellipsis,
+                               ),
+                               const SizedBox(width: 5),
+                               GestureDetector(
+                                 onTap: _clearFile,
+                                 child: const Icon(Icons.close, size: 16, color: Colors.red),
+                               )
+                             ],
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
+                Row(
+                  children: [
+                    // ATTACH BUTTON
+                    IconButton(
+                      icon: const Icon(Icons.attach_file),
+                      color: isDark ? Colors.white70 : Colors.grey,
+                      onPressed: _pickFile,
+                      tooltip: "Attach PDF or Image",
                     ),
-                    onSubmitted: (_) => _sendMessage(),
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        style: TextStyle(color: textColor),
+                        decoration: InputDecoration(
+                          hintText: _selectedFile != null ? "Ask about this file..." : "Ask DITA or upload a PDF...",
+                          hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
+                          filled: true,
+                          fillColor: inputFillColor,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
+                      ),
+                    ),
+                const SizedBox(width: 5),
+                // MIC BUTTON
+                IconButton(
+                  icon: Icon(_isListening ? Icons.mic : Icons.mic_none, 
+                    color: _isListening ? Colors.red : (isDark ? Colors.white70 : Colors.grey)
                   ),
+                  onPressed: _listen,
+                  tooltip: "Voice Input",
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 5),
                 CircleAvatar(
-                  backgroundColor: const Color(0xFFFFD700), // Keep Gold
+                  backgroundColor: const Color(0xFFFFD700),
                   child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.black), // Black arrow on Gold is always readable
+                    icon: const Icon(Icons.send, color: Colors.black),
                     onPressed: _sendMessage,
                   ),
-                )
+                ),
               ],
             ),
-          )
-        ],
+          ],
+        ),
+      ),
+    ],
+  ),
+);
+}
+
+  Widget _buildContextualSuggestions(WidgetRef ref) {
+    final timetableAsync = ref.watch(timetableProvider);
+    
+    return timetableAsync.maybeWhen(
+      data: (items) {
+        final now = DateTime.now();
+        // Find next class today
+        final today = _getDayName(now.weekday);
+        
+        final upcoming = items.where((item) {
+          if (item.dayOfWeek != today) return false;
+          // Simple time check (assumes 24h format HH:mm)
+          final parts = item.startTime.split(':');
+          final hour = int.parse(parts[0]);
+          final minute = int.parse(parts[1]);
+          final classTime = DateTime(now.year, now.month, now.day, hour, minute);
+          
+          // Check if class is in the future but within 2 hours
+          return classTime.isAfter(now) && classTime.difference(now).inHours < 2;
+        }).toList();
+
+        if (upcoming.isEmpty) return const SizedBox.shrink();
+
+        final nextClass = upcoming.first;
+
+        return Container(
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              ActionChip(
+                avatar: const Icon(Icons.school, size: 16, color: Colors.blue),
+                label: Text("Quiz me on ${nextClass.code ?? nextClass.title}"),
+                onPressed: () {
+                  ref.read(chatProvider.notifier).generateQuiz("Basic concepts of ${nextClass.title}");
+                },
+              ),
+            ],
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+
+  String _getDayName(int weekday) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days[weekday - 1]; 
+  }
+
+  Widget _buildBotMessageContent(String text, Color? textColor, bool isDark) {
+    // Try to parse as quiz JSON
+    if (text.trim().startsWith('{') && text.contains('"questions"')) {
+      try {
+        final Map<String, dynamic> quizData = jsonDecode(text);
+        if (quizData.containsKey('questions')) {
+          return QuizCard(quizData: quizData);
+        }
+      } catch (e) {
+        // Not valid JSON, fall through
+      }
+    }
+
+    return MarkdownBody(
+      data: text,
+      styleSheet: MarkdownStyleSheet(
+        p: TextStyle(fontSize: 15, height: 1.4, color: textColor),
+        strong: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.blueAccent : Colors.blue),
+        listBullet: TextStyle(color: textColor),
       ),
     );
   }

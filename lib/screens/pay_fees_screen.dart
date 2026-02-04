@@ -1,17 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
 
-class PayFeesSheet extends StatefulWidget {
-  final Map<String, dynamic> user;
-
-  const PayFeesSheet({super.key, required this.user});
+class PayFeesSheet extends ConsumerStatefulWidget {
+  const PayFeesSheet({super.key});
 
   @override
-  State<PayFeesSheet> createState() => _PayFeesSheetState();
+  ConsumerState<PayFeesSheet> createState() => _PayFeesSheetState();
 }
 
-class _PayFeesSheetState extends State<PayFeesSheet> {
+class _PayFeesSheetState extends ConsumerState<PayFeesSheet> {
   late TextEditingController _phoneController;
   bool _isLoading = false;
   Timer? _statusCheckTimer;
@@ -22,7 +21,8 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
   @override
   void initState() {
     super.initState();
-    _phoneController = TextEditingController(text: widget.user['phone_number'] ?? "");
+    final user = ref.read(currentUserProvider);
+    _phoneController = TextEditingController(text: user?.phoneNumber ?? "");
   }
 
   @override
@@ -37,8 +37,9 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
     FocusScope.of(context).unfocus();
     
     setState(() => _isLoading = true);
-    // Simulate API Call or Real Call
-    bool success = await ApiService.initiatePayment(_phoneController.text, widget.user['id']);
+    
+    final success = await ref.read(authProvider.notifier).initiatePayment(_phoneController.text);
+    
     setState(() => _isLoading = false);
 
     if (mounted && success) {
@@ -48,8 +49,10 @@ class _PayFeesSheetState extends State<PayFeesSheet> {
 
   void _startListeningForPayment() {
     _statusCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      final updatedUser = await ApiService.getUserDetails(widget.user['id']);
-      if (updatedUser != null && updatedUser['is_paid_member'] == true) {
+      await ref.read(authProvider.notifier).refresh();
+      final user = ref.read(currentUserProvider);
+      
+      if (user != null && user.isPaidMember == true) {
           timer.cancel();
           if (mounted) {
             Navigator.pop(context, true); // Close sheet and return TRUE

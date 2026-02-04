@@ -7,6 +7,10 @@ import 'package:dita_app/services/api_service.dart';
 import 'package:dita_app/services/ads_helper.dart';
 
 // --- THEME CONSTANTS ---
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/providers/auth_provider.dart';
+
+// --- THEME CONSTANTS ---
 const Color kDeepSlate = Color(0xFF0F172A);
 const Color kSurface = Color(0xFF1E293B);
 const Color kDitaBlue = Color(0xFF003366);
@@ -17,16 +21,14 @@ const Color kDitaGold = Color(0xFFFFD700); // Win Color
 enum GameMode { ai, friend }
 enum GameDifficulty { easy, medium, hard }
 
-class GameScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-  // 🟢 Removed redundant 'userId' parameter. We extract it from 'user'.
-  const GameScreen({super.key, required this.user});
+class GameScreen extends ConsumerStatefulWidget {
+  const GameScreen({super.key});
 
   @override
-  State<GameScreen> createState() => _GameScreenState();
+  ConsumerState<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
+class _GameScreenState extends ConsumerState<GameScreen> with TickerProviderStateMixin {
   // Game Config
   GameMode _mode = GameMode.ai;
   GameDifficulty _difficulty = GameDifficulty.medium;
@@ -61,7 +63,8 @@ int _gamesPlayed = 0;
     AdManager.loadInterstitialAd();
     
     // 🟢 Points Init (Safe Parsing)
-    _currentTotalPoints = int.tryParse(widget.user['points'].toString()) ?? 0;
+    final user = ref.read(currentUserProvider);
+    _currentTotalPoints = user?.points ?? 0;
 
     // Shake Animation (Impact Effect)
     _shakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
@@ -371,8 +374,10 @@ int _mediumAI() {
       setState(() => _currentTotalPoints += pointsEarned);
       
       try {
-        int userId = int.parse(widget.user['id'].toString());
-        await ApiService.updateUser(userId, {"points": _currentTotalPoints});
+        final user = ref.read(currentUserProvider);
+        if (user != null) {
+          await ref.read(authProvider.notifier).updateUser(user.id, {"points": _currentTotalPoints});
+        }
       } catch (e) {
         debugPrint("Error syncing points: $e");
       }
