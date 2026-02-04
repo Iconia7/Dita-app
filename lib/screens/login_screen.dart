@@ -7,7 +7,8 @@ import 'package:dita_app/providers/auth_provider.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  final bool showMigrationAlert;
+  const LoginScreen({super.key, this.showMigrationAlert = false});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -48,6 +49,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     ));
 
     _animationController.forward();
+
+    if (widget.showMigrationAlert) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text("⚠️ Account Update Required"),
+            content: const Text(
+              "We have upgraded our security! 🚀\n\n"
+              "Please Create a New Account to continue using the app.\n"
+              "Your old data (Chat, Study Groups) is safe, but you need to re-register.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK, I'll Register"),
+              ),
+            ],
+          ),
+        );
+      });
+    }
   }
 
   @override

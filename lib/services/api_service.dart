@@ -11,7 +11,15 @@ import '../core/errors/exceptions.dart';
 class ApiService {
   //dotenv.env['API_BASE_URL'] ??
   // Load base URL from environment variables with fallback
-  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'https://api.dita.co.ke/api';
+  // Load base URL from environment variables with fallback
+  static String get baseUrl {
+    String url = dotenv.env['API_BASE_URL'] ?? 'https://api.dita.co.ke/api';
+    // Fix potential typo from environment or cache
+    if (url.startsWith('hhttps')) {
+       url = url.replaceFirst('hhttps', 'https');
+    }
+    return url;
+  }
   
   // Request timeout duration
   static const Duration _timeout = Duration(seconds: 30);
@@ -204,8 +212,12 @@ class ApiService {
           return data[0];
         }
         AppLogger.warning('User profile not found for $username');
+        return null;
+      } else if (response.statusCode == 401) {
+        throw AuthenticationException('Session expired');
       } else {
         AppLogger.warning('Failed to fetch user profile: ${response.statusCode}');
+        return null;
       }
     } on SocketException {
       AppLogger.error('Network error while fetching user profile');
@@ -213,10 +225,10 @@ class ApiService {
     } on TimeoutException {
       AppLogger.error('Request timeout while fetching user profile');
       throw TimeoutException();
-    } catch (e, stackTrace) {
-      AppLogger.error('Error fetching user profile', error: e, stackTrace: stackTrace);
+    } catch (e) {
+      AppLogger.error('Error fetching user profile', error: e);
+      rethrow;
     }
-    return null;
   }
 
   static Future<List<dynamic>> getResources() async {
@@ -861,6 +873,8 @@ class ApiService {
       if (response.statusCode == 200) {
         AppLogger.success('User details retrieved for user $userId');
         return json.decode(response.body);
+      } else if (response.statusCode == 401) {
+        throw AuthenticationException('Session expired');
       }
       return null;
     } on SocketException {
@@ -871,7 +885,7 @@ class ApiService {
       throw TimeoutException();
     } catch (e, stackTrace) {
       AppLogger.error('Error fetching user details', error: e, stackTrace: stackTrace);
-      return null;
+      rethrow;
     }
   }
 
@@ -940,6 +954,8 @@ class ApiService {
       
       if (response.statusCode == 200) {
         return json.decode(response.body);
+      } else if (response.statusCode == 401) {
+        throw AuthenticationException('Session expired');
       } else {
         throw ApiException('GET $endpoint failed', statusCode: response.statusCode);
       }
@@ -959,6 +975,8 @@ class ApiService {
       
       if (response.statusCode == 200 || response.statusCode == 201) {
         return json.decode(response.body);
+      } else if (response.statusCode == 401) {
+        throw AuthenticationException('Session expired');
       } else {
         throw ApiException('POST $endpoint failed', statusCode: response.statusCode);
       }
@@ -1034,11 +1052,14 @@ class ApiService {
       AppLogger.api('GET', '/study-groups/');
       final response = await http.get(Uri.parse('$baseUrl/study-groups/'), headers: await _getHeaders()).timeout(_timeout);
       AppLogger.api('GET', '/study-groups/', statusCode: response.statusCode);
+      
       if (response.statusCode == 200) return json.decode(response.body);
+      if (response.statusCode == 401) throw AuthenticationException('Session expired');
+      
       throw ApiException('Failed to load study groups', statusCode: response.statusCode);
     } catch (e) {
       AppLogger.error('Error fetching study groups', error: e);
-      return [];
+      rethrow;
     }
   }
 
@@ -1046,11 +1067,15 @@ class ApiService {
     try {
       AppLogger.api('POST', '/study-groups/$groupId/join/');
       final response = await http.post(Uri.parse('$baseUrl/study-groups/$groupId/join/'), headers: await _getHeaders()).timeout(_timeout);
-       AppLogger.api('POST', '/study-groups/$groupId/join/', statusCode: response.statusCode);
-      return response.statusCode == 200;
+      AppLogger.api('POST', '/study-groups/$groupId/join/', statusCode: response.statusCode);
+      
+      if (response.statusCode == 200) return true;
+      if (response.statusCode == 401) throw AuthenticationException('Session expired');
+      
+      return false;
     } catch (e) {
       AppLogger.error('Error joining study group', error: e);
-      return false;
+      rethrow;
     }
   }
 
@@ -1059,10 +1084,14 @@ class ApiService {
       AppLogger.api('POST', '/study-groups/$groupId/leave/');
       final response = await http.post(Uri.parse('$baseUrl/study-groups/$groupId/leave/'), headers: await _getHeaders()).timeout(_timeout);
       AppLogger.api('POST', '/study-groups/$groupId/leave/', statusCode: response.statusCode);
-      return response.statusCode == 200;
+      
+      if (response.statusCode == 200) return true;
+      if (response.statusCode == 401) throw AuthenticationException('Session expired');
+      
+      return false;
     } catch (e) {
       AppLogger.error('Error leaving study group', error: e);
-      return false;
+      rethrow;
     }
   }
 
@@ -1071,11 +1100,14 @@ class ApiService {
       AppLogger.api('GET', '/study-groups/$groupId/messages/');
       final response = await http.get(Uri.parse('$baseUrl/study-groups/$groupId/messages/'), headers: await _getHeaders()).timeout(_timeout);
       AppLogger.api('GET', '/study-groups/$groupId/messages/', statusCode: response.statusCode);
+      
       if (response.statusCode == 200) return json.decode(response.body);
+      if (response.statusCode == 401) throw AuthenticationException('Session expired');
+      
       return [];
     } catch (e) {
       AppLogger.error('Error fetching group messages', error: e);
-      return [];
+      rethrow;
     }
   }
 

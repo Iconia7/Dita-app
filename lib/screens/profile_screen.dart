@@ -308,41 +308,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                         child: Column(
                           children: [
-                            // --- NEW: TOGGLE SWITCH ---
-                            SwitchListTile(
-                                title: Text("Enable Class Reminders", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: textColor)),
-                                subtitle: Text("Notify 30 mins before class", style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-                                value: _isNotificationsEnabled,
-                                activeThumbColor: Colors.blueAccent,
-                                secondary: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blueAccent.withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.notifications_active_outlined, color: Colors.blueAccent, size: 20),
-                                ),
-                                onChanged: (value) async {
-                                    if (mounted) {
-                                      setState(() {
-                                          _isNotificationsEnabled = value;
-                                      });
-                                    }
-                                    // Call Service to toggle logic
-                                    await NotificationService.toggleNotifications(value);
-                                    
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                              content: Text(value ? "Reminders Enabled ✅" : "Reminders Disabled 🔕"),
-                                              duration: const Duration(seconds: 1),
-                                          )
-                                      );
-                                    }
-                                },
-                            ),
-                            Divider(height: 1, indent: 60, color: isDark ? Colors.white10 : Colors.grey[200]),
-
                             _buildActionTile(Icons.notifications_active_outlined, "Reminder Settings", Colors.blueAccent, () {
                                 Navigator.push(context, MaterialPageRoute(builder: (_) => const ReminderSettingsScreen()));
                             }, textColor),

@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:intl/intl.dart';
 import '../providers/stories_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
 class StoriesSection extends ConsumerWidget {
@@ -288,6 +289,7 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
   }
 
   @override
+  void dispose() {
     _animController.dispose();
     _videoController?.dispose();
     _audioPlayer.dispose();
@@ -451,7 +453,18 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
                           onPressed: () {
                              final text = _commentController.text.trim();
                              if (text.isNotEmpty) {
-                                ref.read(storiesProvider.notifier).addComment(_currentStory.id, text);
+                                final user = ref.read(currentUserProvider);
+                                final int sId = int.tryParse(_currentStory.id) ?? 0;
+                                
+                                if (user != null && sId != 0) {
+                                  // Optimistic Update via new provider
+                                  ref.read(storyCommentsProvider(sId).notifier)
+                                     .addLocalComment(text, user.username, user.avatar);
+                                } else {
+                                  // Fallback
+                                  ref.read(storiesProvider.notifier).addComment(_currentStory.id, text);
+                                }
+
                                 _commentController.clear(); // Clear field
                                 FocusScope.of(context).unfocus(); // Close keyboard
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -463,7 +476,16 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
                       ),
                       onSubmitted: (text) {
                         if (text.isNotEmpty) {
-                          ref.read(storiesProvider.notifier).addComment(_currentStory.id, text);
+                           final user = ref.read(currentUserProvider);
+                           final int sId = int.tryParse(_currentStory.id) ?? 0;
+                           
+                           if (user != null && sId != 0) {
+                             ref.read(storyCommentsProvider(sId).notifier)
+                                .addLocalComment(text, user.username, user.avatar);
+                           } else {
+                             ref.read(storiesProvider.notifier).addComment(_currentStory.id, text);
+                           }
+                           
                           _commentController.clear();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Comment added!")),
@@ -511,14 +533,71 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
   }
 }
 
+// --- 🆕 COMMENTS PROVIDER (Local State for Immediate Updates) ---
+final storyCommentsProvider = StateNotifierProvider.family.autoDispose<StoryCommentsNotifier, AsyncValue<List<dynamic>>, int>((ref, storyId) {
+  return StoryCommentsNotifier(storyId);
+});
+
+class StoryCommentsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
+  final int storyId;
+  
+  StoryCommentsNotifier(this.storyId) : super(const AsyncValue.loading()) {
+    fetchComments();
+  }
+
+  Future<void> fetchComments() async {
+    try {
+      final finalData = await ApiService.get('stories/$storyId/comments/');
+      if (!mounted) return;
+      if (finalData is List) {
+        state = AsyncValue.data(finalData);
+      } else {
+        state = const AsyncValue.data([]);
+      }
+    } catch (e, st) {
+      if (mounted) {
+        state = AsyncValue.error(e, st);
+      }
+    }
+  }
+
+  Future<void> addLocalComment(String text, String username, String? avatar) async {
+    // 1. Optimistic Update
+    final newComment = {
+      'id': DateTime.now().millisecondsSinceEpoch, // Temp ID
+      'username': username,
+      'avatar': avatar,
+      'text': text,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    state.whenData((current) {
+      state = AsyncValue.data([newComment, ...current]);
+    });
+
+    // 2. Actual API Call
+    try {
+      final result = await ApiService.post('stories/$storyId/comment/', {'text': text});
+      if (result == null) {
+        // Revert if failed (optional, simplified here)
+        fetchComments(); 
+      }
+    } catch (e) {
+      // Revert or show error
+      fetchComments(); 
+    }
+  }
+}
+
+
 class StoryCommentsSheet extends ConsumerWidget {
   final String storyId;
   const StoryCommentsSheet({super.key, required this.storyId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // We would ideally have a separate provider for comments, but we can reuse storiesProvider
-    // OR create a simple future builder for now to fetch them directly
+    final int id = int.tryParse(storyId) ?? 0;
+    final commentsAsync = ref.watch(storyCommentsProvider(id));
     
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -543,18 +622,12 @@ class StoryCommentsSheet extends ConsumerWidget {
             const Text("Comments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
             const SizedBox(height: 20),
             Expanded(
-              child: FutureBuilder<dynamic>(
-                future: ApiService.get('stories/$storyId/comments/'),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
-                  }
-                  if (!snapshot.hasData || (snapshot.data is List && (snapshot.data as List).isEmpty)) {
+              child: commentsAsync.when(
+                data: (comments) {
+                   if (comments.isEmpty) {
                     return const Center(child: Text("No comments yet. Be the first!", style: TextStyle(color: Colors.grey)));
-                  }
-                  
-                  final comments = snapshot.data as List<dynamic>;
-                  return ListView.separated(
+                   }
+                   return ListView.separated(
                     controller: controller,
                     itemCount: comments.length,
                     separatorBuilder: (_, __) => const Divider(color: Colors.white10),
@@ -578,7 +651,9 @@ class StoryCommentsSheet extends ConsumerWidget {
                     },
                   );
                 },
-              ),
+                loading: () => const Center(child: CircularProgressIndicator(color: Colors.blueAccent)),
+                error: (err, _) => Center(child: Text("Failed to load comments", style: TextStyle(color: Colors.red))),
+              )
             ),
           ],
         ),

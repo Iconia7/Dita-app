@@ -4,6 +4,7 @@ class StudyGroupModel {
   final String courseCode;
   final String description;
   final int memberCount;
+  final DateTime createdAt;
   final bool isMember;
 
   StudyGroupModel({
@@ -12,6 +13,7 @@ class StudyGroupModel {
     required this.courseCode,
     required this.description,
     required this.memberCount,
+    required this.createdAt,
     required this.isMember,
   });
 
@@ -22,6 +24,7 @@ class StudyGroupModel {
       courseCode: json['course_code'],
       description: json['description'],
       memberCount: json['member_count'] ?? 0,
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
       isMember: json['is_member'] ?? false,
     );
   }

@@ -83,10 +83,8 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
-    final base = ApiService.baseUrl.replaceFirst('http', 'ws').replaceFirst('/api', '');
-    final url = '$base/ws/chat/$groupId/';
-    
-    AppLogger.info('Connecting to WebSocket: $url');
+    // 🛑 FORCE_FIX: ABSOLUTE HARDCODED URL WITH PORT
+    final url = 'wss://api.dita.co.ke:443/ws/chat/$groupId/';
     
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));

@@ -10,6 +10,7 @@ import 'onboarding_screen.dart';
 import 'maintenance_screen.dart';
 import '../core/storage/local_storage.dart';
 import '../core/storage/storage_keys.dart';
+import '../core/errors/failures.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -68,12 +69,40 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTi
   }
 
   Future<void> _checkLoginStatus() async {
-    // We'll watch the authProvider in the build method or listen to it.
-    // However, the biometrics should only happen if we have a cached user.
-    
-    final user = await ref.read(userLocalDataSourceProvider).getCachedUser();
+    // 1. Check local cache first
+    final localUser = await ref.read(userLocalDataSourceProvider).getCachedUser();
 
-    if (user != null) {
+    if (localUser != null) {
+      // 2. Validate session with server (Check for Migration/Expiry)
+      final result = await ref.read(userRepositoryProvider).getCurrentUser();
+      
+      await result.fold(
+        (failure) async {
+          if (failure is AuthFailure) { // Defined in core/errors/failures.dart
+             // 🚔 Token Invalid = MIGRATION / LOGOUT
+             await ref.read(userLocalDataSourceProvider).clearCache();
+             if (mounted) _navigateToLogin(showMigrationAlert: true);
+          } else {
+             // 🛑 Offline/Server Error -> Trust local cache & Proceed
+             _doBiometricsAndLogin();
+          }
+        },
+        (user) async {
+           // ✅ Session Valid
+           if (user != null) {
+             _doBiometricsAndLogin();
+           } else {
+             // Should not occur if localUser != null unless repository cleared it
+              if (mounted) _navigateToLogin();
+           }
+        }
+      );
+    } else {
+      if (mounted) _checkOnboarding();
+    }
+  }
+
+  Future<void> _doBiometricsAndLogin() async {
       bool authenticated = false;
       try {
         final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
@@ -99,15 +128,12 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTi
         if (authenticated) {
           _navigateToHome();
         } else {
-          // Check for onboarding before login
-          _checkOnboarding();
+           // If biometrics failed, go to login (not onboarding, since user existed)
+           // Or maybe just show login? Logic says _checkOnboarding in original code, 
+           // but defaulting to Login is safer if user is cached.
+           _navigateToLogin(); 
         }
       }
-    } else {
-      if (mounted) {
-        _checkOnboarding();
-      }
-    }
   }
 
   void _checkOnboarding() {
@@ -134,10 +160,10 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTi
     );
   }
 
-  void _navigateToLogin() {
+  void _navigateToLogin({bool showMigrationAlert = false}) {
     Navigator.pushReplacement(
       context, 
-      MaterialPageRoute(builder: (_) => const LoginScreen())
+      MaterialPageRoute(builder: (_) => LoginScreen(showMigrationAlert: showMigrationAlert))
     );
   }
 

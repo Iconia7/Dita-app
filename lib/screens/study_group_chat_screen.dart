@@ -249,7 +249,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
             const SizedBox(height: 8),
             Text(widget.group.description.isNotEmpty ? widget.group.description : "No description available.", style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 24),
-            _infoRow(Icons.people, "${widget.group.membersCount} Members"),
+            _infoRow(Icons.people, "${widget.group.memberCount} Members"),
             const SizedBox(height: 12),
             _infoRow(Icons.calendar_today, "Created ${DateFormat.yMMMd().format(widget.group.createdAt)}"),
             const SizedBox(height: 32),

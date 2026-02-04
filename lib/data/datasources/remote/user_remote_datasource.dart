@@ -50,6 +50,8 @@ class UserRemoteDataSource {
       final user = UserModel.fromJson(response);
       AppLogger.success('User profile fetched: ${user.username}');
       return user;
+    } on AuthenticationException {
+      rethrow;
     } on SocketException {
       AppLogger.error('Network error fetching user profile');
       throw NetworkException();

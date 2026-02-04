@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:home_widget/home_widget.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models/timetable_model.dart';
 import '../utils/app_logger.dart';
 import 'package:intl/intl.dart';
@@ -64,5 +66,50 @@ class HomeWidgetService {
 
   static Future<void> _sendToWidget(String key, String value) async {
     await HomeWidget.saveWidgetData(key, value);
+  }
+
+  // --- BACKGROUND UPDATE LOGIC ---
+  static Future<void> backgroundFetch() async {
+    try {
+       // Initialize Environment for API URL if needed (or hardcode for robustness in background)
+       // We can use ApiService directly if it handles its own env loading or defaults
+       // but ApiService relies on dotenv. 
+       // For background, let's try to load .env if not loaded or fallback to hardcoded prod URL
+       
+       // Note: In background isolate, dotenv might not be initialized.
+       // It's safer to use the direct API call logic here purely for the widget.
+       const String apiUrl = "https://api.dita.co.ke/api"; 
+       
+       // We need to get the user token. SharedPrefs works in background isolates on Android.
+       final prefs = await SharedPreferences.getInstance();
+       final userStr = prefs.getString('user_data');
+       if (userStr == null) {
+         print("Widget Background: No user logged in");
+         return;
+       }
+       
+       final userData = json.decode(userStr);
+       final token = userData['access'];
+       
+       // Fetch Timetable
+       final response = await http.get(
+         Uri.parse('$apiUrl/timetable/'),
+         headers: {
+           "Content-Type": "application/json",
+           "Authorization": "Bearer $token",
+         }
+       );
+       
+       if (response.statusCode == 200) {
+         final List<dynamic> data = json.decode(response.body);
+         final timetable = data.map((json) => TimetableModel.fromJson(json)).toList();
+         await updateWidget(timetable);
+         print("Widget Background: Updated successfully");
+       } else {
+         print("Widget Background: Failed to fetch timetable ${response.statusCode}");
+       }
+    } catch (e) {
+      print("Widget Background Error: $e");
+    }
   }
 }

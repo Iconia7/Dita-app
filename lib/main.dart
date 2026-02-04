@@ -7,11 +7,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:awesome_notifications/awesome_notifications.dart'; 
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:dita_app/utils/app_logger.dart';
 
 // Phase 2: State Management & Offline Storage
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/storage/local_storage.dart';
-import 'utils/app_logger.dart';
+import 'services/home_widget_service.dart';
+import 'package:workmanager/workmanager.dart';
+
+@pragma('vm:entry-point') 
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    print("Native called background task: $task"); 
+    try {
+      await HomeWidgetService.backgroundFetch();
+    } catch (e) {
+      print(e);
+    }
+    return Future.value(true);
+  });
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -57,6 +72,19 @@ void main() async {
     await Firebase.initializeApp();
     await MobileAds.instance.initialize();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Initialize Workmanager for background widget updates
+    Workmanager().initialize(
+       callbackDispatcher, 
+       isInDebugMode: true // TODO: Set to false in production
+    );
+    // Register periodic task (every 1 hour)
+    Workmanager().registerPeriodicTask(
+      "1", 
+      "widgetUpdateTask", 
+      frequency: const Duration(hours: 1),
+      constraints: Constraints(networkType: NetworkType.connected),
+    );
 
     await NotificationService.initialize();
     FirebaseMessaging messaging = FirebaseMessaging.instance;

@@ -85,8 +85,12 @@ class UserRepository {
           await localDataSource.cacheUser(freshUser);
           AppLogger.info('User data refreshed from server');
           return Either.right(freshUser);
+        } on AuthenticationException {
+          // Token expired or invalid -> Return AuthFailure to trigger logout/alert
+           AppLogger.warning('Session expired during refresh');
+           return const Either.left(AuthFailure('Session expired'));
         } catch (e) {
-          // If refresh fails, return cached data
+          // If refresh fails (network/server), return cached data
           AppLogger.debug('Failed to refresh user, using cache');
         }
       }

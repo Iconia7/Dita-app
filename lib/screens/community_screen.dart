@@ -142,18 +142,6 @@ Widget build(BuildContext context) {
               return postsAsync.when(
                 data: (communityState) {
                   final allPosts = communityState.posts;
-                  if (allPosts.isEmpty) {
-                    return SingleChildScrollView(
-                      child: EmptyStateWidget(
-                        svgPath: 'assets/svgs/no_post.svg', 
-                        title: "Start the conversation",
-                        message: "The feed is empty. Be the first to post!",
-                        actionLabel: "Create First Post",
-                        onActionPressed: _showCreatePostSheet,
-                      ),
-                    );
-                  }
-
                   // Filter posts by category
                   final posts = _selectedCategory == 'ALL' 
                     ? allPosts 
@@ -164,38 +152,33 @@ Widget build(BuildContext context) {
                       await ref.read(communityProvider.notifier).refresh();
                     },
                     color: primaryColor,
-                    child: _selectedCategory == 'MARKET'
-                      // MARKETPLACE MODE
-                      ? GridView.builder(
-                          padding: const EdgeInsets.all(10),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.75,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                          ),
-                          itemCount: posts.length,
-                          itemBuilder: (context, index) {
-                            return _MarketPostCard(
-                              post: posts[index],
-                              onPostDeleted: () => ref.read(communityProvider.notifier).refresh(),
-                            );
-                          },
-                        )
-                      // STANDARD FEED MODE
-                      : ListView.separated(
+                    child: ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.only(bottom: 100), 
-                          // +1 for Stories, +1 for Loader if hasMore
-                          itemCount: 1 + posts.length + (communityState.hasMore ? 1 : 0),
-                          separatorBuilder: (c, i) => i == 0 ? const SizedBox(height: 10) : Divider(height: 1, color: borderColor),
+                          // 1 (Stories) + (posts.isEmpty ? 1 (EmptyState) : posts.length) + (hasMore ? 1 : 0)
+                          itemCount: 1 + (posts.isEmpty ? 1 : posts.length) + (communityState.hasMore && posts.isNotEmpty ? 1 : 0),
                           itemBuilder: (context, index) {
-                            // 1. Stories Section at the top
+                            // 1. Stories Section at the top (Always Visible)
                             if (index == 0) {
                               return const StoriesSection();
                             }
                             
-                            // 2. Loading Indicator at the bottom
+                            // 2. Empty State (If no posts)
+                            if (posts.isEmpty) {
+                              return Container(
+                                height: 400, // Fixed height for empty state area
+                                alignment: Alignment.center,
+                                child: EmptyStateWidget(
+                                  svgPath: 'assets/svgs/no_post.svg', 
+                                  title: "Start the conversation",
+                                  message: "The feed is empty. Be the first to post!",
+                                  actionLabel: "Create First Post",
+                                  onActionPressed: _showCreatePostSheet,
+                                ),
+                              );
+                            }
+
+                            // 3. Loading Indicator at the bottom
                             if (index == posts.length + 1) {
                               return const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 32),
@@ -203,12 +186,29 @@ Widget build(BuildContext context) {
                               );
                             }
 
-                            // 3. Post Item
+                            // 4. Post Item
                             final post = posts[index - 1]; // Shift index back by 1
-                            return _PostItem(
-                              post: post, 
-                              primaryDark: primaryColor,
-                              onPostDeleted: () => ref.read(communityProvider.notifier).refresh(),
+                            if (_selectedCategory == 'MARKET') {
+                              // Wrap Market Card in a wrapper as we are in a ListView now
+                              // (Ideally we would use Slivers for mixed List/Grid but keeping it simple)
+                               return Padding(
+                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                 child: _MarketPostCard(
+                                  post: post,
+                                  onPostDeleted: () => ref.read(communityProvider.notifier).refresh(),
+                                                             ),
+                               );
+                            }
+
+                            return Column(
+                              children: [
+                                _PostItem(
+                                  post: post, 
+                                  primaryDark: primaryColor,
+                                  onPostDeleted: () => ref.read(communityProvider.notifier).refresh(),
+                                ),
+                                Divider(height: 1, color: borderColor),
+                              ],
                             );
                           },
                         ),
