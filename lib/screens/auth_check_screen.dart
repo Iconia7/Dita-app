@@ -81,7 +81,15 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTi
           if (failure is AuthFailure) { // Defined in core/errors/failures.dart
              // 🚔 Token Invalid = MIGRATION / LOGOUT
              await ref.read(userLocalDataSourceProvider).clearCache();
-             if (mounted) _navigateToLogin(showMigrationAlert: true);
+             
+             // Check if user has already seen the migration alert
+             final hasDismissed = LocalStorage.getItem<bool>(
+               StorageKeys.settingsBox, 
+               StorageKeys.hasDismissedMigrationAlert
+             ) ?? false;
+             
+             // Only show migration alert if they haven't dismissed it before
+             if (mounted) _navigateToLogin(showMigrationAlert: !hasDismissed);
           } else {
              // 🛑 Offline/Server Error -> Trust local cache & Proceed
              _doBiometricsAndLogin();

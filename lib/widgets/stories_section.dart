@@ -53,7 +53,7 @@ class StoriesSection extends ConsumerWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.videocam),
-                title: const Text("Video (max 15s)"),
+                title: const Text("Video (max 30s)"),
                 onTap: () => Navigator.pop(context, "video"),
               ),
             ],
@@ -66,29 +66,93 @@ class StoriesSection extends ConsumerWidget {
         if (type == "image") {
           file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
         } else {
-          file = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 15));
+          file = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 30));
         }
 
-        if (file != null) {
-          // Verify duration if it's a video (Extra safety)
-          if (type == "video") {
-             // In a real app, you'd use a package like video_player to check duration before upload
-             // For now we rely on pickVideo's maxDuration
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Uploading story...")),
-          );
+        if (file != null \u0026\u0026 context.mounted) {
+          // Show upload progress dialog
+          _showUploadProgressDialog(context, file.path.split('/').last);
           
-          final success = await ref.read(storiesProvider.notifier).addStory(
-            File(file.path), 
-            null,
-          );
-
-          if (success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Story uploaded successfully!")),
+          try {
+            final success = await ref.read(storiesProvider.notifier).addStory(
+              File(file.path), 
+              null,
             );
+
+            // Close progress dialog
+            if (context.mounted) Navigator.pop(context);
+
+            if (context.mounted) {
+              if (success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text("Story uploaded successfully!"),
+                      ],
+                    ),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.white),
+                        SizedBox(width: 12),
+                        Expanded(child: Text("Upload failed. Please try again.")),
+                      ],
+                    ),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            }
+          } catch (e) {
+            // Close progress dialog if still open
+            if (context.mounted) {
+              Navigator.pop(context);
+              
+              // Determine error type and show specific message
+              String errorMessage = "Upload failed: ";
+              if (e.toString().contains('Network') || e.toString().contains('Socket')) {
+                errorMessage += "No internet connection";
+              } else if (e.toString().contains('Timeout')) {
+                errorMessage += "Connection timed out";
+              } else if (e.toString().contains('File too large')) {
+                errorMessage += "File is too large";
+              } else {
+                errorMessage += "Please try again";
+              }
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(errorMessage)),
+                    ],
+                  ),
+                  backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 5),
+                  action: SnackBarAction(
+                    label: 'RETRY',
+                    textColor: Colors.white,
+                    onPressed: () {
+                      // Could implement retry logic here
+                    },
+                  ),
+                ),
+              );
+            }
           }
         }
       },
@@ -117,6 +181,51 @@ class StoriesSection extends ConsumerWidget {
             const SizedBox(height: 5),
             const Text("Your Story", style: TextStyle(fontSize: 12))
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showUploadProgressDialog(BuildContext context, String fileName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? const Color(0xFF1E1E1E) 
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 24),
+                const Text(
+                  "Uploading Story...",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  fileName,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Please wait",
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -192,10 +301,14 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
   bool _isVideoInitialized = false;
   late int _currentIndex;
   final TextEditingController _commentController = TextEditingController(); // Controller for comment input
+  final FocusNode _commentFocusNode = FocusNode();
 
-  // Use the ID to find the latest version of the story from the provider
-  StoryModel get _currentStory {
-    final liveStories = ref.watch(storiesProvider);
+  // Reactive getter for build()
+  StoryModel get _currentStory => _getStory(watch: true);
+
+  // Non-reactive helper for logic (initState, handlers)
+  StoryModel _getStory({required bool watch}) {
+    final liveStories = watch ? ref.watch(storiesProvider) : ref.read(storiesProvider);
     // Fallback to widget.stories if not found (e.g. filtered list)
     if (_currentIndex >= widget.stories.length) return widget.stories.last;
     
@@ -214,6 +327,17 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
     
     _animController.addStatusListener(_onAnimationStatus);
 
+    // Pause when typing comment
+    _commentFocusNode.addListener(() {
+      if (_commentFocusNode.hasFocus) {
+        _animController.stop();
+        _videoController?.pause();
+      } else {
+        _animController.forward();
+        _videoController?.play();
+      }
+    });
+
     _initMedia();
 
     // Mark as viewed on backend
@@ -229,7 +353,8 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
   }
 
   void _markCurrentAsViewed() {
-    ref.read(storiesProvider.notifier).markAsViewed(_currentStory.id);
+    final story = _getStory(watch: false);
+    ref.read(storiesProvider.notifier).markAsViewed(story.id);
   }
 
   Future<void> _initMedia() async {
@@ -239,17 +364,19 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
     _videoController = null;
     _isVideoInitialized = false;
 
+    final story = _getStory(watch: false);
+
     // 1. VIDEO INITIALIZATION
-    if (_currentStory.videoUrl != null && _currentStory.videoUrl!.isNotEmpty) {
+    if (story.videoUrl != null && story.videoUrl!.isNotEmpty) {
       _videoController = VideoPlayerController.networkUrl(Uri.parse(_currentStory.videoUrl!))
         ..initialize().then((_) {
           if (!mounted) return;
           setState(() {
             _isVideoInitialized = true;
-            // Set animation duration to video duration (max 15s)
+            // Set animation duration to video duration (max 30s)
             final duration = _videoController!.value.duration;
-            _animController.duration = duration.inSeconds > 15 
-                ? const Duration(seconds: 15) 
+            _animController.duration = duration.inSeconds > 30 
+                ? const Duration(seconds: 30) 
                 : duration;
             _videoController!.play();
             _animController.forward();
@@ -294,6 +421,7 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
     _videoController?.dispose();
     _audioPlayer.dispose();
     _commentController.dispose(); // Dispose controller
+    _commentFocusNode.dispose();
     super.dispose();
   }
 
@@ -442,6 +570,7 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
                     ),
                     child: TextField(
                       controller: _commentController, // Attach controller
+                      focusNode: _commentFocusNode, // Attach FocusNode
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: "Send a message...",
@@ -453,12 +582,11 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
                           onPressed: () {
                              final text = _commentController.text.trim();
                              if (text.isNotEmpty) {
-                                final user = ref.read(currentUserProvider);
-                                final int sId = int.tryParse(_currentStory.id) ?? 0;
+                                 final user = ref.read(currentUserProvider);
                                 
-                                if (user != null && sId != 0) {
+                                if (user != null) {
                                   // Optimistic Update via new provider
-                                  ref.read(storyCommentsProvider(sId).notifier)
+                                  ref.read(storyCommentsProvider(_currentStory.id).notifier)
                                      .addLocalComment(text, user.username, user.avatar);
                                 } else {
                                   // Fallback
@@ -466,7 +594,7 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
                                 }
 
                                 _commentController.clear(); // Clear field
-                                FocusScope.of(context).unfocus(); // Close keyboard
+                                _commentFocusNode.unfocus(); // Close keyboard and resume story
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text("Comment added!")),
                                 );
@@ -477,16 +605,16 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
                       onSubmitted: (text) {
                         if (text.isNotEmpty) {
                            final user = ref.read(currentUserProvider);
-                           final int sId = int.tryParse(_currentStory.id) ?? 0;
                            
-                           if (user != null && sId != 0) {
-                             ref.read(storyCommentsProvider(sId).notifier)
+                           if (user != null) {
+                             ref.read(storyCommentsProvider(_currentStory.id).notifier)
                                 .addLocalComment(text, user.username, user.avatar);
                            } else {
                              ref.read(storiesProvider.notifier).addComment(_currentStory.id, text);
                            }
                            
                           _commentController.clear();
+                          _commentFocusNode.unfocus(); // Close keyboard and resume story
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Comment added!")),
                           );
@@ -534,12 +662,12 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
 }
 
 // --- 🆕 COMMENTS PROVIDER (Local State for Immediate Updates) ---
-final storyCommentsProvider = StateNotifierProvider.family.autoDispose<StoryCommentsNotifier, AsyncValue<List<dynamic>>, int>((ref, storyId) {
+final storyCommentsProvider = StateNotifierProvider.family.autoDispose<StoryCommentsNotifier, AsyncValue<List<dynamic>>, String>((ref, storyId) {
   return StoryCommentsNotifier(storyId);
 });
 
 class StoryCommentsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
-  final int storyId;
+  final String storyId;
   
   StoryCommentsNotifier(this.storyId) : super(const AsyncValue.loading()) {
     fetchComments();
@@ -547,7 +675,8 @@ class StoryCommentsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
 
   Future<void> fetchComments() async {
     try {
-      final finalData = await ApiService.get('stories/$storyId/comments/');
+      // Use the correct endpoint: story-comments with query parameter
+      final finalData = await ApiService.get('story-comments/?story_id=$storyId');
       if (!mounted) return;
       if (finalData is List) {
         state = AsyncValue.data(finalData);
@@ -578,7 +707,7 @@ class StoryCommentsNotifier extends StateNotifier<AsyncValue<List<dynamic>>> {
     // 2. Actual API Call
     try {
       final result = await ApiService.post('stories/$storyId/comment/', {'text': text});
-      if (result == null) {
+      if (result == false) { // post returns bool
         // Revert if failed (optional, simplified here)
         fetchComments(); 
       }
@@ -596,8 +725,21 @@ class StoryCommentsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final int id = int.tryParse(storyId) ?? 0;
-    final commentsAsync = ref.watch(storyCommentsProvider(id));
+    // Use int for the provider family to match the provider definition above if we didn't change it.
+    // Wait, I am changing the provider definition below to String to avoid the int parsing issues.
+    // But I can't change the definition in the same tool call easily without a large replace.
+    // Let's stick to int for the family KEY if the provider definition uses int, but the notifier logic uses string.
+    // Actually, I will replace the provider definition too.
+    
+    // Changing the provider family type in the replace block:
+    
+    // For now, let's keep the provider family as `int` in this specific block if I can't change the definition line (543).
+    // StartLine 543 is included.
+    
+    // Wait, the id passed from UI is String. If I parse to int and it fails (UUID), it becomes 0.
+    // So I MUST change the provider family type to String.
+    
+    final commentsAsync = ref.watch(storyCommentsProvider(storyId));
     
     return DraggableScrollableSheet(
       initialChildSize: 0.6,

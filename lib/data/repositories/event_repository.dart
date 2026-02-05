@@ -68,7 +68,7 @@ class EventRepository {
   }
 
   /// RSVP to an event (online only)
-  Future<Either<Failure, bool>> rsvpEvent(int eventId) async {
+  Future<Either<Failure, Map<String, dynamic>>> rsvpEvent(int eventId) async {
     try {
       final isConnected = await networkInfo.isConnected;
 
@@ -76,12 +76,12 @@ class EventRepository {
         return Left(NetworkFailure('Cannot RSVP while offline'));
       }
 
-      final success = await remoteDataSource.rsvpEvent(eventId);
+      final result = await remoteDataSource.rsvpEvent(eventId);
       
-      if (success) {
+      if (result != null) {
         // Invalidate cache to force refresh
         await localDataSource.clearCache();
-        return const Right(true);
+        return Right(result);
       }
       
       return Left(ServerFailure('Failed to RSVP'));

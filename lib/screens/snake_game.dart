@@ -63,7 +63,8 @@ double _playerMMR = 1000;
   // SCORING
   int _score = 0; 
   late int _totalUserPoints; 
-  int _localHighScore = 0;   
+  int _localHighScore = 0;
+  int _pointsSinceLastSync = 0; // Track points for batching   
 
   // COMBO SYSTEM
   int _comboMultiplier = 1;
@@ -374,6 +375,12 @@ _avgReactionMs = _avgReactionMs == 0
     int points = 10 * _comboMultiplier * (_doubleScore ? 2 : 1);
     _score += points;
     _totalUserPoints += points;
+    _pointsSinceLastSync += points;
+    
+    // Sync every 50 points
+    if (_pointsSinceLastSync >= 50) {
+      _syncPointsToBackend();
+    }
     
     // Combo Logic
     DateTime now = DateTime.now();
@@ -418,6 +425,13 @@ _avgReactionMs = _avgReactionMs == 0
       case PowerUpType.megaPoint:
         _score += 50;
         _totalUserPoints += 50;
+        _pointsSinceLastSync += 50;
+        
+        // Sync immediately for mega points
+        if (_pointsSinceLastSync >= 50) {
+          _syncPointsToBackend();
+        }
+        
         _showFloatingText("DATA UPLOAD +50", kNeonBlue);
         _startTimer(); 
         break;
@@ -516,6 +530,20 @@ await prefs.setDouble('snake_mmr', _playerMMR);
     await _saveGameData();
   }
 
+  // Sync points to backend and update provider immediately
+  Future<void> _syncPointsToBackend() async {
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      try {
+        // Update provider immediately for live UI updates
+        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _totalUserPoints});
+        _pointsSinceLastSync = 0; // Reset counter
+      } catch (e) {
+        debugPrint("Error syncing points: $e");
+      }
+    }
+  }
+
   Future<void> _saveGameData() async {
     if (_isSaving) return;
     _isSaving = true;
@@ -528,9 +556,9 @@ await prefs.setDouble('snake_mmr', _playerMMR);
         setState(() => _localHighScore = _score);
       }
 
-      final user = ref.read(currentUserProvider);
-      if (user != null) {
-        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _totalUserPoints});
+      // Final sync at game over (for any remaining points < 50)
+      if (_pointsSinceLastSync > 0) {
+        await _syncPointsToBackend();
       }
     } catch (e) {
       debugPrint("Error saving snake data: $e");

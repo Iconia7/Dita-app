@@ -15,42 +15,56 @@ class AiRemoteDataSource {
 
     try {
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$_apiKey');
+          'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=$_apiKey');
       
       // OPTIMIZATION: Cap history to last 10 messages to avoid huge payloads/TPM limits
       List<Map<String, dynamic>> cappedHistory = history.length > 10 
           ? history.sublist(history.length - 10) 
           : history;
 
-      // Inject file into the LAST user message if present
-      List<Map<String, dynamic>> finalHistory = List.from(cappedHistory);
-      
-      if (base64File != null && mimeType != null && finalHistory.isNotEmpty) {
-        // Get the last message, which should be the user's prompt
-        final lastMsg = Map<String, dynamic>.from(finalHistory.last);
-        if (lastMsg['role'] == 'user') {
-           // Gemini expects "parts": [ {text: "Query"}, {inline_data: {...}} ]
-           List<Map<String, dynamic>> parts = List.from(lastMsg['parts']);
-           parts.add({
-             "inline_data": {
-               "mime_type": mimeType,
-               "data": base64File
-             }
-           });
-           lastMsg['parts'] = parts;
-           finalHistory[finalHistory.length - 1] = lastMsg;
-        }
+List<Map<String, dynamic>> finalHistory = [];
+
+// Inject system instruction as first message
+if (systemInstruction.isNotEmpty) {
+  finalHistory.add({
+    "role": "user",
+    "parts": [
+      {
+        "text":
+          "SYSTEM INSTRUCTION:\n$systemInstruction"
       }
+    ]
+  });
+}
+
+// Append capped conversation history
+finalHistory.addAll(cappedHistory);
+
+      
+     if (base64File != null && mimeType != null) {
+  // Find the last message that actually has text parts
+  for (int i = finalHistory.length - 1; i >= 0; i--) {
+    final msg = finalHistory[i];
+    if (msg['parts'] != null) {
+      List<Map<String, dynamic>> parts = List.from(msg['parts']);
+      parts.add({
+        "inline_data": {
+          "mime_type": mimeType,
+          "data": base64File
+        }
+      });
+      msg['parts'] = parts;
+      finalHistory[i] = msg;
+      break;
+    }
+  }
+}
+
 
       final body = {
         "contents": finalHistory,
-        "system_instruction": {
-          "parts": [
-            {"text": systemInstruction}
-          ]
-        },
         "generationConfig": {
-          "temperature": 0.7,
+          "temperature": 0.7, 
           "maxOutputTokens": 1500,
           "topP": 0.9,
         }
@@ -89,6 +103,7 @@ class AiRemoteDataSource {
           continue;
         } else {
           AppLogger.error('AI API Error: ${resp.statusCode}');
+          AppLogger.error('AI Error Body: ${resp.body}');
           throw ServerException('AI service error: ${resp.statusCode}');
         }
       }

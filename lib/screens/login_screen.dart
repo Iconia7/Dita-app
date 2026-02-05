@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dita_app/providers/auth_provider.dart';
+import 'package:dita_app/core/storage/local_storage.dart';
+import 'package:dita_app/core/storage/storage_keys.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -64,7 +66,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  // Save flag so this dialog won't appear again
+                  LocalStorage.setItem<bool>(
+                    StorageKeys.settingsBox,
+                    StorageKeys.hasDismissedMigrationAlert,
+                    true,
+                  );
+                  Navigator.pop(context);
+                },
                 child: const Text("OK, I'll Register"),
               ),
             ],
@@ -99,6 +109,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     setState(() => _isLoading = false);
 
     if (success && mounted) {
+      // Clear migration alert flag since successful login means they've re-registered
+      LocalStorage.setItem<bool>(
+        StorageKeys.settingsBox,
+        StorageKeys.hasDismissedMigrationAlert,
+        false,
+      );
+      
       // Get the user from the provider state
       final user = ref.read(currentUserProvider);
       if (user != null) {

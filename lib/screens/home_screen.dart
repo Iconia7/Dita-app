@@ -883,11 +883,11 @@ const SizedBox(width: 15),
                               }
                           ),
                           const SizedBox(width: 15),
-                          // _buildQuickAction(
-                          //     Icons.group_work_rounded, 
-                          //     "Study Groups", 
-                          //     () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyGroupsScreen()))
-                          // ),
+                          _buildQuickAction(
+                              Icons.group_work_rounded, 
+                              "Study Groups", 
+                              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyGroupsScreen()))
+                          ),
 
                         ],
                       ),

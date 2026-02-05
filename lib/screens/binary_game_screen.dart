@@ -48,6 +48,7 @@ int _gamesPlayed = 0;
    
   // User Points
   late int _currentTotalPoints;
+  int _pointsSinceLastSync = 0; // Track points for batching
 
   // --- ANIMATION CONTROLLERS ---
   late AnimationController _shakeController;
@@ -371,15 +372,17 @@ int _mediumAI() {
     }
 
     if (pointsEarned > 0 && _mode == GameMode.ai) {
-      setState(() => _currentTotalPoints += pointsEarned);
+      setState(() {
+        _currentTotalPoints += pointsEarned;
+        _pointsSinceLastSync += pointsEarned;
+      });
       
-      try {
-        final user = ref.read(currentUserProvider);
-        if (user != null) {
-          await ref.read(authProvider.notifier).updateUser(user.id, {"points": _currentTotalPoints});
-        }
-      } catch (e) {
-        debugPrint("Error syncing points: $e");
+      // Sync every 50 points or immediately at game end
+      if (_pointsSinceLastSync >= 50) {
+        await _syncPointsToBackend();
+      } else {
+        // Still update provider immediately for live UI
+        _updateProviderOnly();
       }
     }
     _gamesPlayed++;
@@ -406,6 +409,28 @@ int _mediumAI() {
         ],
       )
     );
+  }
+
+  // Update provider immediately without backend sync (for live UI)
+  void _updateProviderOnly() {
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      // Update local provider state for immediate UI reflection
+      ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+    }
+  }
+
+  // Sync points to backend and update provider
+  Future<void> _syncPointsToBackend() async {
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      try {
+        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _currentTotalPoints});
+        _pointsSinceLastSync = 0; // Reset counter
+      } catch (e) {
+        debugPrint("Error syncing points: $e");
+      }
+    }
   }
 
   void _resetGame() {

@@ -9,7 +9,7 @@ class TimetableRemoteDataSource {
   /// Fetch all timetable entries (classes and exams)
   Future<List<TimetableModel>> getTimetable() async {
     try {
-      final jsonList = await ApiService.get('timetable/');
+      final jsonList = await ApiService.get('exams/');
       final items = (jsonList as List)
           .map((json) => TimetableModel.fromJson(json as Map<String, dynamic>))
           .toList();

@@ -77,6 +77,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> sendMessage(String message, {String? base64File, String? mimeType}) async {
     if (message.trim().isEmpty) return;
+    
+    // 🛡️ PREVENT MULTIPLE SIMULTANEOUS REQUESTS
+    if (state.isLoading) {
+      AppLogger.warning('AI Request already in progress. Ignoring.');
+      return;
+    }
 
     final userMessage = ChatMessage(role: 'user', text: message);
     state = state.copyWith(

@@ -23,6 +23,7 @@ class StorageKeys {
   static const String isDarkMode = 'is_dark_mode';
   static const String notificationsEnabled = 'notifications_enabled';
   static const String hasSeenOnboarding = 'has_seen_onboarding';
+  static const String hasDismissedMigrationAlert = 'has_dismissed_migration_alert';
   static const String lastSyncTimestamp = 'last_sync_timestamp';
 
   // Cache Keys

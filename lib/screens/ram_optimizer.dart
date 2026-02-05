@@ -34,6 +34,7 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
   int _scoreKB = 0;
   int _sessionPoints = 0;
   late int _currentTotalPoints;
+  int _pointsSinceLastSync = 0; // Track points for batching
   int _localHighScore = 0;
 
   bool _isGameOver = false;
@@ -270,7 +271,15 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
       _scoreKB += kbGained;
       _sessionPoints += pointsGained;
       _currentTotalPoints += pointsGained;
+      _pointsSinceLastSync += pointsGained;
     });
+    
+    // Sync every 50 points
+    if (_pointsSinceLastSync >= 50) {
+      _syncPointsToBackend();
+    } else {
+      _updateProviderOnly();
+    }
 
     if (isCorrupted) {
       _startCorruptionTimer(finalColor);
@@ -389,11 +398,19 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
       _scoreKB += kbCleaned;
       _sessionPoints += pointsGained;
       _currentTotalPoints += pointsGained;
+      _pointsSinceLastSync += pointsGained;
 
       for (int idx in clearedIndices) {
         _board[idx] = null;
       }
     });
+    
+    // Sync every 50 points
+    if (_pointsSinceLastSync >= 50) {
+      _syncPointsToBackend();
+    } else {
+      _updateProviderOnly();
+    }
   }
 
   void _showFloatingText(String sentiment, String points, Color color) {
@@ -521,6 +538,28 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
     );
   }
 
+  // Update provider immediately without backend sync (for live UI)
+  void _updateProviderOnly() {
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      // Update local provider state for immediate UI reflection
+      ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+    }
+  }
+
+  // Sync points to backend and update provider
+  Future<void> _syncPointsToBackend() async {
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      try {
+        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _currentTotalPoints});
+        _pointsSinceLastSync = 0; // Reset counter
+      } catch (e) {
+        debugPrint("Error syncing points: $e");
+      }
+    }
+  }
+
   Future<void> _saveGameData() async {
     if (_isSaving) return;
     _isSaving = true;
@@ -531,9 +570,10 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
         await prefs.setInt('ram_high_score', _scoreKB);
         setState(() => _localHighScore = _scoreKB);
       }
-      final user = ref.read(currentUserProvider);
-      if (user != null) {
-        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _currentTotalPoints});
+      
+      // Final sync at game over (for any remaining points < 50)
+      if (_pointsSinceLastSync > 0) {
+        await _syncPointsToBackend();
       }
     } catch (e) {
       debugPrint("Save Error: $e");

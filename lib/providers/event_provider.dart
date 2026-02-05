@@ -65,7 +65,7 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
   }
 
   /// RSVP to an event
-  Future<bool> rsvpEvent(int eventId) async {
+  Future<Map<String, dynamic>?> rsvpEvent(int eventId) async {
     try {
       AppLogger.info('RSVP to event $eventId');
 
@@ -74,20 +74,18 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
       return result.fold(
         (failure) {
           AppLogger.warning('RSVP failed: ${failure.message}');
-          return false;
+          return null;
         },
-        (success) {
-          if (success) {
-            AppLogger.success('RSVP successful');
-            // Refresh events list
-            loadEvents();
-          }
-          return success;
+        (data) {
+          AppLogger.success('RSVP action: ${data['status']}');
+          // Refresh events list
+          loadEvents();
+          return data;
         },
       );
     } catch (e, stackTrace) {
       AppLogger.error('RSVP error', error: e, stackTrace: stackTrace);
-      return false;
+      return null;
     }
   }
 

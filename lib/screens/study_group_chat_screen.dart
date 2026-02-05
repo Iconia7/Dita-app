@@ -39,6 +39,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(chatMessagesProvider(widget.group.id));
+    final connectionStatus = ref.watch(chatConnectionStatusProvider(widget.group.id));
     final currentUser = ref.watch(currentUserProvider);
     final primaryColor = Theme.of(context).primaryColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -65,7 +66,25 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.group.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-            Text(widget.group.courseCode, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            Row(
+              children: [
+                Text(widget.group.courseCode, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                const SizedBox(width: 8),
+                // Connection status indicator
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: connectionStatus == ConnectionStatus.connected
+                        ? Colors.green
+                        : connectionStatus == ConnectionStatus.connecting
+                            ? Colors.orange
+                            : Colors.red,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
         backgroundColor: Colors.transparent,
@@ -89,11 +108,59 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
         ),
         child: Column(
           children: [
+            // Connection status banner
+            if (connectionStatus != ConnectionStatus.connected)
+              Container(
+                margin: const EdgeInsets.only(top: 90),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: connectionStatus == ConnectionStatus.connecting
+                      ? Colors.orange.withOpacity(0.9)
+                      : Colors.red.withOpacity(0.9),
+                ),
+                child: Row(
+                  children: [
+                    if (connectionStatus == ConnectionStatus.connecting)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    else
+                      const Icon(Icons.wifi_off, color: Colors.white, size: 18),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        connectionStatus == ConnectionStatus.connecting
+                            ? 'Connecting to chat...'
+                            : 'Disconnected from chat',
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    if (connectionStatus == ConnectionStatus.disconnected)
+                      TextButton(
+                        onPressed: () {
+                          ref.read(chatMessagesProvider(widget.group.id).notifier).retryConnection();
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        ),
+                        child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ),
+              ),
             Expanded(
               child: messagesAsync.when(
                 data: (messages) => ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.only(top: 100, left: 15, right: 15, bottom: 20), // Top padding for transparent AppBar
+                  padding: EdgeInsets.only(
+                    top: connectionStatus != ConnectionStatus.connected ? 20 : 100, 
+                    left: 15, 
+                    right: 15, 
+                    bottom: 20
+                  ),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
@@ -153,6 +220,9 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
   }
 
   Widget _buildInputArea(BuildContext context, bool isDark) {
+    final connectionStatus = ref.watch(chatConnectionStatusProvider(widget.group.id));
+    final isConnected = connectionStatus == ConnectionStatus.connected;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -172,27 +242,36 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
                 child: TextField(
                   controller: _messageController,
                   style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                  decoration: const InputDecoration(
-                    hintText: "Type a message...",
-                    hintStyle: TextStyle(color: Colors.grey),
+                  enabled: isConnected,
+                  decoration: InputDecoration(
+                    hintText: isConnected ? "Type a message..." : "Connecting...",
+                    hintStyle: TextStyle(color: isConnected ? Colors.grey : Colors.grey[400]),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
-                  onSubmitted: (_) => _sendMessage(),
+                  onSubmitted: isConnected ? (_) => _sendMessage() : null,
                 ),
               ),
             ),
             const SizedBox(width: 12),
             GestureDetector(
-              onTap: _sendMessage,
+              onTap: isConnected ? _sendMessage : null,
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Theme.of(context).primaryColor, Colors.indigoAccent]),
+                  gradient: isConnected
+                      ? LinearGradient(colors: [Theme.of(context).primaryColor, Colors.indigoAccent])
+                      : LinearGradient(colors: [Colors.grey[400]!, Colors.grey[500]!]),
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: Theme.of(context).primaryColor.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))],
+                  boxShadow: isConnected
+                      ? [BoxShadow(color: Theme.of(context).primaryColor.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))]
+                      : [],
                 ),
-                child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                child: Icon(
+                  Icons.send_rounded, 
+                  color: isConnected ? Colors.white : Colors.grey[300], 
+                  size: 20
+                ),
               ),
             ),
           ],

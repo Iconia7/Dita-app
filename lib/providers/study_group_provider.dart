@@ -52,14 +52,22 @@ class StudyGroupsNotifier extends StateNotifier<AsyncValue<List<StudyGroupModel>
 
 // ========== Chat Provider (One per Group) ==========
 
+enum ConnectionStatus { disconnected, connecting, connected }
+
 final chatMessagesProvider = StateNotifierProvider.family<ChatNotifier, AsyncValue<List<GroupMessageModel>>, int>((ref, groupId) {
   return ChatNotifier(groupId, ref);
+});
+
+final chatConnectionStatusProvider = StateProvider.family<ConnectionStatus, int>((ref, groupId) {
+  return ConnectionStatus.disconnected;
 });
 
 class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
   final int groupId;
   final Ref ref;
   WebSocketChannel? _channel;
+  final List<Map<String, String>> _messageQueue = [];
+  bool _isDisposed = false;
 
   ChatNotifier(this.groupId, this.ref) : super(const AsyncValue.loading()) {
     _initChat();
@@ -70,9 +78,13 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
     try {
       final historyData = await ApiService.getGroupMessages(groupId);
       final history = historyData.map((json) => GroupMessageModel.fromJson(json)).toList();
-      state = AsyncValue.data(history);
+      if (!_isDisposed) {
+        state = AsyncValue.data(history);
+      }
     } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
+      if (!_isDisposed) {
+        state = AsyncValue.error(e, stackTrace);
+      }
     }
 
     // 2. Connect WebSockets
@@ -80,8 +92,12 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
   }
 
   void _connectWebSocket() {
+    if (_isDisposed) return;
+    
     final user = ref.read(currentUserProvider);
     if (user == null) return;
+
+    ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.connecting;
 
     // 🛑 FORCE_FIX: ABSOLUTE HARDCODED URL WITH PORT
     final url = 'wss://api.dita.co.ke:443/ws/chat/$groupId/';
@@ -90,30 +106,67 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
       _channel = WebSocketChannel.connect(Uri.parse(url));
       
       _channel!.stream.listen((event) {
-        final data = json.decode(event);
-        final newMessage = GroupMessageModel(
-          id: DateTime.now().millisecondsSinceEpoch, // Local ID for display
-          username: data['username'],
-          content: data['message'],
-          timestamp: DateTime.now(),
-        );
+        if (_isDisposed) return;
+        
+        try {
+          final data = json.decode(event);
+          final newMessage = GroupMessageModel(
+            id: DateTime.now().millisecondsSinceEpoch, // Local ID for display
+            username: data['username'],
+            content: data['message'],
+            timestamp: DateTime.now(),
+          );
 
-        state.whenData((currentMessages) {
-          state = AsyncValue.data([...currentMessages, newMessage]);
-        });
+          state.whenData((currentMessages) {
+            if (!_isDisposed) {
+              state = AsyncValue.data([...currentMessages, newMessage]);
+            }
+          });
+
+          // Mark as connected on first successful message
+          if (ref.read(chatConnectionStatusProvider(groupId)) != ConnectionStatus.connected) {
+            ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.connected;
+          }
+        } catch (e) {
+          AppLogger.error('Error parsing WebSocket message', error: e);
+        }
       }, onError: (err) {
+        if (_isDisposed) return;
         AppLogger.error('WebSocket Error', error: err);
+        ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.disconnected;
+        _scheduleReconnect();
       }, onDone: () {
+        if (_isDisposed) return;
         AppLogger.warning('WebSocket Closed. Retrying in 5s...');
-        Future.delayed(const Duration(seconds: 5), () => _connectWebSocket());
+        ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.disconnected;
+        _scheduleReconnect();
       });
+
+      // Mark connected immediately (optimistic)
+      ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.connected;
+      
+      // Send queued messages
+      _flushMessageQueue();
+      
     } catch (e) {
+      if (_isDisposed) return;
       AppLogger.error('WebSocket Connection Failed', error: e);
+      ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.disconnected;
+      _scheduleReconnect();
     }
   }
 
+  void _scheduleReconnect() {
+    if (_isDisposed) return;
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!_isDisposed) {
+        _connectWebSocket();
+      }
+    });
+  }
+
   void sendMessage(String text) {
-    if (_channel == null || text.trim().isEmpty) return;
+    if (_isDisposed || text.trim().isEmpty) return;
     
     final user = ref.read(currentUserProvider);
     if (user == null) return;
@@ -123,11 +176,51 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
       'username': user.username,
     };
 
-    _channel!.sink.add(json.encode(data));
+    // If connected, send immediately
+    if (_channel != null && ref.read(chatConnectionStatusProvider(groupId)) == ConnectionStatus.connected) {
+      try {
+        _channel!.sink.add(json.encode(data));
+      } catch (e) {
+        AppLogger.error('Error sending message', error: e);
+        _messageQueue.add(data);
+        _scheduleReconnect();
+      }
+    } else {
+      // Queue message for later
+      _messageQueue.add(data);
+      AppLogger.info('Message queued. Connection status: ${ref.read(chatConnectionStatusProvider(groupId))}');
+      
+      // Try to reconnect if disconnected
+      if (ref.read(chatConnectionStatusProvider(groupId)) == ConnectionStatus.disconnected) {
+        _connectWebSocket();
+      }
+    }
+  }
+
+  void _flushMessageQueue() {
+    if (_messageQueue.isEmpty) return;
+    
+    AppLogger.info('Flushing ${_messageQueue.length} queued messages');
+    for (final message in _messageQueue) {
+      try {
+        _channel?.sink.add(json.encode(message));
+      } catch (e) {
+        AppLogger.error('Error flushing queued message', error: e);
+      }
+    }
+    _messageQueue.clear();
+  }
+
+  void retryConnection() {
+    if (_isDisposed) return;
+    AppLogger.info('Manual retry connection initiated');
+    _channel?.sink.close();
+    _connectWebSocket();
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     _channel?.sink.close();
     super.dispose();
   }

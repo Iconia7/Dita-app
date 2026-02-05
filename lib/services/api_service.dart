@@ -258,7 +258,7 @@ class ApiService {
     }
   }
 
-  static Future<bool> rsvpEvent(int eventId) async {
+  static Future<Map<String, dynamic>?> rsvpEvent(int eventId) async {
     try {
       AppLogger.api('POST', '/events/$eventId/rsvp/');
       final headers = await _getHeaders();
@@ -270,11 +270,12 @@ class ApiService {
       AppLogger.api('POST', '/events/$eventId/rsvp/', statusCode: response.statusCode);
       
       if (response.statusCode == 200) {
-        AppLogger.success('RSVP successful for event $eventId');
-        return true;
+        final data = json.decode(response.body);
+        AppLogger.success('RSVP action successful for event $eventId: ${data['status']}');
+        return data;
       } else {
         AppLogger.warning('RSVP failed: ${response.statusCode}');
-        return false;
+        return null;
       }
     } on SocketException {
       AppLogger.error('Network error during RSVP');
@@ -284,7 +285,7 @@ class ApiService {
       throw TimeoutException();
     } catch (e, stackTrace) {
       AppLogger.error('Error during RSVP', error: e, stackTrace: stackTrace);
-      return false;
+      return null;
     }
   }
 

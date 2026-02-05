@@ -169,6 +169,27 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     await _loadCurrentUser();
   }
 
+  /// Update local user points immediately (for live UI updates without API call)
+  void updateLocalUserPoints(int newPoints) {
+    final currentUser = state.value;
+    if (currentUser != null) {
+      // Create updated user model with new points
+      final updatedUser = UserModel(
+        id: currentUser.id,
+        username: currentUser.username,
+        email: currentUser.email,
+        phoneNumber: currentUser.phoneNumber,
+        admissionNumber: currentUser.admissionNumber,
+        program: currentUser.program,
+        yearOfStudy: currentUser.yearOfStudy,
+        points: newPoints, // Updated points
+        membershipExpiry: currentUser.membershipExpiry,
+        avatar: currentUser.avatar,
+      );
+      state = AsyncValue.data(updatedUser);
+    }
+  }
+
   /// Initiate M-Pesa payment
   Future<bool> initiatePayment(String phoneNumber) async {
     final user = state.value;

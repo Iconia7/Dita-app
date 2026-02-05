@@ -28,7 +28,7 @@ class EventRemoteDataSource {
   }
 
   /// RSVP to an event
-  Future<bool> rsvpEvent(int eventId) async {
+  Future<Map<String, dynamic>?> rsvpEvent(int eventId) async {
     try {
       return await ApiService.rsvpEvent(eventId);
     } on NetworkException {
