@@ -284,19 +284,25 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
 
     if (mounted) {
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Success! Imported ${models.length} classes."), backgroundColor: Colors.green)
-        );
+        // Explicitly refresh the provider to load the saved data
+        await ref.read(timetableProvider.notifier).loadTimetable();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Success! Imported ${models.length} classes."), backgroundColor: Colors.green)
+          );
+          
+          // Small delay for UI feedback, then pop back
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to save classes locally."), backgroundColor: Colors.red)
         );
       }
-      
-      // Navigate to Timetable Screen
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ClassTimetableScreen())
-      );
     }
   }
 

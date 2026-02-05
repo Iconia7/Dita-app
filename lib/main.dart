@@ -76,7 +76,7 @@ void main() async {
     // Initialize Workmanager for background widget updates
     Workmanager().initialize(
        callbackDispatcher, 
-       isInDebugMode: true // TODO: Set to false in production
+       isInDebugMode: false // TODO: Set to false in production
     );
     // Register periodic task (every 1 hour)
     Workmanager().registerPeriodicTask(

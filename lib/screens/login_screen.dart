@@ -68,7 +68,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
               TextButton(
                 onPressed: () {
                   // Save flag so this dialog won't appear again
-                  LocalStorage.setItem<bool>(
+                  LocalStorage.setItem(
                     StorageKeys.settingsBox,
                     StorageKeys.hasDismissedMigrationAlert,
                     true,
@@ -110,7 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
     if (success && mounted) {
       // Clear migration alert flag since successful login means they've re-registered
-      LocalStorage.setItem<bool>(
+      LocalStorage.setItem(
         StorageKeys.settingsBox,
         StorageKeys.hasDismissedMigrationAlert,
         false,

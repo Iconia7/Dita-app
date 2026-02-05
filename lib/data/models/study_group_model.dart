@@ -6,6 +6,7 @@ class StudyGroupModel {
   final int memberCount;
   final DateTime createdAt;
   final bool isMember;
+  final int creatorId;
 
   StudyGroupModel({
     required this.id,
@@ -15,6 +16,7 @@ class StudyGroupModel {
     required this.memberCount,
     required this.createdAt,
     required this.isMember,
+    required this.creatorId,
   });
 
   factory StudyGroupModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class StudyGroupModel {
       memberCount: json['member_count'] ?? 0,
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
       isMember: json['is_member'] ?? false,
+      creatorId: json['creator'] as int? ?? 0,
     );
   }
 }

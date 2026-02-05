@@ -48,6 +48,13 @@ class StudyGroupsNotifier extends StateNotifier<AsyncValue<List<StudyGroupModel>
       await loadGroups();
     }
   }
+
+  Future<void> deleteGroup(int groupId) async {
+    final success = await ApiService.deleteStudyGroup(groupId);
+    if (success) {
+      await loadGroups();
+    }
+  }
 }
 
 // ========== Chat Provider (One per Group) ==========

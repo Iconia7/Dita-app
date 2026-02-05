@@ -112,11 +112,17 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
     final timetableAsync = ref.watch(timetableProvider);
     final examsAsync = ref.watch(examsProvider);
 
-    // Effect to fetch personalized exams based on synced classes
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      timetableAsync.whenData((items) {
-        final codes = items.where((i) => i.isClass).map((i) => i.code ?? "").where((c) => c.isNotEmpty).toSet().toList();
-        if (codes.isNotEmpty && examsAsync.isLoading == false && examsAsync.value == null) {
+    // Listen to timetable changes and fetch exams when it changes
+    ref.listen<AsyncValue<List<TimetableModel>>>(timetableProvider, (previous, next) {
+      next.whenData((items) {
+        final codes = items
+            .where((i) => i.isClass)
+            .map((i) => i.code ?? "")
+            .where((c) => c.isNotEmpty)
+            .toSet()
+            .toList();
+        
+        if (codes.isNotEmpty) {
           ref.read(examsProvider.notifier).fetchExams(codes);
         }
       });

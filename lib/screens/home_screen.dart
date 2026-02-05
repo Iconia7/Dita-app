@@ -1683,6 +1683,9 @@ class _EventCardState extends ConsumerState<EventCard> {
                     onPressed: _isProcessing 
                         ? null 
                         : () async {
+                            // Guard against race condition
+                            if (_isProcessing) return;
+                            
                             // 🟢 LOCK CHECK
                             if (!widget.isPaid) {
                               widget.onUnlockPressed(); // Open Payment Sheet

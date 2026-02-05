@@ -16,6 +16,7 @@ class StudyGroupChatScreen extends ConsumerStatefulWidget {
 class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _isSending = false; // Guard  for duplicate messages
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -42,7 +43,13 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
     final connectionStatus = ref.watch(chatConnectionStatusProvider(widget.group.id));
     final currentUser = ref.watch(currentUserProvider);
     final primaryColor = Theme.of(context).primaryColor;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Match AI assistant color scheme
+    final userBubbleColor = isDark ? primaryColor : const Color(0xFF003366);
+    final botBubbleColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final inputFillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F6F9);
 
     ref.listen(chatMessagesProvider(widget.group.id), (previous, next) {
       if (previous?.value?.length != next.value?.length) {
@@ -51,67 +58,55 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
     });
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.black.withOpacity(0.9), Colors.transparent],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+        title: Text(
+          widget.group.name,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: primaryColor,
+        iconTheme: const IconThemeData(color: Colors.white),
+        centerTitle: true,
+        actions: [
+          // Connection status indicator
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Center(
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: connectionStatus == ConnectionStatus.connected
+                      ? Colors.green
+                      : connectionStatus == ConnectionStatus.connecting
+                          ? Colors.orange
+                          : Colors.red,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (connectionStatus == ConnectionStatus.connected
+                              ? Colors.green
+                              : Colors.orange)
+                          .withOpacity(0.5),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.group.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-            Row(
-              children: [
-                Text(widget.group.courseCode, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                const SizedBox(width: 8),
-                // Connection status indicator
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: connectionStatus == ConnectionStatus.connected
-                        ? Colors.green
-                        : connectionStatus == ConnectionStatus.connecting
-                            ? Colors.orange
-                            : Colors.red,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
           IconButton(
-            icon: const Icon(Icons.info_outline),
+            icon: const Icon(Icons.info_outline, color: Colors.white),
             onPressed: () => _showGroupInfo(context),
           )
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF111827) : const Color(0xFFF3F4F6),
-          image: isDark ? null : const DecorationImage(
-            image: AssetImage('assets/images/chat_bg_pattern.png'), // Optional pattern
-            opacity: 0.05,
-            repeat: ImageRepeat.repeat,
-          ),
-        ),
-        child: Column(
+      body: Column(
           children: [
             // Connection status banner
             if (connectionStatus != ConnectionStatus.connected)
               Container(
-                margin: const EdgeInsets.only(top: 90),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: connectionStatus == ConnectionStatus.connecting
@@ -155,12 +150,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
               child: messagesAsync.when(
                 data: (messages) => ListView.builder(
                   controller: _scrollController,
-                  padding: EdgeInsets.only(
-                    top: connectionStatus != ConnectionStatus.connected ? 20 : 100, 
-                    left: 15, 
-                    right: 15, 
-                    bottom: 20
-                  ),
+                  padding: const EdgeInsets.fromLTRB(15, 15, 15, 20),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
@@ -169,20 +159,19 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                        margin: const EdgeInsets.symmetric(vertical: 5),
+                        padding: const EdgeInsets.all(12),
+                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
                         decoration: BoxDecoration(
-                          gradient: isMe ? LinearGradient(colors: [primaryColor, primaryColor.withOpacity(0.8)]) : null,
-                          color: isMe ? null : (isDark ? const Color(0xFF1F2937) : Colors.white),
+                          color: isMe ? userBubbleColor : botBubbleColor,
                           borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(20),
-                            topRight: const Radius.circular(20),
-                            bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
-                            bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
+                            topLeft: const Radius.circular(15),
+                            topRight: const Radius.circular(15),
+                            bottomLeft: isMe ? const Radius.circular(15) : Radius.zero,
+                            bottomRight: isMe ? Radius.zero : const Radius.circular(15),
                           ),
                           boxShadow: [
-                             if (!isDark) BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))
+                            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))
                           ],
                         ),
                         child: Column(
@@ -191,9 +180,18 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
                             if (!isMe)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
-                                child: Text(msg.username, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: primaryColor)),
+                                child: Text(
+                                  msg.username,
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: primaryColor),
+                                ),
                               ),
-                            Text(msg.content, style: TextStyle(color: isMe ? Colors.white : (isDark ? Colors.white : Colors.black87), fontSize: 15)),
+                            Text(
+                              msg.content,
+                              style: TextStyle(
+                                color: isMe ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                                fontSize: 15,
+                              ),
+                            ),
                             const SizedBox(height: 4),
                             Align(
                               alignment: Alignment.bottomRight,
@@ -215,84 +213,71 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
             _buildInputArea(context, isDark),
           ],
         ),
-      ),
     );
   }
 
   Widget _buildInputArea(BuildContext context, bool isDark) {
     final connectionStatus = ref.watch(chatConnectionStatusProvider(widget.group.id));
     final isConnected = connectionStatus == ConnectionStatus.connected;
+    final inputFillColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F6F9);
     
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1F2937) : Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                child: TextField(
-                  controller: _messageController,
-                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                  enabled: isConnected,
-                  decoration: InputDecoration(
-                    hintText: isConnected ? "Type a message..." : "Connecting...",
-                    hintStyle: TextStyle(color: isConnected ? Colors.grey : Colors.grey[400]),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  onSubmitted: isConnected ? (_) => _sendMessage() : null,
-                ),
+      padding: const EdgeInsets.all(15),
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              style: TextStyle(color: isDark ? Colors.white : Colors.black),
+              enabled: isConnected,
+              decoration: InputDecoration(
+                hintText: isConnected ? "Type a message..." : "Connecting...",
+                hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
+                filled: true,
+                fillColor: inputFillColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
               ),
+              onSubmitted: isConnected ? (_) => _sendMessage() : null,
             ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: isConnected ? _sendMessage : null,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: isConnected
-                      ? LinearGradient(colors: [Theme.of(context).primaryColor, Colors.indigoAccent])
-                      : LinearGradient(colors: [Colors.grey[400]!, Colors.grey[500]!]),
-                  shape: BoxShape.circle,
-                  boxShadow: isConnected
-                      ? [BoxShadow(color: Theme.of(context).primaryColor.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))]
-                      : [],
-                ),
-                child: Icon(
-                  Icons.send_rounded, 
-                  color: isConnected ? Colors.white : Colors.grey[300], 
-                  size: 20
-                ),
-              ),
+          ),
+          const SizedBox(width: 5),
+          CircleAvatar(
+            backgroundColor: isConnected ? const Color(0xFFFFD700) : Colors.grey,
+            child: IconButton(
+              icon: const Icon(Icons.send, color: Colors.black),
+              onPressed: isConnected ? _sendMessage : null,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   void _sendMessage() {
     final text = _messageController.text.trim();
-    if (text.isNotEmpty) {
-      ref.read(chatMessagesProvider(widget.group.id).notifier).sendMessage(text);
-      _messageController.clear();
-    }
+    if (text.isEmpty) return; // Guard: Don't send empty messages
+    
+    // Guard: Prevent duplicate sends while sending
+    if (_isSending) return;
+    
+    setState(() => _isSending = true);
+    
+    ref.read(chatMessagesProvider(widget.group.id).notifier).sendMessage(text);
+    _messageController.clear();
+    
+    // Reset flag after a short delay
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() => _isSending = false);
+    });
   }
 
   void _showGroupInfo(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (modalContext) => Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
@@ -332,6 +317,38 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
             const SizedBox(height: 12),
             _infoRow(Icons.calendar_today, "Created ${DateFormat.yMMMd().format(widget.group.createdAt)}"),
             const SizedBox(height: 32),
+            
+            // Action Buttons
+            if (widget.group.creatorId != 0 && widget.group.creatorId == ref.read(currentUserProvider)?.id)
+              // Delete Button (Creator only)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _deleteGroup(context),
+                  icon: const Icon(Icons.delete_forever),
+                  label: const Text("Delete Group"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              )
+            else
+              // Leave Button (Members)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _leaveGroup(context),
+                  icon: const Icon(Icons.exit_to_app),
+                  label: const Text("Leave Group"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -346,5 +363,73 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
         Text(text, style: const TextStyle(fontSize: 15)),
       ],
     );
+  }
+
+  Future<void> _deleteGroup(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Group"),
+        content: const Text("Are you sure you want to delete this group? This action cannot be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Close the bottom sheet first
+      Navigator.pop(context);
+      
+      // Call provider to delete
+      await ref.read(studyGroupsProvider.notifier).deleteGroup(widget.group.id);
+      
+      if (mounted) {
+        // Pop the chat screen and go back to the list
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Group deleted successfully")),
+        );
+      }
+    }
+  }
+
+  Future<void> _leaveGroup(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Leave Group"),
+        content: const Text("Are you sure you want to leave this group?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Leave"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Close the bottom sheet first
+      Navigator.pop(context);
+
+      // Call provider to leave
+      await ref.read(studyGroupsProvider.notifier).leaveGroup(widget.group.id);
+
+      if (mounted) {
+        // Pop the chat screen and go back to the list
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You have left the group")),
+        );
+      }
+    }
   }
 }

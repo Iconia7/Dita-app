@@ -1096,6 +1096,22 @@ class ApiService {
     }
   }
 
+  static Future<bool> deleteStudyGroup(int groupId) async {
+    try {
+      AppLogger.api('DELETE', '/study-groups/$groupId/');
+      final response = await http.delete(Uri.parse('$baseUrl/study-groups/$groupId/'), headers: await _getHeaders()).timeout(_timeout);
+      AppLogger.api('DELETE', '/study-groups/$groupId/', statusCode: response.statusCode);
+      
+      if (response.statusCode == 204 || response.statusCode == 200) return true;
+      if (response.statusCode == 401) throw AuthenticationException('Session expired');
+      
+      return false;
+    } catch (e) {
+      AppLogger.error('Error deleting study group', error: e);
+      rethrow;
+    }
+  }
+
   static Future<List<dynamic>> getGroupMessages(int groupId) async {
     try {
       AppLogger.api('GET', '/study-groups/$groupId/messages/');

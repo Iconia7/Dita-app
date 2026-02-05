@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/study_group_provider.dart';
+import '../data/models/study_group_model.dart';
 import 'study_group_chat_screen.dart';
 
 class StudyGroupsScreen extends ConsumerStatefulWidget {

@@ -15,7 +15,7 @@ class StoriesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stories = ref.watch(storiesProvider);
+    final storyGroups = ref.watch(storiesProvider);
 
     return Container(
       height: 100,
@@ -23,13 +23,13 @@ class StoriesSection extends ConsumerWidget {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 15),
-        itemCount: stories.length + 1, // +1 for "Add Story"
+        itemCount: storyGroups.length + 1, // +1 for "Add Story"
         itemBuilder: (context, index) {
           if (index == 0) {
             return _buildAddStory(context, ref);
           }
-          final story = stories[index - 1];
-          return _buildStoryCircle(context, ref, story, stories);
+          final group = storyGroups[index - 1];
+          return _buildGroupCircle(context, ref, group, storyGroups);
         },
       ),
     );
@@ -69,7 +69,7 @@ class StoriesSection extends ConsumerWidget {
           file = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 30));
         }
 
-        if (file != null \u0026\u0026 context.mounted) {
+        if (file != null && context.mounted) {
           // Show upload progress dialog
           _showUploadProgressDialog(context, file.path.split('/').last);
           
@@ -231,43 +231,74 @@ class StoriesSection extends ConsumerWidget {
     );
   }
 
-  Widget _buildStoryCircle(BuildContext context, WidgetRef ref, StoryModel story, List<StoryModel> stories) {
+  Widget _buildGroupCircle(BuildContext context, WidgetRef ref, UserStoryGroup group, List<UserStoryGroup> allGroups) {
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => StoryViewer(stories: stories, initialIndex: stories.indexOf(story)))
+          MaterialPageRoute(builder: (_) => _StoryViewer(
+            initialGroupIndex: allGroups.indexOf(group),
+            storyGroups: allGroups,
+          ))
         );
       },
       child: Container(
         margin: const EdgeInsets.only(right: 15),
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: story.isViewed ? Colors.grey : Colors.blue,
-                  width: 2,
+            Stack(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: group.hasUnviewed ? Colors.blue : Colors.grey,
+                      width: 2,
+                    ),
+                    gradient: group.hasUnviewed ? const LinearGradient(
+                      colors: [Colors.purple, Colors.orange],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ) : null,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    child: CircleAvatar(
+                      radius: 28,
+                      backgroundImage: group.userAvatar != null
+                          ? CachedNetworkImageProvider(group.userAvatar!)
+                          : const CachedNetworkImageProvider('https://via.placeholder.com/150'),
+                    ),
+                  ),
                 ),
-                gradient: !story.isViewed ? const LinearGradient(
-                  colors: [Colors.purple, Colors.orange],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ) : null,
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                child: CircleAvatar(
-                  radius: 28,
-                  backgroundImage: CachedNetworkImageProvider(_getUserAvatar(story)),
-                ),
-              ),
+                // Story count badge
+                if (group.storyCount > 1)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Text(
+                        '${group.storyCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 5),
             Text(
-              story.username.split(' ')[0], 
+              group.username.split(' ')[0], 
               style: const TextStyle(fontSize: 12),
               overflow: TextOverflow.ellipsis,
             )
@@ -277,29 +308,24 @@ class StoriesSection extends ConsumerWidget {
     );
   }
 
-  // --- MOCK USER AVATAR (Returns image URL as fallback) ---
-  String _getUserAvatar(StoryModel story) {
-    if (story.userAvatar != null && story.userAvatar!.isNotEmpty) return story.userAvatar!;
-    if (story.imageUrl != null && story.imageUrl!.isNotEmpty) return story.imageUrl!;
-    return "https://via.placeholder.com/150"; // Fallback placeholder
-  }
 }
 
-class StoryViewer extends ConsumerStatefulWidget {
-  final List<StoryModel> stories;
-  final int initialIndex;
-  const StoryViewer({super.key, required this.stories, this.initialIndex = 0});
+class _StoryViewer extends ConsumerStatefulWidget {
+  final List<UserStoryGroup> storyGroups;
+  final int initialGroupIndex;
+  const _StoryViewer({required this.storyGroups, this.initialGroupIndex = 0});
 
   @override
-  ConsumerState<StoryViewer> createState() => _StoryViewerState();
+  ConsumerState<_StoryViewer> createState() => _StoryViewerState();
 }
 
-class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProviderStateMixin {
+class _StoryViewerState extends ConsumerState<_StoryViewer> with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   VideoPlayerController? _videoController;
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isVideoInitialized = false;
-  late int _currentIndex;
+  late int _currentGroupIndex;
+  late int _currentStoryIndexInGroup;
   final TextEditingController _commentController = TextEditingController(); // Controller for comment input
   final FocusNode _commentFocusNode = FocusNode();
 
@@ -308,21 +334,38 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
 
   // Non-reactive helper for logic (initState, handlers)
   StoryModel _getStory({required bool watch}) {
-    final liveStories = watch ? ref.watch(storiesProvider) : ref.read(storiesProvider);
-    // Fallback to widget.stories if not found (e.g. filtered list)
-    if (_currentIndex >= widget.stories.length) return widget.stories.last;
+    final liveStoryGroups = watch ? ref.watch(storiesProvider) : ref.read(storiesProvider);
     
-    final staticStory = widget.stories[_currentIndex];
-    return liveStories.firstWhere(
-      (s) => s.id == staticStory.id, 
-      orElse: () => staticStory
-    );
+    // Get current group and story
+    if (_currentGroupIndex >= widget.storyGroups.length) {
+      final lastGroup = widget.storyGroups.last;
+      return lastGroup.stories.last;
+    }
+    
+    final currentGroup = widget.storyGroups[_currentGroupIndex];
+    if (_currentStoryIndexInGroup >= currentGroup.stories.length) {
+      return currentGroup.stories.last;
+    }
+    
+    final staticStory = currentGroup.stories[_currentStoryIndexInGroup];
+    
+    // Find in live data
+    for (var group in liveStoryGroups) {
+      final found = group.stories.cast<StoryModel?>().firstWhere(
+        (s) => s?.id == staticStory.id,
+        orElse: () => null,
+      );
+      if (found != null) return found;
+    }
+    
+    return staticStory;
   }
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentGroupIndex = widget.initialGroupIndex;
+    _currentStoryIndexInGroup = 0;
     _animController = AnimationController(vsync: this, duration: const Duration(seconds: 5));
     
     _animController.addStatusListener(_onAnimationStatus);
@@ -368,7 +411,7 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
 
     // 1. VIDEO INITIALIZATION
     if (story.videoUrl != null && story.videoUrl!.isNotEmpty) {
-      _videoController = VideoPlayerController.networkUrl(Uri.parse(_currentStory.videoUrl!))
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(story.videoUrl!))
         ..initialize().then((_) {
           if (!mounted) return;
           setState(() {
@@ -389,32 +432,6 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
     }
   }
 
-  void _nextStory() {
-    if (_currentIndex < widget.stories.length - 1) {
-      setState(() {
-        _currentIndex++;
-      });
-      _initMedia();
-      _markCurrentAsViewed();
-    } else {
-      Navigator.pop(context);
-    }
-  }
-
-  void _previousStory() {
-    if (_currentIndex > 0) {
-      setState(() {
-        _currentIndex--;
-      });
-      _initMedia();
-      _markCurrentAsViewed();
-    } else {
-      // Restart current story if it's the first one
-      _animController.reset();
-      _animController.forward();
-    }
-  }
-
   @override
   void dispose() {
     _animController.dispose();
@@ -423,6 +440,44 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
     _commentController.dispose(); // Dispose controller
     _commentFocusNode.dispose();
     super.dispose();
+  }
+
+  void _nextStory() {
+    final currentGroup = widget.storyGroups[_currentGroupIndex];
+    
+    // Check if there are more stories in current group
+    if (_currentStoryIndexInGroup < currentGroup.stories.length - 1) {
+      // Move to next story in same group
+      setState(() => _currentStoryIndexInGroup++);
+      _initMedia();
+      _markCurrentAsViewed();
+    } else if (_currentGroupIndex < widget.storyGroups.length - 1) {
+      // Move to next group (next user's stories)
+      setState(() {
+        _currentGroupIndex++;
+        _currentStoryIndexInGroup = 0;
+      });
+      _initMedia();
+      _markCurrentAsViewed();
+    } else {
+      // End of all stories
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _previousStory() {
+    if (_currentStoryIndexInGroup > 0) {
+      // Go to previous story in same group
+      setState(() => _currentStoryIndexInGroup--);
+      _initMedia();
+    } else if (_currentGroupIndex > 0) {
+      // Go to previous group's last story
+      setState(() {
+        _currentGroupIndex--;
+        _currentStoryIndexInGroup = widget.storyGroups[_currentGroupIndex].stories.length - 1;
+      });
+      _initMedia();
+    }
   }
 
   @override
@@ -464,7 +519,7 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
               top: 50,
               left: 10, right: 10,
               child: Row(
-                children: widget.stories.asMap().entries.map((entry) {
+                children: widget.storyGroups[_currentGroupIndex].stories.asMap().entries.map((entry) {
                    final idx = entry.key;
                    return Expanded(
                      child: Padding(
@@ -473,8 +528,8 @@ class _StoryViewerState extends ConsumerState<StoryViewer> with SingleTickerProv
                          animation: _animController,
                          builder: (context, child) {
                            double value = 0;
-                           if (idx < _currentIndex) value = 1;
-                           else if (idx == _currentIndex) value = _animController.value;
+                           if (idx < _currentStoryIndexInGroup) value = 1;
+                           else if (idx == _currentStoryIndexInGroup) value = _animController.value;
                            
                            return LinearProgressIndicator(
                              value: value,

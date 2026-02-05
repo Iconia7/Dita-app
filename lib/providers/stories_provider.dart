@@ -83,17 +83,49 @@ class StoryModel {
   }
 }
 
-class StoriesNotifier extends StateNotifier<List<StoryModel>> {
+// Group of stories from the same user
+class UserStoryGroup {
+  final int userId;
+  final String username;
+  final String? userAvatar;
+  final bool hasUnviewed;
+  final List<StoryModel> stories;
+
+  UserStoryGroup({
+    required this.userId,
+    required this.username,
+    this.userAvatar,
+    required this.hasUnviewed,
+    required this.stories,
+  });
+
+  factory UserStoryGroup.fromJson(Map<String, dynamic> json) {
+    return UserStoryGroup(
+      userId: json['user_id'],
+      username: json['username'],
+      userAvatar: json['user_avatar'],
+      hasUnviewed: json['has_unviewed'] ?? false,
+      stories: (json['stories'] as List?)
+          ?.map((s) => StoryModel.fromJson(s))
+          .toList() ?? [],
+    );
+  }
+
+  int get storyCount => stories.length;
+}
+
+class StoriesNotifier extends StateNotifier<List<UserStoryGroup>> {
   StoriesNotifier() : super([]) {
     refresh();
   }
 
   Future<void> refresh() async {
     try {
-      final jsonList = await ApiService.get('stories/');
+      final jsonList = await ApiService.get('stories/grouped/');
       if (jsonList is List) {
-        state = jsonList.map((j) => StoryModel.fromJson(j)).toList();
-        AppLogger.success('Fetched ${state.length} stories');
+        state = jsonList.map((j) => UserStoryGroup.fromJson(j)).toList();
+        final totalStories = state.fold(0, (sum, group) => sum + group.storyCount);
+        AppLogger.success('Fetched ${state.length} groups ($totalStories stories)');
       }
     } catch (e) {
       AppLogger.error('Failed to fetch stories', error: e);
@@ -118,10 +150,16 @@ class StoriesNotifier extends StateNotifier<List<StoryModel>> {
       final id = int.tryParse(storyId);
       if (id != null) {
         await ApiService.markStoryAsViewed(id);
-        // Optimistic update
-        state = state.map((s) => s.id == storyId ? 
-          s.copyWith(isViewed: true) : s
-        ).toList();
+        // Optimistic update - find and update story in groups
+        state = state.map((group) => UserStoryGroup(
+          userId: group.userId,
+          username: group.username,
+          userAvatar: group.userAvatar,
+          hasUnviewed: group.hasUnviewed,
+          stories: group.stories.map((s) => 
+            s.id == storyId ? s.copyWith(isViewed: true) : s
+          ).toList(),
+        )).toList();
       }
     } catch (e) {
       AppLogger.error('Failed to mark story as viewed', error: e);
@@ -135,12 +173,18 @@ class StoriesNotifier extends StateNotifier<List<StoryModel>> {
         final result = await ApiService.post('stories/$id/like/', {});
         
         if (result != null && result['status'] == 'toggled') {
-          state = state.map((s) => s.id == storyId ? 
-            s.copyWith(
-              isLiked: result['is_liked'],
-              likes: result['likes']
-            ) : s
-          ).toList();
+          state = state.map((group) => UserStoryGroup(
+            userId: group.userId,
+            username: group.username,
+            userAvatar: group.userAvatar,
+            hasUnviewed: group.hasUnviewed,
+            stories: group.stories.map((s) => 
+              s.id == storyId ? s.copyWith(
+                isLiked: result['is_liked'],
+                likes: result['likes']
+              ) : s
+            ).toList(),
+          )).toList();
         }
       }
     } catch (e) {
@@ -155,9 +199,15 @@ class StoriesNotifier extends StateNotifier<List<StoryModel>> {
         final result = await ApiService.post('stories/$id/comment/', {'text': text});
         if (result != null) {
           // Update comment count locally
-          state = state.map((s) => s.id == storyId ? 
-            s.copyWith(commentCount: s.commentCount + 1) : s
-          ).toList();
+          state = state.map((group) => UserStoryGroup(
+            userId: group.userId,
+            username: group.username,
+            userAvatar: group.userAvatar,
+            hasUnviewed: group.hasUnviewed,
+            stories: group.stories.map((s) => 
+              s.id == storyId ? s.copyWith(commentCount: s.commentCount + 1) : s
+            ).toList(),
+          )).toList();
           return true;
         }
       }
@@ -168,6 +218,6 @@ class StoriesNotifier extends StateNotifier<List<StoryModel>> {
   }
 }
 
-final storiesProvider = StateNotifierProvider<StoriesNotifier, List<StoryModel>>((ref) {
+final storiesProvider = StateNotifierProvider<StoriesNotifier, List<UserStoryGroup>>((ref) {
   return StoriesNotifier();
 });

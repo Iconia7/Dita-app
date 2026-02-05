@@ -7,6 +7,8 @@ import '../utils/app_logger.dart';
 import 'package:intl/intl.dart';
 import '../widgets/home_screen_widget.dart'; // New import
 import 'package:flutter/material.dart';
+import '../core/storage/local_storage.dart';
+import '../core/storage/storage_keys.dart';
 
 class HomeWidgetService {
   static const String _groupId = 'group.dita_app'; // Required for iOS App Groups
@@ -71,43 +73,24 @@ class HomeWidgetService {
   // --- BACKGROUND UPDATE LOGIC ---
   static Future<void> backgroundFetch() async {
     try {
-       // Initialize Environment for API URL if needed (or hardcode for robustness in background)
-       // We can use ApiService directly if it handles its own env loading or defaults
-       // but ApiService relies on dotenv. 
-       // For background, let's try to load .env if not loaded or fallback to hardcoded prod URL
-       
-       // Note: In background isolate, dotenv might not be initialized.
-       // It's safer to use the direct API call logic here purely for the widget.
-       const String apiUrl = "https://api.dita.co.ke/api"; 
-       
-       // We need to get the user token. SharedPrefs works in background isolates on Android.
-       final prefs = await SharedPreferences.getInstance();
-       final userStr = prefs.getString('user_data');
-       if (userStr == null) {
-         print("Widget Background: No user logged in");
-         return;
-       }
-       
-       final userData = json.decode(userStr);
-       final token = userData['access'];
-       
-       // Fetch Timetable
-       final response = await http.get(
-         Uri.parse('$apiUrl/timetable/'),
-         headers: {
-           "Content-Type": "application/json",
-           "Authorization": "Bearer $token",
-         }
-       );
-       
-       if (response.statusCode == 200) {
-         final List<dynamic> data = json.decode(response.body);
-         final timetable = data.map((json) => TimetableModel.fromJson(json)).toList();
-         await updateWidget(timetable);
-         print("Widget Background: Updated successfully");
-       } else {
-         print("Widget Background: Failed to fetch timetable ${response.statusCode}");
-       }
+      // Background isolates need Hive initialization
+      await LocalStorage.init();
+      
+      // Get cached timetable data from Hive
+      const String timetableCacheKey = 'cached_timetable';
+      final jsonString = LocalStorage.getItem<String>(StorageKeys.timetableBox, timetableCacheKey);
+      
+      if (jsonString != null) {
+        final List<dynamic> jsonList = json.decode(jsonString);
+        final timetable = jsonList
+            .map((item) => TimetableModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+            
+        await updateWidget(timetable);
+        print("Widget Background: Updated successfully from local cache");
+      } else {
+        print("Widget Background: No cached timetable found");
+      }
     } catch (e) {
       print("Widget Background Error: $e");
     }

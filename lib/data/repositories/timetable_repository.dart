@@ -20,27 +20,29 @@ class TimetableRepository {
 
   /// Get timetable (all entries)
   Future<Either<Failure, List<TimetableModel>>> getTimetable() async {
+    // ALWAYS check local cache first (portal-synced data lives here)
+    try {
+      final localItems = await localDataSource.getLastTimetable();
+      if (localItems.isNotEmpty) {
+        AppLogger.success('Loaded ${localItems.length} items from cache');
+        return Either.right(localItems);
+      }
+    } catch (e) {
+      AppLogger.debug('No cached timetable found');
+    }
+
+    // If cache is empty AND we have internet, try backend
     if (await networkInfo.isConnected) {
       try {
         final remoteItems = await remoteDataSource.getTimetable();
         await localDataSource.cacheTimetable(remoteItems);
         return Either.right(remoteItems);
       } catch (e) {
-        AppLogger.error('Remote fetch failed, checking cache', error: e);
-        try {
-          final localItems = await localDataSource.getLastTimetable();
-          return Either.right(localItems);
-        } catch (cacheError) {
-          return Either.left(CacheFailure('Failed to retrieve cached timetable'));
-        }
+        AppLogger.error('Remote fetch failed', error: e);
+        return Either.left(ServerFailure('Failed to fetch timetable from server'));
       }
     } else {
-      try {
-        final localItems = await localDataSource.getLastTimetable();
-        return Either.right(localItems);
-      } catch (cacheError) {
-        return Either.left(CacheFailure('No internet and no cached timetable'));
-      }
+      return Either.left(NetworkFailure('No internet and no cached timetable'));
     }
   }
 
