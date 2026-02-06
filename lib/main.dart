@@ -1,5 +1,6 @@
 import 'package:dita_app/screens/auth_check_screen.dart';
 import 'package:dita_app/services/notification.dart';
+import 'package:dita_app/services/deep_link_service.dart'; // Added deep link service import
 import 'package:dita_app/utils/app_theme.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -122,12 +123,27 @@ void main() async {
   runApp(const ProviderScope(child: DitaApp()));
 }
 
-class DitaApp extends StatelessWidget {
+class DitaApp extends ConsumerStatefulWidget {
   const DitaApp({super.key});
+
+  @override
+  ConsumerState<DitaApp> createState() => _DitaAppState();
+}
+
+class _DitaAppState extends ConsumerState<DitaApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize deep links after app is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.initDeepLinks(ref);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: DeepLinkService.navigationKey,
       title: 'DITA App',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme, 

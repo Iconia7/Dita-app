@@ -20,6 +20,7 @@ class UserModel {
   final String? membershipExpiry;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final double? attendancePercentage;  // Parsed from backend
 
   const UserModel({
     required this.id,
@@ -38,6 +39,7 @@ class UserModel {
     this.membershipExpiry,
     this.createdAt,
     this.updatedAt,
+    this.attendancePercentage,
   });
 
   /// Create UserModel from JSON (API response)
@@ -57,6 +59,7 @@ class UserModel {
       bio: json['bio'] as String?,
       isPaidMember: json['is_paid_member'] as bool?,
       membershipExpiry: json['membership_expiry'] as String?,
+      attendancePercentage: (json['attendance_percentage'] as num?)?.toDouble(),
       createdAt: json['created_at'] != null 
         ? DateTime.parse(json['created_at'] as String)
         : null,
@@ -88,7 +91,6 @@ class UserModel {
     };
   }
 
-  /// Create a copy with updated fields (immutability pattern)
   UserModel copyWith({
     int? id,
     String? username,
@@ -106,6 +108,7 @@ class UserModel {
     String? membershipExpiry,
     DateTime? createdAt,
     DateTime? updatedAt,
+    double? attendancePercentage,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -124,6 +127,7 @@ class UserModel {
       membershipExpiry: membershipExpiry ?? this.membershipExpiry,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      attendancePercentage: attendancePercentage ?? this.attendancePercentage,
     );
   }
 
@@ -155,6 +159,6 @@ class UserModel {
   /// Get year label
   String get yearLabel => yearOfStudy != null ? 'Year $yearOfStudy' : 'Year N/A';
 
-  /// Get attendance percentage (dummy for now)
-  double get attendancePercentage => 75.0; 
+  /// Get attendance percentage from backend (not hardcoded)
+  double get attendanceRate => attendancePercentage ?? 0.0;
 }

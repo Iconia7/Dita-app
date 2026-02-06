@@ -556,6 +556,16 @@ await prefs.setDouble('snake_mmr', _playerMMR);
         setState(() => _localHighScore = _score);
       }
 
+      // Send game stats to backend for achievements
+      try {
+        await ApiService.updateGameStats({
+          'game_type': 'snake',
+          'high_score': _score,
+        });
+      } catch (e) {
+        debugPrint("Error updating snake stats: $e");
+      }
+
       // Final sync at game over (for any remaining points < 50)
       if (_pointsSinceLastSync > 0) {
         await _syncPointsToBackend();

@@ -447,7 +447,9 @@ Group: ${widget.group.name}
 Course: ${widget.group.courseCode}
 ${widget.group.description.isNotEmpty ? '\n${widget.group.description}' : ''}
 
-To join, search for "${widget.group.name}" in the DITA app's Study Groups section.
+👉 Tap to join: https://dita.co.ke/group/${widget.group.id}
+
+(Opens in DITA app)
     '''.trim();
 
     Share.share(

@@ -524,8 +524,8 @@ void _openScanner() async {
           // 5. Handle Success
           if (response != null && response.containsKey('new_points')) {
             
-            // Refresh user data to get new points
-            ref.read(authProvider.notifier).refresh();
+            // Refresh user data to get new points - AWAIT this!
+            await ref.read(authProvider.notifier).refresh();
 
             _showSuccessDialog(
               "Check-in Complete! ✅", 

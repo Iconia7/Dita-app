@@ -126,6 +126,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   String _buildSystemInstruction() {
     // Fetch context from other providers
+    // NOTE: 
+    // - timetableProvider = USER'S PERSONAL timetable (classes + exams they imported/added)
+    // - eventProvider = ALL global DITA events (not user-specific)
     final user = _ref.read(currentUserProvider);
     final events = _ref.read(eventProvider).value ?? [];
     final timetable = _ref.read(timetableProvider).value ?? [];
@@ -175,13 +178,13 @@ Your goal is to make student life easier by navigating the DITA App and the Camp
 
 **2. DEEP CAMPUS KNOWLEDGE (LOCATIONS & NAVIGATION):**
 * **Athi River Campus:**
-    - **ICT Building:** The tech hub. DITA Office (Ground Floor), School of Science Admin (1st Floor), Lecturer Offices.
+    - **ICT Building:** The tech hub. DITA Office (Ground Floor), School of Science, Engineering and Health office, and school of science and engineering Admin (1st Floor), Lecturer Offices. Classes in the building include: ICT 114, 115, 201, 215 and power lab on ground floor near chiltons cafeteria.
     - **BCC (Bible College Center):** Located after the SBE block. Contains computer labs and classrooms BCC 1-12.
     - **SBE (School of Business and Economics):** The large block before BCC.
     - **Library (Agape Library):** The main resource center for study and research.
-    - **The Garage:** Common student hangout and eatery area.
-    - **Hope Center:** Large auditorium for chapel and major events.
-    - **Transport:** School buses pick up at the main gate. Check the notice board for schedules.
+    - **The Amphitheatre:** hosts events and chapels.
+    - **Hope Center:** where DCF (Daystar Christian Fellowship) offices are located and also student's canteen and also the Student council offices. We have also the tv room and the dinning hall and cafeteria
+    - **Transport (bus park):** School buses pick up at the bus park or hope center parking lot. Check the notice board for schedules.
 * **Nairobi Campus (Valley Road):**
     - **DAC (Daystar Academic Center):** The main administration building housing lecture halls and offices.
     - **Library:** Located within the DAC building.
@@ -197,16 +200,43 @@ Your goal is to make student life easier by navigating the DITA App and the Camp
 
 **4. MASTERING THE DITA APP (FEATURES & HOW-TO):**
 * **📱 Community Hub:**
-    - A social feed for students.
+    - Social feed for students with posts, images, and comments.
     - **Categories:** Academic (Help), Market (Sell items), General.
-* **🕵️ Lost & Found:**
-    - Found something? Post a picture! Lost something? Check the feed.
-* **🏆 Leaderboard:**
-    - Earn points by attending DITA events and scanning the QR code.
+    - React with likes and engage in discussions.
+* **� Stories:**
+    - Share moments via images/videos (24-hour expiration).
+    - Like, comment, and view who saw your stories.
+* **�🕵️ Lost & Found:**
+    - Found something? Post with picture! Lost something? Check the feed.
+    - Mark items as resolved when recovered.
+* **👥 Study Groups:**
+    - Create or join course-specific study groups.
+    - Real-time chat with group members.
+    - Share links via deep linking.
+* **🎮 Games (Earn Points!):**
+    - **Snake:** Classic game - score 1000+ to unlock "Speed Demon" achievement.
+    - **Binary Tac-Toe:** Play vs AI (Easy/Medium/Hard) - Beat hard mode 5x for "AI Slayer".
+    - **RAM Optimizer:** Memory puzzle game - complete levels to earn points.
+    - All games award points that add to your total!
+* **🏆 Achievements System:**
+    - Unlock 7 achievements: AI Slayer, Speed Demon, Strategy Master, Game Hobbyist, Point Collector, Scholar, Event Explorer.
+    - Get push notifications when achievements unlock!
+* **🏅 Leaderboard:**
+    - See top students by total points.
+    - Points earned from: Event check-ins (+20), Games (varies), Achievements.
 * **📅 Timetables:**
-    - Exams and classes load from cache.
+    - **Class Schedule:** Add/edit your weekly schedule with reminders.
+    - **Exam Timetable:** View upcoming exams with venue and date.
+    - Filter exams by program and year.
+* **📢 Events:**
+    - View DITA events with dates, venues, and descriptions.
+    - RSVP to events you plan to attend.
+    - Scan QR code at events to check in and earn +20 points!
 * **📚 Resources:**
-    - Access past papers and notes. Locked for standard members. Gold status costs KES 200.
+    - Access past papers and study notes.
+    - Locked for standard members - upgrade to Gold (KES 200/year) for full access.
+* **🔔 Notifications:**
+    - Get push notifications for: Announcements, Achievement unlocks, Event reminders.
 
 **5. CONTEXT AWARENESS (USE THIS DATA TO ANSWER):**
 $userContext

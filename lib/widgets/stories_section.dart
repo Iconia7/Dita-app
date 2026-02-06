@@ -600,7 +600,7 @@ class _StoryViewerState extends ConsumerState<_StoryViewer> with SingleTickerPro
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Viewers button - only show for creator's own stories
-                if (_currentStory.userId == ref.read(currentUserProvider)?.id.toString())
+                if (_currentStory.username == ref.read(currentUserProvider)?.username)
                   IconButton(
                     icon: const Icon(Icons.visibility, color: Colors.white),
                     onPressed: () => _showViewersBottomSheet(),

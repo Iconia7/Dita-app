@@ -584,9 +584,25 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
 
 
   Future<void> _endGame() async {
+    HapticFeedback.heavyImpact();
+    _cancelAllTimers();
+    setState(() => _gameRunning = false);
+    
+    // Send game stats to backend for achievements
+    try {
+      await ApiService.updateGameStats({
+        'game_type': 'ram',
+        'levels_completed': _levelNumber,
+      });
+    } catch (e) {
+      debugPrint("Error updating RAM game stats: $e");
+    }
+
     await _saveGameData();
 
     if(!mounted) return;
+
+    _showFloatingText("💥 SYSTEM CRASH", "-20", Colors.red);
     showDialog(
         context: context,
         barrierDismissible: false,

@@ -81,6 +81,38 @@ class ApiService {
     }
   }
 
+  // --- 🔧 HTTP PUT METHOD ---
+  static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> data) async {
+    try {
+      AppLogger.api('PUT', '/$endpoint');
+      final headers = await _getHeaders();
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/$endpoint'),
+        headers: headers,
+        body: json.encode(data),
+      ).timeout(_timeout);
+
+      AppLogger.api('PUT', '/$endpoint', statusCode: response.statusCode);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        AppLogger.warning('PUT request failed: ${response.statusCode}');
+        throw ServerException('Update failed: ${response.statusCode}');
+      }
+    } on SocketException {
+      AppLogger.error('Network error during PUT request');
+      throw NetworkException();
+    } on TimeoutException {
+      AppLogger.error('Request timeout during PUT request');
+      throw TimeoutException();
+    } catch (e, stackTrace) {
+      AppLogger.error('Error during PUT request', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
   // --- 🔍 LOGIN ---
   static Future<Map<String, dynamic>?> login(String username, String password) async {
     try {
@@ -120,6 +152,27 @@ class ApiService {
     } catch (e, stackTrace) {
       AppLogger.error('Login error', error: e, stackTrace: stackTrace);
       return null;
+    }
+  }
+
+  // --- 🎮 UPDATE GAME STATS ---
+  static Future<bool> updateGameStats(Map<String, dynamic> statsData) async {
+    try {
+      AppLogger.api('POST', '/users/update_game_stats/');
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/update_game_stats/'),
+        headers: headers,
+        body: json.encode(statsData),
+      ).timeout(_timeout);
+
+      AppLogger.api('POST', '/users/update_game_stats/', statusCode: response.statusCode);
+
+      return response.statusCode == 200;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error updating game stats', error: e, stackTrace: stackTrace);
+      return false;
     }
   }
 

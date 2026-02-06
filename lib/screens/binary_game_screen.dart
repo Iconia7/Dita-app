@@ -338,78 +338,93 @@ int _mediumAI() {
   }
 
   Future<void> _endGame(String result) async {
-    setState(() => _isGameOver = true);
-    HapticFeedback.heavyImpact(); 
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if(!mounted) return;
-    
-    String title = "";
-    String msg = "";
-    Color color = Colors.white;
-    int pointsEarned = 0;
+  setState(() => _isGameOver = true);
+  HapticFeedback.heavyImpact(); 
+  await Future.delayed(const Duration(milliseconds: 1500));
+  if(!mounted) return;
+  
+  String title = "";
+  String msg = "";
+  Color color = Colors.white;
+  int pointsEarned = 0;
+  bool playerWon = false;
 
-    if (_mode == GameMode.ai) {
-      if (result == "1") {
-        title = "SYSTEM SECURED";
-        int bonus = _difficulty == GameDifficulty.hard ? 30 : (_difficulty == GameDifficulty.medium ? 20 : 10);
-        msg = "Protocol Complete. +$bonus Points.";
-        pointsEarned = bonus;
-        color = kNeonBlue;
-      } else if (result == "0") {
-        title = "BREACH DETECTED";
-        msg = "The Virus won this round.";
-        color = kNeonRed;
-      } else {
-        title = "STALEMATE";
-        msg = "Connection stable. +5 Points.";
-        pointsEarned = 5;
-        color = Colors.grey;
-      }
+  if (_mode == GameMode.ai) {
+    if (result == "1") {
+      title = "SYSTEM SECURED";
+      int bonus = _difficulty == GameDifficulty.hard ? 30 : (_difficulty == GameDifficulty.medium ? 20 : 10);
+      msg = "Protocol Complete. +$bonus Points.";
+      pointsEarned = bonus;
+      color = kNeonBlue;
+      playerWon = true;
+    } else if (result == "0") {
+      title = "BREACH DETECTED";
+      msg = "The Virus won this round.";
+      color = kNeonRed;
     } else {
-      if (result == "1") { title = "PLAYER 1 WINS"; color = kNeonBlue; } 
-      else if (result == "0") { title = "PLAYER 2 WINS"; color = kNeonRed; }
-      else { title = "DRAW"; color = Colors.grey; }
+      title = "STALEMATE";
+      msg = "Connection stable. +5 Points.";
+      pointsEarned = 5;
+      color = Colors.grey;
     }
-
-    if (pointsEarned > 0 && _mode == GameMode.ai) {
-      setState(() {
-        _currentTotalPoints += pointsEarned;
-        _pointsSinceLastSync += pointsEarned;
+    
+    // Send game stats to backend for achievements
+    try {
+      await ApiService.updateGameStats({
+        'game_type': 'binary',
+        'difficulty': _difficulty == GameDifficulty.hard ? 'hard' 
+                    : _difficulty == GameDifficulty.medium ? 'medium' 
+                    : 'easy',
+        'won': playerWon,
       });
-      
-      // Sync every 50 points or immediately at game end
-      if (_pointsSinceLastSync >= 50) {
-        await _syncPointsToBackend();
-      } else {
-        // Still update provider immediately for live UI
-        _updateProviderOnly();
-      }
+    } catch (e) {
+      debugPrint("Error updating game stats: $e");
     }
-    _gamesPlayed++;
-
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: kSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: color, width: 2)),
-        title: Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 24)),
-        content: Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () { Navigator.pop(ctx); Navigator.pop(context); },
-            child: const Text("EXIT", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () { Navigator.pop(ctx); _resetGame(); },
-            style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.black),
-            child: const Text("REBOOT SYSTEM"),
-          )
-        ],
-      )
-    );
+  } else {
+    if (result == "1") { title = "PLAYER 1 WINS"; color = kNeonBlue; } 
+    else if (result == "0") { title = "PLAYER 2 WINS"; color = kNeonRed; }
+    else { title = "DRAW"; color = Colors.grey; }
   }
+
+  if (pointsEarned > 0 && _mode == GameMode.ai) {
+    setState(() {
+      _currentTotalPoints += pointsEarned;
+      _pointsSinceLastSync += pointsEarned;
+    });
+    
+    // Sync every 50 points or immediately at game end
+    if (_pointsSinceLastSync >= 50) {
+      await _syncPointsToBackend();
+    } else {
+      // Still update provider immediately for live UI
+      _updateProviderOnly();
+    }
+  }
+  _gamesPlayed++;
+
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: kSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: color, width: 2)),
+      title: Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 24)),
+      content: Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+      actions: [
+        TextButton(
+          onPressed: () { Navigator.pop(ctx); Navigator.pop(context); },
+          child: const Text("EXIT", style: TextStyle(color: Colors.grey)),
+        ),
+        ElevatedButton(
+          onPressed: () { Navigator.pop(ctx); _resetGame(); },
+          style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.black),
+          child: const Text("REBOOT SYSTEM"),
+        )
+      ],
+    )
+  );
+}
 
   // Update provider immediately without backend sync (for live UI)
   void _updateProviderOnly() {
