@@ -111,6 +111,10 @@ class TimerNotifier extends StateNotifier<TimerState> {
     }
   }
 
+  void resetSessionCount() {
+    state = state.copyWith(sessionsCompleted: 0);
+  }
+
   Future<void> _notify(String title, String body) async {
     await AwesomeNotifications().createNotification(
       content: NotificationContent(

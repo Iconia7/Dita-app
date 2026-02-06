@@ -84,10 +84,15 @@ class NotificationService {
   // --- NEW: HANDLE BACKEND MESSAGES ---
   static void _listenToFirebaseMessages() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      AppLogger.info('FCM Message Received: ${message.data['title']}');
+      AppLogger.info('🔔 Foreground FCM Received: ${message.messageId}');
+      AppLogger.info('📦 Data: ${message.data}');
+      AppLogger.info('🎯 Type: ${message.data['type']}');
       
       if (message.data['type'] == 'announcement') {
+        AppLogger.info('✅ Showing announcement notification...');
         _showCustomFirebaseNotification(message);
+      } else {
+        AppLogger.warning('⚠️ Unknown message type: ${message.data['type']}');
       }
     });
   }

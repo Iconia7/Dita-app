@@ -177,11 +177,22 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
       List<Map<String, dynamic>> finalClasses = [];
 
       for (var item in rawData) {
-        String code = item['unit'];
+        String unitCode = item['unit'];
+        String section = item['section'] ?? '';
         String dayRaw = item['day'];
         String timeRange = item['period']; 
         String venue = item['room'];
         String lecturer = item['lecturer'];
+
+        // Combine unit code with section letter (e.g., "ACS-442" + "A-ATH" = "ACS-442 A")
+        String code = unitCode;
+        if (section.isNotEmpty) {
+          // Extract just the letter before the dash (e.g., "A-ATH" -> "A")
+          final sectionLetter = section.split('-').first.trim();
+          if (sectionLetter.isNotEmpty) {
+            code = '$unitCode $sectionLetter';
+          }
+        }
 
         String day = _cleanDay(dayRaw);
         
@@ -194,7 +205,7 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
         }
 
         finalClasses.add({
-          "code": code,
+          "code": code,  // Now includes section: "ACS-442 A"
           "title": "Class: $code",
           "venue": venue,
           "lecturer": lecturer,

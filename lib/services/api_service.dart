@@ -538,6 +538,41 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getStoryViewers(String storyId) async {
+    try {
+      AppLogger.api('GET', '/stories/$storyId/viewers/');
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/stories/$storyId/viewers/'),
+        headers: headers,
+      ).timeout(_timeout);
+      
+      AppLogger.api('GET', '/stories/$storyId/viewers/', statusCode: response.statusCode);
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        AppLogger.success('Fetched ${data['count']} viewers for story $storyId');
+        return {
+          'count': data['count'] ?? 0,
+          'viewers': List<Map<String, dynamic>>.from(data['viewers'] ?? [])
+        };
+      } else if (response.statusCode == 403) {
+        AppLogger.warning('Not authorized to view story viewers');
+        return {'count': 0, 'viewers': []};
+      }
+      return {'count': 0, 'viewers': []};
+    } on SocketException {
+      AppLogger.error('Network error while fetching story viewers');
+      throw NetworkException();
+    } on TimeoutException {
+      AppLogger.error('Request timeout while fetching story viewers');
+      throw TimeoutException();
+    } catch (e, stackTrace) {
+      AppLogger.error('Error fetching story viewers', error: e, stackTrace: stackTrace);
+      return {'count': 0, 'viewers': []};
+    }
+  }
+
   static Future<Map<String, dynamic>?> likePost(int postId) async {
     try {
       AppLogger.api('POST', '/community-posts/$postId/like/');

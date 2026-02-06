@@ -47,7 +47,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     ],
     debug: true, 
   );
+  
+  print('🔔 Background FCM Received: ${message.messageId}');
+  print('📦 Data: ${message.data}');
+  print('🎯 Type: ${message.data['type']}');
+  
   if (message.data['type'] == 'announcement') {
+    print('✅ Creating announcement notification...');
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
         id: message.messageId.hashCode, 
@@ -62,6 +68,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         category: NotificationCategory.Social,
       ),
     );
+    print('✅ Background notification created!');
+  } else {
+    print('⚠️ Message type not "announcement": ${message.data['type']}');
   }
 }
 

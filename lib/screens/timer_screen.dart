@@ -136,9 +136,9 @@ class TimerScreen extends ConsumerWidget {
                 
                 const SizedBox(width: 30),
                 
-                // SETTINGS (Placeholder)
+                // SETTINGS
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () => _showTimerSettings(context, ref),
                   icon: const Icon(Icons.settings, size: 30),
                   color: Colors.grey,
                   tooltip: "Settings",
@@ -147,6 +147,63 @@ class TimerScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showTimerSettings(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(timerProvider.notifier);
+    final timerState = ref.read(timerProvider);
+    
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Timer Settings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.schedule),
+              title: const Text('Default Duration'),
+              subtitle: const Text('25 minutes (Pomodoro)'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.coffee),
+              title: const Text('Break Duration'),
+              subtitle: const Text('5 minutes'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.refresh),
+              title: const Text('Reset Session Count'),
+              subtitle: Text('${timerState.sessionsCompleted} sessions completed'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              trailing: IconButton(
+                icon: const Icon(Icons.restart_alt),
+                onPressed: () {
+                  notifier.resetSessionCount();
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Session count reset!')),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }

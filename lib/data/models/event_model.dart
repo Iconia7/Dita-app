@@ -37,7 +37,7 @@ class EventModel {
       description: json['description'] as String? ?? '',
       date: DateTime.tryParse(json['date'] as String? ?? '') ?? DateTime.now(),
       time: json['time'] as String?,
-      location: json['location'] as String?,
+      location: json['venue'] as String?, // Backend sends 'venue' not 'location'
       image: json['image'] as String?,
       category: json['category'] as String?,
       attendeeCount: json['attendee_count'] as int? ?? 0,

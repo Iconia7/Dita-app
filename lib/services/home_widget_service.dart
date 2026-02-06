@@ -27,25 +27,12 @@ class HomeWidgetService {
           .toList()
         ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
-      // Filter for UPCOMING classes only
-      final upcomingClasses = todayClasses.where((item) {
-        try {
-          final startParts = item.startTime.split(':');
-          final startHour = int.parse(startParts[0]);
-          final startMinute = int.parse(startParts[1]);
-          final classTime = DateTime(now.year, now.month, now.day, startHour, startMinute);
-          return classTime.isAfter(now);
-        } catch (e) {
-          return true; // Keep if parsing fails (fallback)
-        }
-      }).toList();
-
       final dateStr = DateFormat('EEE, d MMM').format(now);
 
-      // Render the widget to an image
+      // Render the widget to an image (pass ALL today's classes for status detection)
       await HomeWidget.renderFlutterWidget(
         HomeWidgetUI(
-          upcomingClasses: upcomingClasses,
+          upcomingClasses: todayClasses, // Widget now handles in-session detection
           dateStr: dateStr,
         ),
         key: 'widget_image',

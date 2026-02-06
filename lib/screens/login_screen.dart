@@ -62,7 +62,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
             content: const Text(
               "We have upgraded our security! 🚀\n\n"
               "Please Create a New Account to continue using the app.\n"
-              "Your old data (Chat, Study Groups) is safe, but you need to re-register.",
+              "Your old data (Chat, Study Groups) is safe, but you need to re-register.\n"
+              "If you have already re-registered, please login to continue.",
             ),
             actions: [
               TextButton(

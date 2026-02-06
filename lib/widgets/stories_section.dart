@@ -70,13 +70,22 @@ class StoriesSection extends ConsumerWidget {
         }
 
         if (file != null && context.mounted) {
+          // Show caption dialog
+          final caption = await showDialog<String>(
+            context: context,
+            builder: (context) => _CaptionDialog(),
+          );
+
+          // If user canceled caption dialog, don't upload
+          if (!context.mounted) return;
+
           // Show upload progress dialog
           _showUploadProgressDialog(context, file.path.split('/').last);
           
           try {
             final success = await ref.read(storiesProvider.notifier).addStory(
               File(file.path), 
-              null,
+              caption,  // Pass caption to upload
             );
 
             // Close progress dialog
@@ -583,13 +592,26 @@ class _StoryViewerState extends ConsumerState<_StoryViewer> with SingleTickerPro
                 ),
               ),
 
-          // Close Button
+          // Top Right Buttons
           Positioned(
             top: 60,
             right: 20,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Viewers button - only show for creator's own stories
+                if (_currentStory.userId == ref.read(currentUserProvider)?.id.toString())
+                  IconButton(
+                    icon: const Icon(Icons.visibility, color: Colors.white),
+                    onPressed: () => _showViewersBottomSheet(),
+                    tooltip: 'View viewers',
+                  ),
+                // Close button
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
             ),
           ),
 
@@ -700,6 +722,23 @@ class _StoryViewerState extends ConsumerState<_StoryViewer> with SingleTickerPro
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StoryCommentsSheet(storyId: _currentStory.id),
+    ).then((_) {
+      // Resume when sheet closes
+      _animController.forward(from: _animController.value);
+      _videoController?.play();
+    });
+  }
+
+  void _showViewersBottomSheet() {
+    // Pause during viewing
+    _animController.stop();
+    _videoController?.pause();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ViewersBottomSheet(storyId: _currentStory.id),
     ).then((_) {
       // Resume when sheet closes
       _animController.forward(from: _animController.value);
@@ -862,10 +901,165 @@ class StoryCommentsSheet extends ConsumerWidget {
     if (dateStr == null) return "";
     final date = DateTime.tryParse(dateStr);
     if (date == null) return "";
+    
     final diff = DateTime.now().difference(date);
-    if (diff.inDays > 0) return "${diff.inDays}d";
-    if (diff.inHours > 0) return "${diff.inHours}h";
-    if (diff.inMinutes > 0) return "${diff.inMinutes}m";
-    return "now";
+    if (diff.inMinutes < 1) return "Just now";
+    if (diff.inHours < 1) return "${diff.inMinutes}m ago";
+    if (diff.inDays < 1) return "${diff.inHours}h ago";
+    return "${diff.inDays}d ago";
+  }
+}
+
+// Caption Dialog for adding text to stories
+class _CaptionDialog extends StatefulWidget {
+  const _CaptionDialog();
+
+  @override
+  State<_CaptionDialog> createState() => _CaptionDialogState();
+}
+
+class _CaptionDialogState extends State<_CaptionDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Caption'),
+      content: TextField(
+        controller: _controller,
+        decoration: const InputDecoration(
+          hintText: 'Write a caption... (optional)',
+          border: OutlineInputBorder(),
+        ),
+        maxLines: 3,
+        maxLength: 255,
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null), // Skip caption
+          child: const Text('Skip'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.pop(context, _controller.text.trim().isEmpty ? null : _controller.text.trim());
+          },
+          child: const Text('Add'),
+        ),
+      ],
+    );
+  }
+}
+
+// Viewers Bottom Sheet - shows who viewed a story
+class _ViewersBottomSheet extends StatelessWidget {
+  final String storyId;
+  
+  const _ViewersBottomSheet({required this.storyId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.6,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Title
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Viewers',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          // Viewers list
+          Expanded(
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: ApiService.getStoryViewers(storyId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text('Failed to load viewers\n${snapshot.error}'),
+                      ],
+                    ),
+                  );
+                }
+                
+                final data = snapshot.data ?? {'count': 0, 'viewers': []};
+                final viewers = data['viewers'] as List;
+                final count = data['count'] as int;
+                
+                if (count == 0) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.visibility_off, size: 48, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text('No viewers yet', style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  );
+                }
+                
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: viewers.length,
+                  itemBuilder: (context, index) {
+                    final viewer = viewers[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: viewer['avatar'] != null
+                            ? CachedNetworkImageProvider(viewer['avatar'])
+                            : null,
+                        child: viewer['avatar'] == null
+                            ? Text(viewer['username'][0].toUpperCase())
+                            : null,
+                      ),
+                      title: Text(
+                        viewer['username'],
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

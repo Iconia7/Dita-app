@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/study_group_provider.dart';
 import '../data/models/study_group_model.dart';
 import '../providers/auth_provider.dart';
@@ -95,6 +96,11 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
                 ),
               ),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.share, color: Colors.white),
+            onPressed: () => _shareGroup(context),
+            tooltip: 'Share Group',
           ),
           IconButton(
             icon: const Icon(Icons.info_outline, color: Colors.white),
@@ -431,5 +437,22 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
         );
       }
     }
+  }
+
+  void _shareGroup(BuildContext context) {
+    final shareText = '''
+Join my DITA study group! 📚
+
+Group: ${widget.group.name}
+Course: ${widget.group.courseCode}
+${widget.group.description.isNotEmpty ? '\n${widget.group.description}' : ''}
+
+To join, search for "${widget.group.name}" in the DITA app's Study Groups section.
+    '''.trim();
+
+    Share.share(
+      shareText,
+      subject: 'Join ${widget.group.name} on DITA',
+    );
   }
 }
