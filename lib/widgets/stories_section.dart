@@ -968,40 +968,41 @@ class _ViewersBottomSheet extends StatelessWidget {
     return Container(
       height: MediaQuery.of(context).size.height * 0.6,
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: Color(0xFF1E1E1E), // Dark background like comments
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           // Handle bar
           Container(
-            margin: const EdgeInsets.only(top: 12, bottom: 8),
             width: 40,
-            height: 4,
+            height: 5,
+            margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+              color: Colors.grey[600],
+              borderRadius: BorderRadius.circular(5),
             ),
           ),
           // Title
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Viewers',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+          const Text(
+            'Viewers',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
-          const Divider(height: 1),
+          const SizedBox(height: 20),
           // Viewers list
           Expanded(
             child: FutureBuilder<Map<String, dynamic>>(
               future: ApiService.getStoryViewers(storyId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.blueAccent),
+                  );
                 }
                 
                 if (snapshot.hasError) {
@@ -1011,7 +1012,11 @@ class _ViewersBottomSheet extends StatelessWidget {
                       children: [
                         const Icon(Icons.error_outline, size: 48, color: Colors.red),
                         const SizedBox(height: 16),
-                        Text('Failed to load viewers\n${snapshot.error}'),
+                        Text(
+                          'Failed to load viewers\n${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ],
                     ),
                   );
@@ -1028,15 +1033,18 @@ class _ViewersBottomSheet extends StatelessWidget {
                       children: [
                         Icon(Icons.visibility_off, size: 48, color: Colors.grey),
                         SizedBox(height: 16),
-                        Text('No viewers yet', style: TextStyle(color: Colors.grey)),
+                        Text(
+                          'No viewers yet',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       ],
                     ),
                   );
                 }
                 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                return ListView.separated(
                   itemCount: viewers.length,
+                  separatorBuilder: (_, __) => const Divider(color: Colors.white10),
                   itemBuilder: (context, index) {
                     final viewer = viewers[index];
                     return ListTile(
@@ -1044,14 +1052,27 @@ class _ViewersBottomSheet extends StatelessWidget {
                         backgroundImage: viewer['avatar'] != null
                             ? CachedNetworkImageProvider(viewer['avatar'])
                             : null,
+                        backgroundColor: Colors.grey[800],
                         child: viewer['avatar'] == null
-                            ? Text(viewer['username'][0].toUpperCase())
+                            ? Icon(
+                                Icons.person,
+                                color: Colors.white70,
+                              )
                             : null,
                       ),
                       title: Text(
                         viewer['username'],
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
+                      subtitle: viewer['viewed_at'] != null
+                          ? Text(
+                              'Viewed ${_getTimeAgoFromStr(viewer['viewed_at'])}',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            )
+                          : null,
                     );
                   },
                 );
@@ -1061,5 +1082,17 @@ class _ViewersBottomSheet extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getTimeAgoFromStr(String? dateStr) {
+    if (dateStr == null) return "";
+    final date = DateTime.tryParse(dateStr);
+    if (date == null) return "";
+    
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return "just now";
+    if (diff.inHours < 1) return "${diff.inMinutes}m ago";
+    if (diff.inDays < 1) return "${diff.inHours}h ago";
+    return "${diff.inDays}d ago";
   }
 }

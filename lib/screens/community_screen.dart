@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dita_app/widgets/clickable_text.dart';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dita_app/widgets/empty_state_widget.dart';
@@ -326,8 +327,8 @@ class _MarketPostCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  post.content,
+                ClickableText(
+                  text: post.content,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -549,8 +550,8 @@ class _PostItemState extends ConsumerState<_PostItem> with SingleTickerProviderS
           // CONTENT
           Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 10),
-            child: Text(
-              widget.post.content, 
+            child: ClickableText(
+              text: widget.post.content, 
               style: TextStyle(fontSize: 15, height: 1.4, color: textColor),
             ),
           ),

@@ -82,14 +82,8 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTi
              // 🚔 Token Invalid = MIGRATION / LOGOUT
              await ref.read(userLocalDataSourceProvider).clearCache();
              
-             // Check if user has already seen the migration alert
-             final hasDismissed = LocalStorage.getItem<bool>(
-               StorageKeys.settingsBox, 
-               StorageKeys.hasDismissedMigrationAlert
-             ) ?? false;
-             
-             // Only show migration alert if they haven't dismissed it before
-             if (mounted) _navigateToLogin(showMigrationAlert: !hasDismissed);
+             // Navigate to login
+             if (mounted) _navigateToLogin();
           } else {
              // 🛑 Offline/Server Error -> Trust local cache & Proceed
              _doBiometricsAndLogin();
@@ -168,10 +162,10 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTi
     );
   }
 
-  void _navigateToLogin({bool showMigrationAlert = false}) {
+  void _navigateToLogin() {
     Navigator.pushReplacement(
       context, 
-      MaterialPageRoute(builder: (_) => LoginScreen(showMigrationAlert: showMigrationAlert))
+      MaterialPageRoute(builder: (_) => const LoginScreen())
     );
   }
 

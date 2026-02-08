@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:dita_app/widgets/clickable_text.dart';
 import '../providers/study_group_provider.dart';
 import '../data/models/study_group_model.dart';
 import '../providers/auth_provider.dart';
@@ -191,8 +192,8 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: primaryColor),
                                 ),
                               ),
-                            Text(
-                              msg.content,
+                            ClickableText(
+                              text: msg.content,
                               style: TextStyle(
                                 color: isMe ? Colors.white : (isDark ? Colors.white : Colors.black87),
                                 fontSize: 15,
@@ -447,7 +448,7 @@ Group: ${widget.group.name}
 Course: ${widget.group.courseCode}
 ${widget.group.description.isNotEmpty ? '\n${widget.group.description}' : ''}
 
-👉 Tap to join: https://dita.co.ke/group/${widget.group.id}
+👉 Tap to join: https://api.dita.co.ke/group/${widget.group.id}
 
 (Opens in DITA app)
     '''.trim();

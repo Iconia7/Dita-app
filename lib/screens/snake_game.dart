@@ -379,7 +379,7 @@ _avgReactionMs = _avgReactionMs == 0
     
     // Sync every 50 points
     if (_pointsSinceLastSync >= 50) {
-      _syncPointsToBackend();
+      _syncToBackend();
     }
     
     // Combo Logic
@@ -429,7 +429,7 @@ _avgReactionMs = _avgReactionMs == 0
         
         // Sync immediately for mega points
         if (_pointsSinceLastSync >= 50) {
-          _syncPointsToBackend();
+          _syncToBackend();
         }
         
         _showFloatingText("DATA UPLOAD +50", kNeonBlue);
@@ -530,18 +530,9 @@ await prefs.setDouble('snake_mmr', _playerMMR);
     await _saveGameData();
   }
 
-  // Sync points to backend and update provider immediately
-  Future<void> _syncPointsToBackend() async {
-    final user = ref.read(currentUserProvider);
-    if (user != null) {
-      try {
-        // Update provider immediately for live UI updates
-        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _totalUserPoints});
-        _pointsSinceLastSync = 0; // Reset counter
-      } catch (e) {
-        debugPrint("Error syncing points: $e");
-      }
-    }
+  // Sync points to backend is now handled via updateGameStats in _saveGameData
+  Future<void> _syncToBackend() async {
+     await _saveGameData();
   }
 
   Future<void> _saveGameData() async {
@@ -556,19 +547,24 @@ await prefs.setDouble('snake_mmr', _playerMMR);
         setState(() => _localHighScore = _score);
       }
 
-      // Send game stats to backend for achievements
+      // Send game stats to backend for achievements AND points
       try {
-        await ApiService.updateGameStats({
+        final response = await ApiService.updateGameStats({
           'game_type': 'snake',
           'high_score': _score,
+          'score': _score, // Backend awards points = score // 10
         });
+
+        if (response != null && response.containsKey('total_points')) {
+          setState(() {
+            _totalUserPoints = response['total_points'];
+            _pointsSinceLastSync = 0;
+          });
+          // Update local provider state immediately
+          ref.read(authProvider.notifier).updateLocalUserPoints(_totalUserPoints);
+        }
       } catch (e) {
         debugPrint("Error updating snake stats: $e");
-      }
-
-      // Final sync at game over (for any remaining points < 50)
-      if (_pointsSinceLastSync > 0) {
-        await _syncPointsToBackend();
       }
     } catch (e) {
       debugPrint("Error saving snake data: $e");

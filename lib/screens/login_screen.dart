@@ -9,8 +9,7 @@ import 'package:dita_app/core/storage/storage_keys.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  final bool showMigrationAlert;
-  const LoginScreen({super.key, this.showMigrationAlert = false});
+  const LoginScreen({super.key});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -51,38 +50,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     ));
 
     _animationController.forward();
-
-    if (widget.showMigrationAlert) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text("⚠️ Account Update Required"),
-            content: const Text(
-              "We have upgraded our security! 🚀\n\n"
-              "Please Create a New Account to continue using the app.\n"
-              "Your old data (Chat, Study Groups) is safe, but you need to re-register.\n"
-              "If you have already re-registered, please login to continue.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  // Save flag so this dialog won't appear again
-                  LocalStorage.setItem(
-                    StorageKeys.settingsBox,
-                    StorageKeys.hasDismissedMigrationAlert,
-                    true,
-                  );
-                  Navigator.pop(context);
-                },
-                child: const Text("OK, I'll Register"),
-              ),
-            ],
-          ),
-        );
-      });
-    }
   }
 
   @override
@@ -110,13 +77,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     setState(() => _isLoading = false);
 
     if (success && mounted) {
-      // Clear migration alert flag since successful login means they've re-registered
-      LocalStorage.setItem(
-        StorageKeys.settingsBox,
-        StorageKeys.hasDismissedMigrationAlert,
-        false,
-      );
-      
       // Get the user from the provider state
       final user = ref.read(currentUserProvider);
       if (user != null) {

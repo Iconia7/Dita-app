@@ -31,6 +31,29 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
     _codeController.addListener(() {
       setState(() {});
     });
+
+    // Handle initial fetch if timetable is already loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(examsProvider) is AsyncLoading) {
+        ref.read(timetableProvider).whenData((items) {
+          final codes = items
+              .where((i) => i.isClass)
+              .map((i) {
+                final val = i.code ?? i.title;
+                // Strip hyphens and spaces from the full code + section (e.g., ACS 442 A -> ACS442A)
+                return val.split(':')[0].replaceAll('-', '').replaceAll(' ', '').toUpperCase(); 
+              })
+              .where((c) => c.isNotEmpty && c.length >= 3)
+              .toSet()
+              .toList();
+          
+          if (codes.isNotEmpty) {
+            print('🔍 DEBUG: Searching exams for codes: $codes'); 
+            ref.read(examsProvider.notifier).fetchExams(codes);
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -117,13 +140,20 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
       next.whenData((items) {
         final codes = items
             .where((i) => i.isClass)
-            .map((i) => i.code ?? "")
-            .where((c) => c.isNotEmpty)
+            .map((i) {
+              final val = i.code ?? i.title;
+              // Strip hyphens and spaces from the full code + section (e.g., ACS 442 A -> ACS442A)
+              return val.split(':')[0].replaceAll('-', '').replaceAll(' ', '').toUpperCase(); 
+            })
+            .where((c) => c.isNotEmpty && c.length >= 3)
             .toSet()
             .toList();
         
         if (codes.isNotEmpty) {
+          print('🔍 DEBUG: Listener searching exams for codes: $codes');
           ref.read(examsProvider.notifier).fetchExams(codes);
+        } else {
+          print('⚠️ DEBUG: No valid course codes found in timetable');
         }
       });
     });
@@ -216,7 +246,7 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
 
             if (exams.isEmpty) {
               return EmptyStateWidget(
-                svgPath: 'assets/svgs/no_results.svg',
+                svgPath: 'assets/svgs/no_data.svg',
                 title: "No Exams Found",
                 message: _codeController.text.isEmpty 
                     ? "Go to Timetable to sync your units first." 

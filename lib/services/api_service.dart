@@ -156,7 +156,7 @@ class ApiService {
   }
 
   // --- 🎮 UPDATE GAME STATS ---
-  static Future<bool> updateGameStats(Map<String, dynamic> statsData) async {
+  static Future<Map<String, dynamic>?> updateGameStats(Map<String, dynamic> statsData) async {
     try {
       AppLogger.api('POST', '/users/update_game_stats/');
       final headers = await _getHeaders();
@@ -169,10 +169,13 @@ class ApiService {
 
       AppLogger.api('POST', '/users/update_game_stats/', statusCode: response.statusCode);
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
     } catch (e, stackTrace) {
       AppLogger.error('Error updating game stats', error: e, stackTrace: stackTrace);
-      return false;
+      return null;
     }
   }
 
@@ -1074,25 +1077,6 @@ class ApiService {
     }
   }
 
-  static Future<dynamic> put(String endpoint, Map<String, dynamic> data) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.put(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-        body: json.encode(data),
-      ).timeout(_timeout);
-      
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw ApiException('PUT $endpoint failed', statusCode: response.statusCode);
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
   static Future<void> delete(String endpoint) async {
     try {
       final headers = await _getHeaders();
@@ -1148,6 +1132,29 @@ class ApiService {
       throw ApiException('Failed to load study groups', statusCode: response.statusCode);
     } catch (e) {
       AppLogger.error('Error fetching study groups', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getStudyGroup(int groupId) async {
+    try {
+      AppLogger.api('GET', '/study-groups/$groupId/');
+      final response = await http.get(
+        Uri.parse('$baseUrl/study-groups/$groupId/'), 
+        headers: await _getHeaders()
+      ).timeout(_timeout);
+      
+      AppLogger.api('GET', '/study-groups/$groupId/', statusCode: response.statusCode);
+      
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else if (response.statusCode == 401) {
+        throw AuthenticationException('Session expired');
+      } else {
+        throw ApiException('Failed to load study group', statusCode: response.statusCode);
+      }
+    } catch (e) {
+      AppLogger.error('Error fetching study group $groupId', error: e);
       rethrow;
     }
   }

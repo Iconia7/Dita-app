@@ -276,7 +276,7 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
     
     // Sync every 50 points
     if (_pointsSinceLastSync >= 50) {
-      _syncPointsToBackend();
+      _syncToBackend();
     } else {
       _updateProviderOnly();
     }
@@ -407,7 +407,7 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
     
     // Sync every 50 points
     if (_pointsSinceLastSync >= 50) {
-      _syncPointsToBackend();
+      _syncToBackend();
     } else {
       _updateProviderOnly();
     }
@@ -547,17 +547,9 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
     }
   }
 
-  // Sync points to backend and update provider
-  Future<void> _syncPointsToBackend() async {
-    final user = ref.read(currentUserProvider);
-    if (user != null) {
-      try {
-        await ref.read(authProvider.notifier).updateUser(user.id, {"points": _currentTotalPoints});
-        _pointsSinceLastSync = 0; // Reset counter
-      } catch (e) {
-        debugPrint("Error syncing points: $e");
-      }
-    }
+  // Sync points to backend is now handled via updateGameStats in _saveGameData
+  Future<void> _syncToBackend() async {
+     await _saveGameData();
   }
 
   Future<void> _saveGameData() async {
@@ -571,9 +563,25 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
         setState(() => _localHighScore = _scoreKB);
       }
       
-      // Final sync at game over (for any remaining points < 50)
-      if (_pointsSinceLastSync > 0) {
-        await _syncPointsToBackend();
+      // Send game stats to backend for achievements AND points
+      try {
+        final response = await ApiService.updateGameStats({
+          'game_type': 'ram',
+          'points': _sessionPoints,
+          'levels_completed': 1, // RAM is continuous, treating session as 1 level
+        });
+
+        if (response != null && response.containsKey('total_points')) {
+          setState(() {
+            _currentTotalPoints = response['total_points'];
+            _pointsSinceLastSync = 0;
+            _sessionPoints = 0; // Reset session points after sync
+          });
+          // Update local provider state immediately
+          ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+        }
+      } catch (e) {
+        debugPrint("Error updating RAM stats: $e");
       }
     } catch (e) {
       debugPrint("Save Error: $e");
@@ -584,25 +592,9 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
 
 
   Future<void> _endGame() async {
-    HapticFeedback.heavyImpact();
-    _cancelAllTimers();
-    setState(() => _gameRunning = false);
-    
-    // Send game stats to backend for achievements
-    try {
-      await ApiService.updateGameStats({
-        'game_type': 'ram',
-        'levels_completed': _levelNumber,
-      });
-    } catch (e) {
-      debugPrint("Error updating RAM game stats: $e");
-    }
-
     await _saveGameData();
 
     if(!mounted) return;
-
-    _showFloatingText("💥 SYSTEM CRASH", "-20", Colors.red);
     showDialog(
         context: context,
         barrierDismissible: false,

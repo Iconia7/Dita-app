@@ -346,15 +346,14 @@ int _mediumAI() {
   String title = "";
   String msg = "";
   Color color = Colors.white;
-  int pointsEarned = 0;
   bool playerWon = false;
+  bool isDraw = false;
 
   if (_mode == GameMode.ai) {
     if (result == "1") {
       title = "SYSTEM SECURED";
       int bonus = _difficulty == GameDifficulty.hard ? 30 : (_difficulty == GameDifficulty.medium ? 20 : 10);
       msg = "Protocol Complete. +$bonus Points.";
-      pointsEarned = bonus;
       color = kNeonBlue;
       playerWon = true;
     } else if (result == "0") {
@@ -364,19 +363,29 @@ int _mediumAI() {
     } else {
       title = "STALEMATE";
       msg = "Connection stable. +5 Points.";
-      pointsEarned = 5;
       color = Colors.grey;
+      isDraw = true;
     }
     
-    // Send game stats to backend for achievements
+    // Send game stats to backend for achievements AND points
     try {
-      await ApiService.updateGameStats({
+      final response = await ApiService.updateGameStats({
         'game_type': 'binary',
         'difficulty': _difficulty == GameDifficulty.hard ? 'hard' 
                     : _difficulty == GameDifficulty.medium ? 'medium' 
                     : 'easy',
         'won': playerWon,
+        'draw': isDraw,
       });
+
+      if (response != null && response.containsKey('total_points')) {
+        setState(() {
+          _currentTotalPoints = response['total_points'];
+          _pointsSinceLastSync = 0; // Reset as we are fully synced now
+        });
+        // Update local provider state immediately
+        ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+      }
     } catch (e) {
       debugPrint("Error updating game stats: $e");
     }
@@ -386,20 +395,7 @@ int _mediumAI() {
     else { title = "DRAW"; color = Colors.grey; }
   }
 
-  if (pointsEarned > 0 && _mode == GameMode.ai) {
-    setState(() {
-      _currentTotalPoints += pointsEarned;
-      _pointsSinceLastSync += pointsEarned;
-    });
-    
-    // Sync every 50 points or immediately at game end
-    if (_pointsSinceLastSync >= 50) {
-      await _syncPointsToBackend();
-    } else {
-      // Still update provider immediately for live UI
-      _updateProviderOnly();
-    }
-  }
+  // Points are now handled authoritative by updateGameStats above
   _gamesPlayed++;
 
 
