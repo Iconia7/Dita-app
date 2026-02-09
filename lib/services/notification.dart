@@ -152,7 +152,7 @@ class NotificationService {
     if (isExam) {
         // STRATEGY: "Evening Before" -> 8:00 PM (20:00) the previous day
         DateTime dayBefore = deadline.subtract(const Duration(days: 1));
-        primaryReminderTime = DateTime(dayBefore.year, dayBefore.month, dayBefore.day, 20, 0);
+        primaryReminderTime = DateTime(dayBefore.year, dayBefore.month, dayBefore.day, 19, 0);
     } else {
         // STRATEGY: User-defined lead time before the task
         primaryReminderTime = deadline.subtract(Duration(minutes: leadTimeMins));
