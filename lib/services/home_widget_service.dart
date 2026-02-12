@@ -30,6 +30,7 @@ class HomeWidgetService {
       final dateStr = DateFormat('EEE, d MMM').format(now);
 
       // Render the widget to an image (pass ALL today's classes for status detection)
+      await HomeWidget.setAppGroupId(_groupId); // Required for iOS App Groups
       await HomeWidget.renderFlutterWidget(
         HomeWidgetUI(
           upcomingClasses: todayClasses, // Widget now handles in-session detection

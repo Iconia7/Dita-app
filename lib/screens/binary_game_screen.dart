@@ -384,7 +384,7 @@ int _mediumAI() {
           _pointsSinceLastSync = 0; // Reset as we are fully synced now
         });
         // Update local provider state immediately
-        ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+        await ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
       }
     } catch (e) {
       debugPrint("Error updating game stats: $e");
@@ -427,7 +427,7 @@ int _mediumAI() {
     final user = ref.read(currentUserProvider);
     if (user != null) {
       // Update local provider state for immediate UI reflection
-      ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+      await ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
     }
   }
 

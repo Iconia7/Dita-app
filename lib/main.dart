@@ -92,7 +92,7 @@ void main() async {
     Workmanager().registerPeriodicTask(
       "1", 
       "widgetUpdateTask", 
-      frequency: const Duration(hours: 1),
+      frequency: const Duration(minutes: 15),
       constraints: Constraints(networkType: NetworkType.connected),
     );
 
@@ -144,7 +144,7 @@ class _DitaAppState extends ConsumerState<DitaApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: DeepLinkService.navigationKey,
-      title: 'DITA App',
+      title: 'DITA APP',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme, 
       darkTheme: AppTheme.darkTheme,

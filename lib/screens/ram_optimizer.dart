@@ -543,7 +543,7 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
     final user = ref.read(currentUserProvider);
     if (user != null) {
       // Update local provider state for immediate UI reflection
-      ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+      await ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
     }
   }
 
@@ -578,7 +578,7 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
             _sessionPoints = 0; // Reset session points after sync
           });
           // Update local provider state immediately
-          ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
+          await ref.read(authProvider.notifier).updateLocalUserPoints(_currentTotalPoints);
         }
       } catch (e) {
         debugPrint("Error updating RAM stats: $e");

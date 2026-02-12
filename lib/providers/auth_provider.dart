@@ -170,7 +170,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   }
 
   /// Update local user points immediately (for live UI updates without API call)
-  void updateLocalUserPoints(int newPoints) {
+  /// and persist to local cache to prevent data loss on refresh.
+  Future<void> updateLocalUserPoints(int newPoints) async {
     final currentUser = state.value;
     if (currentUser != null) {
       // Create updated user model with new points
@@ -186,7 +187,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
         membershipExpiry: currentUser.membershipExpiry,
         avatar: currentUser.avatar,
       );
+      
+      // Update in-memory state
       state = AsyncValue.data(updatedUser);
+      
+      // Persist to local cache immediately
+      await _repository.cacheUser(updatedUser);
     }
   }
 

@@ -561,7 +561,7 @@ await prefs.setDouble('snake_mmr', _playerMMR);
             _pointsSinceLastSync = 0;
           });
           // Update local provider state immediately
-          ref.read(authProvider.notifier).updateLocalUserPoints(_totalUserPoints);
+          await ref.read(authProvider.notifier).updateLocalUserPoints(_totalUserPoints);
         }
       } catch (e) {
         debugPrint("Error updating snake stats: $e");

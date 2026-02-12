@@ -322,4 +322,10 @@ class UserRepository {
       return const Either.left(UnknownFailure('Failed to sync token'));
     }
   }
+
+  /// Manually cache user data (for local updates)
+  Future<void> cacheUser(UserModel user) async {
+    await localDataSource.cacheUser(user);
+    AppLogger.debug('User manually cached: ${user.username}');
+  }
 }
