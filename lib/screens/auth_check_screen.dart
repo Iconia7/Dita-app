@@ -115,7 +115,7 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> with SingleTi
             localizedReason: 'Scan to enter DITA App',
             options: const AuthenticationOptions(
               stickyAuth: true,
-              biometricOnly: true,
+              biometricOnly: false,
               useErrorDialogs: true,
             ),
           );

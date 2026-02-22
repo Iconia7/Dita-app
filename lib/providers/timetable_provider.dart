@@ -85,6 +85,15 @@ class TimetableNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> 
       },
     );
   }
+
+  /// Clear all timetable data
+  Future<void> clearTimetable() async {
+    await _repository.clearTimetable();
+    state = const AsyncValue.data([]);
+    // Clear scheduled notifications and widget
+    SchedulerService.scheduleTimetableNotifications([]);
+    HomeWidgetService.updateWidget([]);
+  }
 }
 
 class ExamsNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> {

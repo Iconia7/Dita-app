@@ -559,11 +559,16 @@ void _openScanner() async {
 
 
 
-  void _checkAndPromptPayment() {
+  Future<void> _checkAndPromptPayment() async {
+    // Refresh from server first to get the latest membership status,
+    // preventing false "inactive" prompts from stale cached data.
+    await ref.read(authProvider.notifier).refresh();
+    if (!mounted) return;
+
     final user = ref.read(currentUserProvider);
     bool isPaid = user?.isPaidMember ?? false;
     if (!isPaid) {
-      // Show the Pay Sheet immediately
+      // Show the Pay Sheet only after confirming with fresh server data
       showModalBottomSheet(
         context: context,
         isScrollControlled: true, // Allows full height

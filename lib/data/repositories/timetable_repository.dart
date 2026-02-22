@@ -56,6 +56,16 @@ class TimetableRepository {
     }
   }
 
+  /// Clear all timetable data from local cache
+  Future<Either<Failure, void>> clearTimetable() async {
+    try {
+      await localDataSource.clearCache();
+      return const Either.right(null);
+    } catch (e) {
+      return Either.left(CacheFailure('Failed to clear timetable'));
+    }
+  }
+
   /// Get exams filtered by course codes
   Future<Either<Failure, List<TimetableModel>>> getExamsByCodes(List<String> codes) async {
     if (await networkInfo.isConnected) {

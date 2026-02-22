@@ -177,6 +177,37 @@ class _ClassTimetableScreenState extends ConsumerState<ClassTimetableScreen> wit
     }
   }
 
+  void _showClearConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Clear Timetable?"),
+        content: const Text("This will remove all your classes. You can re-sync from the portal anytime."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(timetableProvider.notifier).clearTimetable();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Timetable cleared"),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            child: const Text("Clear", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -241,12 +272,16 @@ class _ClassTimetableScreenState extends ConsumerState<ClassTimetableScreen> wit
                           .then((_) => ref.refresh(timetableProvider));
                     } else if (value == 'refresh') {
                       ref.read(timetableProvider.notifier).refresh();
+                    } else if (value == 'clear') {
+                      _showClearConfirmation();
                     }
                   },
                   itemBuilder: (BuildContext context) => [
                     const PopupMenuItem(value: 'sync', child: Row(children: [Icon(Icons.sync, size: 18), SizedBox(width: 8), Text("Sync Portal")])),
                     const PopupMenuDivider(),
                     const PopupMenuItem(value: 'refresh', child: Row(children: [Icon(Icons.refresh, size: 18), SizedBox(width: 8), Text("Refresh")])),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 8), Text("Clear Timetable", style: TextStyle(color: Colors.red))])),
                   ],
                 )
               ],

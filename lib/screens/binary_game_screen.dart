@@ -423,7 +423,7 @@ int _mediumAI() {
 }
 
   // Update provider immediately without backend sync (for live UI)
-  void _updateProviderOnly() {
+  Future<void> _updateProviderOnly() async {
     final user = ref.read(currentUserProvider);
     if (user != null) {
       // Update local provider state for immediate UI reflection
