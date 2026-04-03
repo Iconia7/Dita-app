@@ -248,20 +248,25 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
               return EmptyStateWidget(
                 svgPath: 'assets/svgs/no_data.svg',
                 title: "No Exams Found",
-                message: _codeController.text.isEmpty 
-                    ? "Go to Timetable to sync your units first." 
+                message: _codeController.text.isEmpty
+                    ? "Go to Timetable to sync your units first."
                     : "No exams match your search for '${_codeController.text}'.",
                 actionLabel: "Search",
                 onActionPressed: () {
                   if (_codeController.text.isNotEmpty) {
-                    ref.read(examsProvider.notifier).fetchExams([_codeController.text]);
+                    final cleanCode = _codeController.text.trim().replaceAll(' ', '').toUpperCase();
+                    ref.read(examsProvider.notifier).fetchExams([cleanCode]);
                   }
                 },
               );
             }
 
             // Sort by date
-            exams.sort((a, b) => (a.examDate ?? DateTime.now()).compareTo(b.examDate ?? DateTime.now()));
+            exams.sort((a, b) {
+              final aDate = a.examDate ?? DateTime.now();
+              final bDate = b.examDate ?? DateTime.now();
+              return aDate.compareTo(bDate);
+            });
 
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
@@ -290,90 +295,98 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
                         ),
                       ),
 
-                      // 2. TIMELINE LINE
-                      Column(
-                        children: [
-                           Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 10),
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white10 : Colors.white,
-                              border: Border.all(color: statusColor, width: 3),
-                              shape: BoxShape.circle,
+                        // 2. TIMELINE LINE
+                        Column(
+                          children: [
+                             Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 10),
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white10 : Colors.white,
+                                border: Border.all(color: statusColor, width: 3),
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                          if (!isLast) 
-                            Expanded(child: Container(width: 2, color: isDark ? Colors.white10 : Colors.grey[200])),
-                        ],
-                      ),
+                            if (!isLast)
+                              Expanded(child: Container(width: 2, color: isDark ? Colors.white10 : Colors.grey[200])),
+                          ],
+                        ),
 
-                      // 3. EXAM CARD
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // HEADER
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: isDark ? Colors.white10 : primaryColor.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(6)
+                        // 3. EXAM CARD
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: cardColor,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // HEADER
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? Colors.white10 : primaryColor.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(6)
+                                          ),
+                                          child: Text(
+                                            exam.code ?? (exam.title.length > 3 ? exam.title.substring(0, 3).toUpperCase() : 'EXAM'),
+                                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12,
+                                               color: isDark ? Colors.white : primaryColor)
+                                          ),
                                         ),
-                                        child: Text(
-                                          exam.code ?? exam.title.substring(0, 3).toUpperCase(), 
-                                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, 
-                                             color: isDark ? Colors.white : primaryColor)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: statusColor.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(6)
+                                          ),
+                                          child: Text(status, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: statusColor)),
                                         ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: statusColor.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(6)
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(exam.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
+                                    const SizedBox(height: 8),
+
+                                    // DETAILS
+                                    Row(
+                                      children: [
+                                        Icon(Icons.access_time, size: 14, color: subTextColor),
+                                        const SizedBox(width: 4),
+                                        Text(DateFormat('h:mm a').format(date.toLocal()), style: TextStyle(fontSize: 13, color: subTextColor)),
+                                        const SizedBox(width: 12),
+                                        Icon(Icons.location_on, size: 14, color: _accentGold),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            exam.venue ?? 'N/A',
+                                            style: TextStyle(fontSize: 13, color: subTextColor, fontWeight: FontWeight.w500),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                        child: Text(status, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: statusColor)),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(exam.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
-                                  const SizedBox(height: 8),
-                                  
-                                  // DETAILS
-                                  Row(
-                                    children: [
-                                      Icon(Icons.access_time, size: 14, color: subTextColor),
-                                      const SizedBox(width: 4),
-                                      Text(DateFormat('h:mm a').format(date), style: TextStyle(fontSize: 13, color: subTextColor)),
-                                      const SizedBox(width: 15),
-                                      Icon(Icons.location_on, size: 14, color: _accentGold),
-                                      const SizedBox(width: 4),
-                                      Text(exam.venue ?? 'N/A', style: TextStyle(fontSize: 13, color: subTextColor, fontWeight: FontWeight.w500)),
-                                    ],
-                                  )
-                                ],
+                                      ],
+                                    )
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
+                      ],
+                    ),
+                  );
+
               },
             );
           }

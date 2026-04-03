@@ -277,7 +277,7 @@ class StoriesSection extends ConsumerWidget {
                       radius: 28,
                       backgroundImage: group.userAvatar != null
                           ? CachedNetworkImageProvider(group.userAvatar!)
-                          : const CachedNetworkImageProvider('https://via.placeholder.com/150'),
+                          : const AssetImage('assets/images/user_placeholder.png') as ImageProvider,
                     ),
                   ),
                 ),
@@ -562,9 +562,9 @@ class _StoryViewerState extends ConsumerState<_StoryViewer> with SingleTickerPro
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundImage: CachedNetworkImageProvider(
-                      _currentStory.userAvatar ?? (_currentStory.imageUrl ?? "")
-                    ), 
+                    backgroundImage: (_currentStory.userAvatar != null && _currentStory.userAvatar!.isNotEmpty)
+                        ? CachedNetworkImageProvider(_currentStory.userAvatar!)
+                        : const AssetImage('assets/images/user_placeholder.png') as ImageProvider,
                   ),
                   const SizedBox(width: 10),
                   Text(
