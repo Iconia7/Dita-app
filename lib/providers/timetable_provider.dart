@@ -43,10 +43,13 @@ class TimetableNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> 
       
       result.fold(
         (failure) => state = AsyncValue.error(failure.message, StackTrace.current),
-        (items) {
+        (items) async {
           state = AsyncValue.data(items);
           SchedulerService.scheduleTimetableNotifications(items);
-          HomeWidgetService.updateWidget(items);
+          
+          // Get cached exams to ensure widget shows them if present
+          final exams = await _repository.localDataSource.getCachedExams();
+          HomeWidgetService.updateWidget(items, exams: exams);
         },
       );
     } catch (e, stack) {
@@ -92,7 +95,7 @@ class TimetableNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> 
     state = const AsyncValue.data([]);
     // Clear scheduled notifications and widget
     SchedulerService.scheduleTimetableNotifications([]);
-    HomeWidgetService.updateWidget([]);
+    HomeWidgetService.updateWidget([], exams: []);
   }
 }
 
@@ -113,7 +116,13 @@ class ExamsNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> {
       
       result.fold(
         (failure) => state = AsyncValue.error(failure.message, StackTrace.current),
-        (items) => state = AsyncValue.data(items),
+        (items) async {
+          state = AsyncValue.data(items);
+          
+          // Trigger widget update with both classes and newest exams
+          final timetable = await _repository.localDataSource.getLastTimetable();
+          HomeWidgetService.updateWidget(timetable, exams: items);
+        },
       );
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dita_app/core/storage/local_storage.dart';
 import 'package:dita_app/core/storage/storage_keys.dart';
 import 'package:dita_app/data/models/user_model.dart';
@@ -8,6 +9,7 @@ import 'package:dita_app/utils/app_logger.dart';
 /// Local data source for User data
 /// Handles caching user data in Hive
 class UserLocalDataSource {
+  static const _secureStorage = FlutterSecureStorage();
   /// Cache user data
   Future<void> cacheUser(UserModel user) async {
     try {
@@ -79,8 +81,8 @@ class UserLocalDataSource {
   Future<void> clearCache() async {
     try {
       await LocalStorage.deleteItem(StorageKeys.userBox, StorageKeys.currentUser);
-      await LocalStorage.deleteItem(StorageKeys.userBox, StorageKeys.accessToken);
-      await LocalStorage.deleteItem(StorageKeys.userBox, StorageKeys.refreshToken);
+      await _secureStorage.delete(key: StorageKeys.accessToken);
+      await _secureStorage.delete(key: StorageKeys.refreshToken);
       AppLogger.info('User cache cleared');
     } catch (e, stackTrace) {
       AppLogger.error('Error clearing user cache', 
@@ -88,23 +90,23 @@ class UserLocalDataSource {
     }
   }
 
-  /// Save access token
+  /// Save access token (Encrypted)
   Future<void> saveAccessToken(String token) async {
-    await LocalStorage.setItem(StorageKeys.userBox, StorageKeys.accessToken, token);
+    await _secureStorage.write(key: StorageKeys.accessToken, value: token);
   }
 
-  /// Get access token
+  /// Get access token (Encrypted)
   Future<String?> getAccessToken() async {
-    return LocalStorage.getItem<String>(StorageKeys.userBox, StorageKeys.accessToken);
+    return await _secureStorage.read(key: StorageKeys.accessToken);
   }
 
-  /// Save refresh token
+  /// Save refresh token (Encrypted)
   Future<void> saveRefreshToken(String token) async {
-    await LocalStorage.setItem(StorageKeys.userBox, StorageKeys.refreshToken, token);
+    await _secureStorage.write(key: StorageKeys.refreshToken, value: token);
   }
 
-  /// Get refresh token
+  /// Get refresh token (Encrypted)
   Future<String?> getRefreshToken() async {
-    return LocalStorage.getItem<String>(StorageKeys.userBox, StorageKeys.refreshToken);
+    return await _secureStorage.read(key: StorageKeys.refreshToken);
   }
 }

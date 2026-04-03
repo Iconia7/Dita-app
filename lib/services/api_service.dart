@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../data/datasources/local/user_local_datasource.dart';
 import '../utils/app_logger.dart';
 import '../core/errors/exceptions.dart';
 
@@ -25,20 +26,10 @@ class ApiService {
   static const Duration _timeout = Duration(seconds: 30);
   static const Duration _mediaTimeout = Duration(minutes: 2);
 
-  // --- 🔍 DEBUGGING HEADERS (For Normal JWT Auth) ---
+  // --- 🔍 SECURE HEADERS (Using Encrypted Storage) ---
   static Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? userStr = prefs.getString('user_data');
-    String token = "";
-    
-    if (userStr != null) {
-      try {
-        final userData = json.decode(userStr);
-        token = userData['access'] ?? ""; 
-      } catch (e) {
-        AppLogger.error('Error parsing user data', error: e);
-      }
-    }
+    final userLocalData = UserLocalDataSource();
+    final token = await userLocalData.getAccessToken() ?? "";
 
     return {
       "Content-Type": "application/json",
@@ -831,34 +822,49 @@ class ApiService {
 
   static Future<void> saveUserLocally(Map<String, dynamic> newData) async {
     final prefs = await SharedPreferences.getInstance();
-    String? oldDataStr = prefs.getString('user_data');
-    Map<String, dynamic> finalData = Map.from(newData);
+    final userLocalData = UserLocalDataSource();
 
-    if (oldDataStr != null) {
-      try {
-        final oldData = json.decode(oldDataStr);
-        if (!finalData.containsKey('access') && oldData.containsKey('access')) {
-          finalData['access'] = oldData['access'];
-        }
-        if (!finalData.containsKey('refresh') && oldData.containsKey('refresh')) {
-          finalData['refresh'] = oldData['refresh'];
-        }
-      } catch (e) {}
-    }
+    // 1. Separate sensitive tokens from profile data
+    final access = newData['access'];
+    final refresh = newData['refresh'];
+
+    // 2. Save tokens securely (Hardware-encrypted)
+    if (access != null) await userLocalData.saveAccessToken(access);
+    if (refresh != null) await userLocalData.saveRefreshToken(refresh);
+
+    // 3. Save non-sensitive profile data in legacy SharedPreferences
+    // (We strip the tokens from the JSON to prevent plaintext leaks)
+    Map<String, dynamic> finalData = Map.from(newData);
+    finalData.remove('access');
+    finalData.remove('refresh');
+
     await prefs.setString('user_data', json.encode(finalData));
   }
 
   static Future<Map<String, dynamic>?> getUserLocally() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? userData = prefs.getString('user_data');
-    if (userData != null) return json.decode(userData);
+    final userLocalData = UserLocalDataSource();
+    final String? userDataStr = prefs.getString('user_data');
+
+    if (userDataStr != null) {
+      final Map<String, dynamic> userData = json.decode(userDataStr);
+      
+      // Merge in tokens from secure storage
+      userData['access'] = await userLocalData.getAccessToken();
+      userData['refresh'] = await userLocalData.getRefreshToken();
+      
+      return userData;
+    }
     return null;
   }
 
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+    final userLocalData = UserLocalDataSource();
+    
     await prefs.remove('user_data');
-  }  
+    await userLocalData.clearCache(); // Wipes secure tokens
+  }
 
   static Future<bool> uploadProfilePicture(int userId, File imageFile) async {
     try {

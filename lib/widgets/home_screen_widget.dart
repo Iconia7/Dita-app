@@ -4,11 +4,13 @@ import '../data/models/timetable_model.dart';
 
 class HomeWidgetUI extends StatelessWidget {
   final List<TimetableModel> upcomingClasses;
+  final List<TimetableModel> todayExams;
   final String dateStr;
 
   const HomeWidgetUI({
     super.key,
     required this.upcomingClasses,
+    this.todayExams = const [],
     required this.dateStr,
   });
 
@@ -53,11 +55,13 @@ class HomeWidgetUI extends StatelessWidget {
           _buildHeader(),
           const SizedBox(height: 20),
           Expanded(
-            child: currentClass != null
-                ? _buildInSessionState(currentClass, now)
-                : nextClass != null
-                    ? _buildUpcomingState(nextClass, now, totalClasses, completedClasses)
-                    : _buildAllClearState(totalClasses),
+            child: todayExams.isNotEmpty
+                ? _buildExamState(todayExams.first, now)
+                : currentClass != null
+                    ? _buildInSessionState(currentClass, now)
+                    : nextClass != null
+                        ? _buildUpcomingState(nextClass, now, totalClasses, completedClasses)
+                        : _buildAllClearState(totalClasses),
           ),
           if (totalClasses > 0) ...[
             const SizedBox(height: 16),
@@ -213,6 +217,116 @@ class HomeWidgetUI extends StatelessWidget {
                         color: ditaGold,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExamState(TimetableModel exam, DateTime now) {
+    final status = exam.isPastExam ? "COMPLETED" : "UPCOMING EXAM";
+    final isUrgent = !exam.isPastExam;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: isUrgent ? ditaGold : Colors.grey,
+                shape: BoxShape.circle,
+                boxShadow: isUrgent ? [
+                  BoxShadow(
+                    color: ditaGold.withOpacity(0.6),
+                    blurRadius: 12,
+                    spreadRadius: 3,
+                  ),
+                ] : [],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              status,
+              style: GoogleFonts.inter(
+                color: isUrgent ? ditaGold : Colors.grey,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          exam.code ?? 'EXAM',
+          style: GoogleFonts.outfit(
+            color: ditaGold,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          exam.title,
+          style: GoogleFonts.outfit(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            height: 1.1,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: ditaGold.withOpacity(0.5)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.location_on_rounded, color: ditaGold, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        exam.venue ?? 'TBA',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: ditaGold,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      exam.startTime,
+                      style: GoogleFonts.inter(
+                        color: ditaBlue,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),

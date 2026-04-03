@@ -16,7 +16,7 @@ class HomeWidgetService {
   static const String _iosWidgetName = 'ScheduleWidget';
 
   /// Updates the native widget with the current day's schedule
-  static Future<void> updateWidget(List<TimetableModel> timetable) async {
+  static Future<void> updateWidget(List<TimetableModel> timetable, {List<TimetableModel> exams = const []}) async {
     try {
       final now = DateTime.now();
       final todayName = DateFormat('EEEE').format(now);
@@ -27,6 +27,14 @@ class HomeWidgetService {
           .toList()
         ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
+      // Filter exams for today (ignoring dayOfWeek as exams have examDate)
+      final todayExams = exams.where((item) {
+        if (item.examDate == null) return false;
+        final examDay = DateTime(item.examDate!.year, item.examDate!.month, item.examDate!.day);
+        final today = DateTime(now.year, now.month, now.day);
+        return examDay.isAtSameMomentAs(today);
+      }).toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+
       final dateStr = DateFormat('EEE, d MMM').format(now);
 
       // Render the widget to an image (pass ALL today's classes for status detection)
@@ -34,6 +42,7 @@ class HomeWidgetService {
       await HomeWidget.renderFlutterWidget(
         HomeWidgetUI(
           upcomingClasses: todayClasses, // Widget now handles in-session detection
+          todayExams: todayExams,
           dateStr: dateStr,
         ),
         key: 'widget_image',
@@ -66,19 +75,30 @@ class HomeWidgetService {
       
       // Get cached timetable data from Hive
       const String timetableCacheKey = 'cached_timetable';
+      const String examsCacheKey = 'cached_exams';
+
       final jsonString = LocalStorage.getItem<String>(StorageKeys.timetableBox, timetableCacheKey);
+      final examsJsonString = LocalStorage.getItem<String>(StorageKeys.timetableBox, examsCacheKey);
       
+      List<TimetableModel> timetable = [];
+      List<TimetableModel> exams = [];
+
       if (jsonString != null) {
         final List<dynamic> jsonList = json.decode(jsonString);
-        final timetable = jsonList
+        timetable = jsonList
             .map((item) => TimetableModel.fromJson(item as Map<String, dynamic>))
             .toList();
-            
-        await updateWidget(timetable);
-        print("Widget Background: Updated successfully from local cache");
-      } else {
-        print("Widget Background: No cached timetable found");
       }
+
+      if (examsJsonString != null) {
+        final List<dynamic> examsJsonList = json.decode(examsJsonString);
+        exams = examsJsonList
+            .map((item) => TimetableModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+            
+      await updateWidget(timetable, exams: exams);
+      print("Widget Background: Updated successfully with ${timetable.length} classes and ${exams.length} exams");
     } catch (e) {
       print("Widget Background Error: $e");
     }

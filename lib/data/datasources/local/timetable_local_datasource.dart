@@ -8,6 +8,7 @@ import '../../../utils/app_logger.dart';
 class TimetableLocalDataSource {
   final LocalStorage _localStorage;
   static const String _timetableCacheKey = 'cached_timetable';
+  static const String _examsCacheKey = 'cached_exams';
 
   TimetableLocalDataSource(this._localStorage);
 
@@ -59,5 +60,33 @@ class TimetableLocalDataSource {
   /// Clear cache
   Future<void> clearCache() async {
     await LocalStorage.deleteItem(StorageKeys.timetableBox, _timetableCacheKey);
+    await LocalStorage.deleteItem(StorageKeys.timetableBox, _examsCacheKey);
+  }
+
+  /// Get cached exams
+  Future<List<TimetableModel>> getCachedExams() async {
+    try {
+      final jsonString = LocalStorage.getItem<String>(StorageKeys.timetableBox, _examsCacheKey);
+      if (jsonString != null) {
+        final List<dynamic> jsonList = json.decode(jsonString);
+        return jsonList
+            .map((json) => TimetableModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      AppLogger.error('Error reading cached exams', error: e);
+      return [];
+    }
+  }
+
+  /// Cache exams
+  Future<void> cacheExams(List<TimetableModel> items) async {
+    try {
+      final jsonList = items.map((item) => item.toJson()).toList();
+      await LocalStorage.setItem(StorageKeys.timetableBox, _examsCacheKey, json.encode(jsonList));
+    } catch (e) {
+      AppLogger.error('Error caching exams', error: e);
+    }
   }
 }

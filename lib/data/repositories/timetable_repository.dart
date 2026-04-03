@@ -66,17 +66,42 @@ class TimetableRepository {
     }
   }
 
-  /// Get exams filtered by course codes
+  /// Get exams filtered by course codes (Offline-First)
   Future<Either<Failure, List<TimetableModel>>> getExamsByCodes(List<String> codes) async {
+    // 1. Check local cache first
+    try {
+      final localItems = await localDataSource.getCachedExams();
+      if (localItems.isNotEmpty) {
+        // If we have codes, filter by them
+        if (codes.isNotEmpty) {
+          final filtered = localItems.where((e) {
+            final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? "";
+            return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
+          }).toList();
+          
+          if (filtered.isNotEmpty) return Either.right(filtered);
+        } else {
+          return Either.right(localItems);
+        }
+      }
+    } catch (e) {
+      AppLogger.debug('No cached exams found');
+    }
+
+    // 2. Fetch from remote if connected
     if (await networkInfo.isConnected) {
       try {
         final remoteItems = await remoteDataSource.getExamsByCodes(codes);
+        
+        // Update cache with these personalized exams
+        await localDataSource.cacheExams(remoteItems);
+        
         return Either.right(remoteItems);
       } catch (e) {
         return Either.left(ServerFailure('Failed to fetch personalized exams'));
       }
     } else {
-      return Either.left(NetworkFailure('No internet connection'));
+      return Either.left(NetworkFailure('No internet connection and no cached exams'));
     }
   }
 }

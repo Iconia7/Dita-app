@@ -131,13 +131,32 @@ class DitaApp extends ConsumerStatefulWidget {
 }
 
 class _DitaAppState extends ConsumerState<DitaApp> {
+  late final AppLifecycleListener _lifecycleListener;
+
   @override
   void initState() {
     super.initState();
+    
+    // Refresh widget every time the app comes to foreground
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: (state) {
+        if (state == AppLifecycleState.resumed) {
+          AppLogger.debug('🚀 App Resumed: Refreshing Widget');
+          HomeWidgetService.backgroundFetch();
+        }
+      },
+    );
+
     // Initialize deep links after app is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
       DeepLinkService.initDeepLinks(ref);
     });
+  }
+
+  @override
+  void dispose() {
+    _lifecycleListener.dispose();
+    super.dispose();
   }
 
   @override
