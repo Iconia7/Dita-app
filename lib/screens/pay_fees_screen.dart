@@ -49,14 +49,23 @@ class _PayFeesSheetState extends ConsumerState<PayFeesSheet> {
 
   void _startListeningForPayment() {
     _statusCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
       await ref.read(authProvider.notifier).refresh();
+
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
       final user = ref.read(currentUserProvider);
       
       if (user != null && user.isPaidMember == true) {
           timer.cancel();
-          if (mounted) {
-            Navigator.pop(context, true); // Close sheet and return TRUE
-          }
+          Navigator.pop(context, true); // Close sheet and return TRUE
       }
     });
   }

@@ -13,9 +13,10 @@ import 'package:url_launcher/url_launcher.dart';
 
       // 2. Get the newest one
       final latest = promos.first;
-      final int promoId = latest['id'];
-      final String title = latest['title'];
-      final String message = latest['message'];
+      final int promoId = latest['id'] ?? 0;
+      final String title = latest['title'] ?? "New Update!";
+      // Handle both 'description' (backend) and 'message' (legacy/other)
+      final String message = latest['description'] ?? latest['message'] ?? "";
       final String? imageUrl = latest['image'];
       final String actionText = latest['action_text'] ?? "CHECK IT OUT";
       final String? actionLink = latest['link'];
