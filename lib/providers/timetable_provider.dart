@@ -111,14 +111,36 @@ class ExamsNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> {
     }
 
     try {
-      state = const AsyncValue.loading();
+      // Seed immediately from cache so the screen is never blank
+      final cached = await _repository.localDataSource.getCachedExams();
+      if (cached.isNotEmpty) {
+        final filteredCache = cached.where((e) {
+          final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
+          return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
+        }).toList();
+        // Show cache immediately (don't set loading — avoids spinner flash)
+        if (filteredCache.isNotEmpty) {
+          state = AsyncValue.data(filteredCache);
+        } else {
+          state = const AsyncValue.loading();
+        }
+      } else {
+        state = const AsyncValue.loading();
+      }
+
+      // Fetch fresh data in the background (or offline fallback)
       final result = await _repository.getExamsByCodes(codes);
-      
+
       result.fold(
-        (failure) => state = AsyncValue.error(failure.message, StackTrace.current),
+        (failure) {
+          // Only overwrite with error if we have nothing to show
+          if (state is! AsyncData || (state as AsyncData).value.isEmpty) {
+            state = AsyncValue.error(failure.message, StackTrace.current);
+          }
+        },
         (items) async {
           state = AsyncValue.data(items);
-          
+
           // Trigger widget update with both classes and newest exams
           final timetable = await _repository.localDataSource.getLastTimetable();
           HomeWidgetService.updateWidget(timetable, exams: items);
@@ -128,6 +150,7 @@ class ExamsNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> {
       state = AsyncValue.error(e, stack);
     }
   }
+
 }
 
 final examsProvider = StateNotifierProvider<ExamsNotifier, AsyncValue<List<TimetableModel>>>((ref) {

@@ -68,40 +68,57 @@ class TimetableRepository {
 
   /// Get exams filtered by course codes (Offline-First)
   Future<Either<Failure, List<TimetableModel>>> getExamsByCodes(List<String> codes) async {
-    // 1. Check local cache first
+    // 1. Always check local cache first
+    List<TimetableModel> cachedExams = [];
     try {
-      final localItems = await localDataSource.getCachedExams();
-      if (localItems.isNotEmpty) {
-        // If we have codes, filter by them
-        if (codes.isNotEmpty) {
-          final filtered = localItems.where((e) {
-            final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? "";
-            return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
-          }).toList();
-          
-          if (filtered.isNotEmpty) return Either.right(filtered);
-        } else {
-          return Either.right(localItems);
-        }
-      }
+      cachedExams = await localDataSource.getCachedExams();
     } catch (e) {
       AppLogger.debug('No cached exams found');
     }
 
-    // 2. Fetch from remote if connected
+    // 2. If online, fetch fresh data and merge into cache
     if (await networkInfo.isConnected) {
       try {
         final remoteItems = await remoteDataSource.getExamsByCodes(codes);
-        
-        // Update cache with these personalized exams
-        await localDataSource.cacheExams(remoteItems);
-        
-        return Either.right(remoteItems);
+
+        // Merge: keep cached exams for other codes, update/add new ones
+        final Map<String, TimetableModel> mergedMap = {
+          for (var e in cachedExams) (e.code ?? e.id.toString()): e,
+        };
+        for (var e in remoteItems) {
+          mergedMap[e.code ?? e.id.toString()] = e;
+        }
+        final merged = mergedMap.values.toList();
+        await localDataSource.cacheExams(merged);
+
+        // Return filtered to the requested codes
+        if (codes.isNotEmpty) {
+          final filtered = merged.where((e) {
+            final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
+            return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
+          }).toList();
+          return Either.right(filtered);
+        }
+        return Either.right(merged);
       } catch (e) {
-        return Either.left(ServerFailure('Failed to fetch personalized exams'));
+        AppLogger.error('Remote exam fetch failed, falling back to cache', error: e);
+        // Fall through to return cache below
       }
-    } else {
-      return Either.left(NetworkFailure('No internet connection and no cached exams'));
     }
+
+    // 3. Offline (or remote failed) — return whatever we have in cache
+    if (cachedExams.isNotEmpty) {
+      if (codes.isNotEmpty) {
+        final filtered = cachedExams.where((e) {
+          final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
+          return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
+        }).toList();
+        // Return filtered if we matched something, otherwise return full cache
+        return Either.right(filtered.isNotEmpty ? filtered : cachedExams);
+      }
+      return Either.right(cachedExams);
+    }
+
+    return Either.left(NetworkFailure('No internet connection and no cached exams'));
   }
 }
