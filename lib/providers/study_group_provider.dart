@@ -106,8 +106,12 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
 
     ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.connecting;
 
-    // 🛑 FORCE_FIX: ABSOLUTE HARDCODED URL WITH PORT
-    final url = 'wss://api.dita.co.ke:443/ws/chat/$groupId/';
+    final token = user.accessToken;
+    // Django Channels typically expects the token in the query string or as a subprotocol.
+    // Given the production URL, appending it as a query param is the most standard fix.
+    final url = 'wss://api.dita.co.ke/ws/chat/$groupId/${token != null ? "?token=$token" : ""}';
+    
+    AppLogger.debug('Connecting to Study Group Chat: $url');
     
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));
@@ -155,9 +159,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
       // Send queued messages
       _flushMessageQueue();
       
-    } catch (e) {
+    } catch (e, stack) {
       if (_isDisposed) return;
-      AppLogger.error('WebSocket Connection Failed', error: e);
+      AppLogger.error('WebSocket Connection Failed for group $groupId', error: e, stackTrace: stack);
       ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.disconnected;
       _scheduleReconnect();
     }

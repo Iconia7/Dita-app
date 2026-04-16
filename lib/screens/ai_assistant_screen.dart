@@ -11,6 +11,7 @@ import '../providers/ai_provider.dart';
 import '../providers/timetable_provider.dart';
 import '../data/models/timetable_model.dart';
 import '../widgets/quiz_card.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class AiAssistantScreen extends ConsumerStatefulWidget {
   const AiAssistantScreen({super.key});
@@ -108,9 +109,7 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
         );
       } else {
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('Speech recognition not available')),
-           );
+           DitaToast.error(context, 'Speech recognition not available');
         }
       }
     } else {

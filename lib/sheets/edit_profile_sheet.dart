@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 // --- Widget Helper (from ProfileScreen) ---
 
@@ -56,9 +57,7 @@ class _EditProfileSheetState extends ConsumerState<EditProfileSheet> {
     } else {
       setState(() => _isSaving = false);
       // Show error message on the main screen (SnackBar or Dialog)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to update profile."), backgroundColor: Colors.red)
-      );
+      DitaToast.error(context, "Failed to update profile.");
     }
   }
 

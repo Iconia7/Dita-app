@@ -41,6 +41,7 @@ import '../providers/community_provider.dart';
 import '../utils/app_logger.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/timetable_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -88,24 +89,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
 
     if (image != null) {
       // Show loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Uploading profile picture...")),
-      );
+      DitaToast.show(context, "Uploading profile picture...");
 
       File file = File(image.path);
       bool success = await ref.read(authProvider.notifier).uploadProfilePicture(file);
 
       if (success) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(backgroundColor: Colors.green, content: Text("Profile updated!")),
-          );
+          DitaToast.success(context, "Profile updated!");
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(backgroundColor: Colors.red, content: Text("Upload failed.")),
-          );
+          DitaToast.error(context, "Upload failed.");
         }
       }
     }
@@ -134,20 +129,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     
     final userModel = ref.read(currentUserProvider);
     if (userModel?.isPaidMember == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.teal,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          content: const Row(
-            children: [
-              Icon(Icons.verified, color: Colors.white),
-              SizedBox(width: 10),
-              Text("Membership Verified", style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
+      DitaToast.show(
+        context, 
+        "Membership Verified", 
+        backgroundColor: Colors.teal,
       );
     }
   }
@@ -509,12 +494,7 @@ void _openScanner() async {
       if (eventId != null) {
         // Show subtle loading indicator
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Verifying attendance..."),
-              duration: Duration(seconds: 1),
-            )
-          );
+          DitaToast.show(context, "Verifying attendance...", duration: const Duration(seconds: 1));
         }
 
         // 4. Call Backend
@@ -815,11 +795,10 @@ if (isPaid && user?.membershipExpiry != null) {
       });
 
       // Optional: Give feedback that the tab switched
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Switched to the ${newIndex == 1 ? 'Events' : 'Resources'} tab."),
-          duration: const Duration(seconds: 1),
-        )
+      DitaToast.show(
+        context, 
+        "Switched to the ${newIndex == 1 ? 'Events' : 'Resources'} tab.",
+        duration: const Duration(seconds: 1),
       );
     }
   },
@@ -1535,8 +1514,7 @@ Widget _buildResourcesTab(UserModel? user, bool isPaid) {
                             await launchUrl(uri,
                                 mode: LaunchMode.externalApplication);
                           } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Could not open file")));
+                            DitaToast.error(context, "Could not open file");
                           }
                         }
                       },
@@ -1709,7 +1687,7 @@ class _EventCardState extends ConsumerState<EventCard> {
                                 setState(() => _hasRsvped = isNowJoining);
                                 widget.onRsvpChanged(isNowJoining, widget.event.title);
                               } else {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text("Could not update RSVP.")));
+                                DitaToast.error(context, "Could not update RSVP.");
                               }
                             }
                           },

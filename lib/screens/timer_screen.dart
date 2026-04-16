@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/timer_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class TimerScreen extends ConsumerWidget {
   const TimerScreen({super.key});
@@ -190,9 +191,7 @@ class TimerScreen extends ConsumerWidget {
                 onPressed: () {
                   notifier.resetSessionCount();
                   Navigator.pop(dialogContext);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Session count reset!')),
-                  );
+                  DitaToast.success(context, 'Session count reset!');
                 },
               ),
             ),

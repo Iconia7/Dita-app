@@ -7,6 +7,7 @@ import 'package:dita_app/providers/auth_provider.dart';
 import 'package:dita_app/core/storage/local_storage.dart';
 import 'package:dita_app/core/storage/storage_keys.dart';
 import 'home_screen.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -86,21 +87,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         );
       }
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.error_outline, color: Colors.white),
-              SizedBox(width: 10),
-              Text('Invalid credentials. Check username or password.'),
-            ],
-          ),
-          backgroundColor: Colors.red[800],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          margin: const EdgeInsets.all(20),
-        ),
-      );
+      DitaToast.error(context, 'Invalid credentials. Check username or password.');
     }
   }
 

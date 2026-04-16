@@ -9,6 +9,7 @@ import 'package:dita_app/data/models/task_model.dart';
 import '../services/notification.dart';
 import 'timer_screen.dart';
 import '../providers/auth_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
@@ -55,9 +56,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
            // ignore error
         }
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to save task")),
-      );
+      DitaToast.error(context, "Failed to save task");
     }
   }
 

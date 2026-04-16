@@ -16,6 +16,7 @@ import '../widgets/bouncing_button.dart';
 import '../widgets/bouncing_button.dart';
 import '../widgets/fullscreen_image_viewer.dart';
 import '../widgets/stories_section.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class CommunityScreen extends ConsumerStatefulWidget {
   const CommunityScreen({super.key});
@@ -343,9 +344,9 @@ class _MarketPostCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Expanded(
-                      child: Text(
+                        child: Text(
                         post.authorName, 
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 11, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                         overflow: TextOverflow.ellipsis,
                       )
                     ),
@@ -854,9 +855,7 @@ class _EditPostSheetState extends ConsumerState<EditPostSheet> {
       setState(() => _isLoading = false);
       if (success) {
         Navigator.pop(context, {'content': _contentController.text, 'category': _category}); 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Post updated!"), backgroundColor: Colors.green)
-        );
+        DitaToast.success(context, "Post updated!");
       }
     }
   }

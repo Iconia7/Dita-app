@@ -2,6 +2,7 @@ import 'package:dita_app/screens/privacy_policy_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dita_app/providers/auth_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -111,7 +112,7 @@ void _showRegistrationErrorDialog(String? errorMsg) {
                   const SizedBox(height: 10),
                   Text(
                     errorMsg ?? "An unknown error occurred.",
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
+                    style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey[600], fontSize: 14, height: 1.5),
                     textAlign: TextAlign.center
                   ),
                   const SizedBox(height: 25),
@@ -139,12 +140,7 @@ void _showRegistrationErrorDialog(String? errorMsg) {
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreedToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please agree to the Terms & Privacy Policy to continue."),
-          backgroundColor: Colors.orange,
-        )
-      );
+      DitaToast.show(context, "Please agree to the Terms & Privacy Policy to continue.", backgroundColor: Colors.orange);
       return;
     }
     FocusScope.of(context).unfocus();
@@ -167,9 +163,7 @@ void _showRegistrationErrorDialog(String? errorMsg) {
     setState(() => _isLoading = false);
 
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(backgroundColor: Colors.green, content: Text("Account Created! Please Login."))
-      );
+      DitaToast.success(context, "Account Created! Please Login.");
       Navigator.pop(context); // Go back to login
     } else if (mounted) {
       // Get error from provider state

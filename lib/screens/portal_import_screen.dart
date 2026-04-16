@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/timetable_model.dart';
 import '../providers/timetable_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class PortalImportScreen extends ConsumerStatefulWidget {
   const PortalImportScreen({super.key});
@@ -299,9 +300,7 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
         await ref.read(timetableProvider.notifier).loadTimetable();
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Success! Imported ${models.length} classes."), backgroundColor: Colors.green)
-          );
+          DitaToast.success(context, "Success! Imported ${models.length} classes.");
           
           // Small delay for UI feedback, then pop back
           await Future.delayed(const Duration(milliseconds: 300));
@@ -310,15 +309,13 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
           }
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to save classes locally."), backgroundColor: Colors.red)
-        );
+        DitaToast.error(context, "Failed to save classes locally.");
       }
     }
   }
 
   void _showError(String msg) {
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    if(mounted) DitaToast.error(context, msg);
   }
 
   @override

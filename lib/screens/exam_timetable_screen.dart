@@ -11,6 +11,7 @@ import 'package:dita_app/providers/network_provider.dart';
 import '../services/notification.dart';
 import '../providers/ai_provider.dart';
 import 'ai_assistant_screen.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class ExamTimetableScreen extends ConsumerStatefulWidget {
   const ExamTimetableScreen({super.key});
@@ -107,9 +108,7 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
     }).toList();
 
     if (upcoming.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No upcoming exams to add.')),
-      );
+      DitaToast.show(context, 'No upcoming exams to add.');
       return;
     }
 
@@ -117,11 +116,10 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
       _addExamToCalendar(exam);
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Adding ${upcoming.length} exam${upcoming.length == 1 ? '' : 's'} to your calendar…'),
-        backgroundColor: const Color(0xFF003366),
-      ),
+    DitaToast.show(
+      context, 
+      'Adding ${upcoming.length} exam${upcoming.length == 1 ? '' : 's'} to your calendar…',
+      backgroundColor: const Color(0xFF003366),
     );
   }
 

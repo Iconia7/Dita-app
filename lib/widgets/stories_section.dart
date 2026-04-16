@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../providers/stories_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class StoriesSection extends ConsumerWidget {
   const StoriesSection({super.key});
@@ -93,34 +94,9 @@ class StoriesSection extends ConsumerWidget {
 
             if (context.mounted) {
               if (success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        SizedBox(width: 12),
-                        Text("Story uploaded successfully!"),
-                      ],
-                    ),
-                    backgroundColor: Colors.green,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                DitaToast.success(context, "Story uploaded successfully!");
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.white),
-                        SizedBox(width: 12),
-                        Expanded(child: Text("Upload failed. Please try again.")),
-                      ],
-                    ),
-                    backgroundColor: Colors.red,
-                    behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 4),
-                  ),
-                );
+                DitaToast.error(context, "Upload failed. Please try again.");
               }
             }
           } catch (e) {
@@ -140,27 +116,7 @@ class StoriesSection extends ConsumerWidget {
                 errorMessage += "Please try again";
               }
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.white),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(errorMessage)),
-                    ],
-                  ),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 5),
-                  action: SnackBarAction(
-                    label: 'RETRY',
-                    textColor: Colors.white,
-                    onPressed: () {
-                      // Could implement retry logic here
-                    },
-                  ),
-                ),
-              );
+              DitaToast.error(context, errorMessage, duration: const Duration(seconds: 5));
             }
           }
         }
@@ -672,9 +628,7 @@ class _StoryViewerState extends ConsumerState<_StoryViewer> with SingleTickerPro
 
                                 _commentController.clear(); // Clear field
                                 _commentFocusNode.unfocus(); // Close keyboard and resume story
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Comment added!")),
-                                );
+                                DitaToast.success(context, "Comment added!");
                              }
                           },
                         ),
@@ -692,9 +646,7 @@ class _StoryViewerState extends ConsumerState<_StoryViewer> with SingleTickerPro
                            
                           _commentController.clear();
                           _commentFocusNode.unfocus(); // Close keyboard and resume story
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Comment added!")),
-                          );
+                           DitaToast.success(context, "Comment added!");
                         }
                       },
                     ),

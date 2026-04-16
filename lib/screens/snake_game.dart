@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:dita_app/services/ads_helper.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
@@ -358,9 +359,7 @@ _avgReactionMs = _avgReactionMs == 0
           _isPlaying = true;
           _activatePowerUp(PowerUpType.ghostMode); // Ghost logic handles timer restart
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("GHOST PROTOCOL INITIATED"), backgroundColor: kNeonBlue)
-        );
+        DitaToast.show(context, "GHOST PROTOCOL INITIATED", backgroundColor: kNeonBlue);
       },
       onFailure: () => _gameOver()
     );
@@ -461,14 +460,11 @@ _avgReactionMs = _avgReactionMs == 0
   }
 
   void _showFloatingText(String text, Color color) {
-    // Simplified juice text wrapper (logic identical to previous games)
-    ScaffoldMessenger.of(context).showSnackBar(
-       SnackBar(
-         content: Text(text, textAlign: TextAlign.center, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-         backgroundColor: Colors.transparent,
-         elevation: 0,
-         duration: const Duration(milliseconds: 800),
-       )
+    DitaToast.show(
+      context, 
+      text, 
+      backgroundColor: color, 
+      duration: const Duration(milliseconds: 800)
     );
   }
 

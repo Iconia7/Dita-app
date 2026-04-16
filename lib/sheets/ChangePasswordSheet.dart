@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dita_app/providers/auth_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class ChangePasswordSheet extends ConsumerStatefulWidget {
   const ChangePasswordSheet({super.key});
@@ -21,9 +22,7 @@ class _ChangePasswordSheetState extends ConsumerState<ChangePasswordSheet> {
     if (oldPass.isEmpty || newPass.isEmpty) return;
 
     if (newPass.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password must be at least 6 characters"), backgroundColor: Colors.orange)
-      );
+      DitaToast.show(context, "Password must be at least 6 characters", backgroundColor: Colors.orange);
       return;
     }
 
@@ -44,19 +43,9 @@ class _ChangePasswordSheetState extends ConsumerState<ChangePasswordSheet> {
 
     if (success) {
       Navigator.pop(context); // Close sheet
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password changed successfully!"),
-          backgroundColor: Colors.green,
-        )
-      );
+      DitaToast.success(context, "Password changed successfully!");
     } else {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Error: Incorrect old password or server error."),
-          backgroundColor: Colors.red,
-        )
-      );
+       DitaToast.error(context, "Error: Incorrect old password or server error.");
     }
   }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:dita_app/services/ads_helper.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -283,8 +284,11 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
 
     if (isCorrupted) {
       _startCorruptionTimer(finalColor);
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text("⚠️ Corruption Detected!"), backgroundColor: _bugColor, duration: const Duration(milliseconds: 800))
+      DitaToast.show(
+          context, 
+          "⚠️ Corruption Detected!", 
+          backgroundColor: _bugColor, 
+          duration: const Duration(milliseconds: 800)
       );
     }
   }
@@ -530,9 +534,7 @@ class _RamOptimizerScreenState extends ConsumerState<RamOptimizerScreen> with Ti
             }
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Emergency Reboot Successful!"), backgroundColor: Colors.green)
-          );
+          DitaToast.success(context, "Emergency Reboot Successful!");
         },
         onFailure: () => _endGame()
     );

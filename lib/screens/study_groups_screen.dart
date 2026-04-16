@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/study_group_provider.dart';
 import '../data/models/study_group_model.dart';
 import 'study_group_chat_screen.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class StudyGroupsScreen extends ConsumerStatefulWidget {
   const StudyGroupsScreen({super.key});
@@ -286,9 +287,7 @@ class _StudyGroupsScreenState extends ConsumerState<StudyGroupsScreen> {
                   descController.text.trim(),
                 );
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Creating group...")),
-                );
+                DitaToast.show(context, "Creating group...");
               }
             },
             child: const Text("Create"),

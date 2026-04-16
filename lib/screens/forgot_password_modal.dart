@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/api_service.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class ForgotPasswordModal extends StatefulWidget {
   const ForgotPasswordModal({super.key});
@@ -193,9 +194,7 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
 
       if (success && mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Password Reset Successful! Login now."), backgroundColor: Colors.green)
-        );
+        DitaToast.success(context, "Password Reset Successful! Login now.");
       } else {
         _showMessage("Server Error: Could not update password.", true);
       }

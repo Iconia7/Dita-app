@@ -3,6 +3,7 @@ import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/deep_link_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class ClickableText extends ConsumerWidget {
   final String text;
@@ -37,9 +38,7 @@ class ClickableText extends ConsumerWidget {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Could not open link")),
-          );
+          DitaToast.error(context, "Could not open link");
         }
       },
       text: text,

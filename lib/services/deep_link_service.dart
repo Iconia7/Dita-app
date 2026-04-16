@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/study_group_chat_screen.dart';
 import '../data/models/study_group_model.dart';
 import '../services/api_service.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class DeepLinkService {
   static final _appLinks = AppLinks();
@@ -76,12 +77,7 @@ class DeepLinkService {
         // Show error snackbar
         final context = _navigationKey.currentState?.overlay?.context;
         if (context != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.red,
-            ),
-          );
+          DitaToast.error(context, errorMessage);
         }
       }
     }

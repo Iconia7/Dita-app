@@ -6,6 +6,7 @@ import 'package:dita_app/widgets/clickable_text.dart';
 import '../providers/study_group_provider.dart';
 import '../data/models/study_group_model.dart';
 import '../providers/auth_provider.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class StudyGroupChatScreen extends ConsumerStatefulWidget {
   final StudyGroupModel group;
@@ -204,7 +205,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
                               alignment: Alignment.bottomRight,
                               child: Text(
                                 DateFormat('HH:mm').format(msg.timestamp),
-                                style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey),
+                                style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : (isDark ? Colors.white54 : Colors.grey)),
                               ),
                             ),
                           ],
@@ -251,7 +252,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
           ),
           const SizedBox(width: 5),
           CircleAvatar(
-            backgroundColor: isConnected ? const Color(0xFFFFD700) : Colors.grey,
+            backgroundColor: isConnected ? const Color(0xFFFFD700) : (isDark ? Colors.white10 : Colors.grey[300]),
             child: IconButton(
               icon: const Icon(Icons.send, color: Colors.black),
               onPressed: isConnected ? _sendMessage : null,
@@ -399,9 +400,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
       if (mounted) {
         // Pop the chat screen and go back to the list
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Group deleted successfully")),
-        );
+        DitaToast.success(context, "Group deleted successfully");
       }
     }
   }
@@ -433,9 +432,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
       if (mounted) {
         // Pop the chat screen and go back to the list
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You have left the group")),
-        );
+        DitaToast.success(context, "You have left the group");
       }
     }
   }

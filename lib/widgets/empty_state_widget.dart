@@ -40,10 +40,10 @@ class EmptyStateWidget extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF003366), // Primary Blue
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF003366), // 🟢 Theme-aware
                 ),
               ),
               
@@ -55,7 +55,7 @@ class EmptyStateWidget extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey[600],
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey[600], // 🟢 Theme-aware
                   height: 1.5,
                 ),
               ),

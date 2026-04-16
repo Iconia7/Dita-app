@@ -5,6 +5,7 @@ import '../core/storage/local_storage.dart';
 import '../core/storage/storage_keys.dart';
 import '../services/notification.dart';
 import '../utils/app_logger.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class ReminderSettingsScreen extends ConsumerStatefulWidget {
   const ReminderSettingsScreen({super.key});
@@ -35,9 +36,7 @@ class _ReminderSettingsScreenState extends ConsumerState<ReminderSettingsScreen>
   Future<void> _saveLeadTime(String key, int value) async {
     await LocalStorage.setItem(StorageKeys.settingsBox, key, value);
     AppLogger.info('Saved $key: $value mins');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Updated lead time to $value mins"), duration: const Duration(seconds: 1)),
-    );
+    DitaToast.show(context, "Updated lead time to $value mins", duration: const Duration(seconds: 1));
   }
 
   void _testNotification() async {
@@ -169,7 +168,7 @@ class _ReminderSettingsScreenState extends ConsumerState<ReminderSettingsScreen>
               },
               selectedColor: Theme.of(context).primaryColor,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
+                color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
                 fontSize: 12,
               ),
             );

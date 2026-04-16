@@ -9,6 +9,7 @@ import 'package:dita_app/widgets/empty_state_widget.dart';
 import 'package:dita_app/providers/timetable_provider.dart';
 import 'package:dita_app/data/models/timetable_model.dart';
 import 'portal_import_screen.dart';
+import 'package:dita_app/utils/dita_toast.dart';
 
 class ClassTimetableScreen extends ConsumerStatefulWidget {
   const ClassTimetableScreen({super.key});
@@ -193,12 +194,7 @@ class _ClassTimetableScreenState extends ConsumerState<ClassTimetableScreen> wit
               Navigator.pop(ctx);
               await ref.read(timetableProvider.notifier).clearTimetable();
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Timetable cleared"),
-                    backgroundColor: Colors.green,
-                  ),
-                );
+                DitaToast.success(context, "Timetable cleared");
               }
             },
             child: const Text("Clear", style: TextStyle(color: Colors.red)),

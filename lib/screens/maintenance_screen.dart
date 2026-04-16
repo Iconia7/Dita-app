@@ -1,6 +1,7 @@
 import 'package:dita_app/screens/auth_check_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:dita_app/services/api_service.dart'; // Import your API service
+import 'package:dita_app/utils/dita_toast.dart';
 // Or wherever you go after
 
 class MaintenanceScreen extends StatefulWidget {
@@ -56,12 +57,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> with SingleTicker
     } else {
       // Still in maintenance
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Still under maintenance. Please wait."),
-            backgroundColor: Colors.orange,
-          )
-        );
+        DitaToast.show(context, "Still under maintenance. Please wait.", backgroundColor: Colors.orange);
       }
     }
   }

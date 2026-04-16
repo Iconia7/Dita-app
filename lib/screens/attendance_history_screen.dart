@@ -19,6 +19,7 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
   @override
   Widget build(BuildContext context) {
     // 🟢 Theme Helpers
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final cardColor = Theme.of(context).cardColor;
     final primaryColor = Theme.of(context).primaryColor;
@@ -125,7 +126,10 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
                        ),
                        trailing: Text(
                          "+20 pts",
-                         style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[700])
+                         style: TextStyle(
+                           fontWeight: FontWeight.bold,
+                           color: Theme.of(context).brightness == Brightness.dark ? Colors.orangeAccent : Colors.orange[800],
+                         ),
                        ),
                       ),
                     );
