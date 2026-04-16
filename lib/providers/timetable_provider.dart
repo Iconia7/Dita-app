@@ -116,7 +116,11 @@ class ExamsNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> {
       if (cached.isNotEmpty) {
         final filteredCache = cached.where((e) {
           final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
-          return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
+          final cleanTitle = e.title.replaceAll(' ', '').toUpperCase();
+          return codes.any((c) {
+            final check = c.replaceAll(' ', '').toUpperCase();
+            return cleanCode.contains(check) || cleanTitle.contains(check);
+          });
         }).toList();
         // Show cache immediately (don't set loading — avoids spinner flash)
         if (filteredCache.isNotEmpty) {

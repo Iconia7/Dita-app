@@ -94,7 +94,7 @@ class UserRemoteDataSource {
       final error = await ApiService.registerUser(registrationData);
       
       if (error != null) {
-        throw ServerException('Failed to register user: $error');
+        throw ServerException(error);
       }
 
       // Auto-login to get user model

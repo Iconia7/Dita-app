@@ -127,12 +127,24 @@ class ApiService {
            return data;
         }
         return data;
-      } else if (response.statusCode == 401) {
-        AppLogger.warning('Login failed: Invalid credentials');
-        throw AuthenticationException('Invalid username or password');
       } else {
         AppLogger.warning('Login failed: ${response.statusCode}');
-        return null;
+        String errorMessage = "Invalid username or password";
+        try {
+          final decoded = json.decode(response.body);
+          if (decoded is Map<String, dynamic>) {
+             if (decoded.containsKey('detail')) {
+                 errorMessage = decoded['detail'].toString();
+             } else if (decoded.containsKey('non_field_errors') && decoded['non_field_errors'] is List && decoded['non_field_errors'].isNotEmpty) {
+                 errorMessage = decoded['non_field_errors'][0].toString();
+             } else if (decoded.isNotEmpty) {
+                 errorMessage = decoded.values.first.toString();
+             }
+          } else if (decoded is String) {
+             errorMessage = decoded;
+          }
+        } catch (_) {}
+        throw AuthenticationException(errorMessage);
       }
     } on SocketException {
       AppLogger.error('Network error during login');
@@ -1002,8 +1014,36 @@ class ApiService {
         AppLogger.success('User registered successfully');
         return null;
       }
+      
       AppLogger.warning('Registration failed: ${response.statusCode}');
-      return "Registration Failed: ${response.body}";
+      String errorMessage = "Registration Failed. Please try again.";
+      
+      try {
+        final decoded = json.decode(response.body);
+        if (decoded is Map<String, dynamic>) {
+           List<String> errors = [];
+           decoded.forEach((key, value) {
+              String niceKey = key.replaceAll('_', ' ');
+              niceKey = niceKey[0].toUpperCase() + niceKey.substring(1);
+              if (value is List) {
+                 errors.add("$niceKey: ${value.join(', ')}");
+              } else {
+                 errors.add("$niceKey: $value");
+              }
+           });
+           if (errors.isNotEmpty) {
+               errorMessage = errors.join('\n');
+           }
+        } else if (decoded is String) {
+           errorMessage = decoded;
+        }
+      } catch (_) {
+        if (response.body.length < 100) {
+           errorMessage = response.body;
+        }
+      }
+      
+      return errorMessage;
     } on SocketException {
       AppLogger.error('Network error during registration');
       throw NetworkException();

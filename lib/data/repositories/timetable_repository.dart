@@ -95,7 +95,11 @@ class TimetableRepository {
         if (codes.isNotEmpty) {
           final filtered = merged.where((e) {
             final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
-            return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
+            final cleanTitle = e.title.replaceAll(' ', '').toUpperCase();
+            return codes.any((c) {
+              final check = c.replaceAll(' ', '').toUpperCase();
+              return cleanCode.contains(check) || cleanTitle.contains(check);
+            });
           }).toList();
           return Either.right(filtered);
         }
@@ -111,7 +115,11 @@ class TimetableRepository {
       if (codes.isNotEmpty) {
         final filtered = cachedExams.where((e) {
           final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
-          return codes.any((c) => cleanCode.contains(c.replaceAll(' ', '').toUpperCase()));
+          final cleanTitle = e.title.replaceAll(' ', '').toUpperCase();
+          return codes.any((c) {
+            final check = c.replaceAll(' ', '').toUpperCase();
+            return cleanCode.contains(check) || cleanTitle.contains(check);
+          });
         }).toList();
         // Return filtered if we matched something, otherwise return full cache
         return Either.right(filtered.isNotEmpty ? filtered : cachedExams);

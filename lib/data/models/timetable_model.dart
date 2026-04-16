@@ -37,7 +37,7 @@ class TimetableModel {
       id: json['id'] as int? ?? 0,
       type: json['type'] as String? ?? 'class',
       title: json['title'] as String? ?? json['unit_name'] as String? ?? 'Untitled',
-      code: json['code'] as String? ?? json['unit_code'] as String?,
+      code: json['code'] as String? ?? json['unit_code'] as String? ?? json['course_code'] as String?,
       lecturer: json['lecturer'] as String?,
       venue: json['venue'] as String? ?? json['room'] as String?,
       dayOfWeek: json['day_of_week'] as String? ?? json['day'] as String? ?? 'Monday',
