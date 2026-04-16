@@ -1,5 +1,7 @@
 # 🎓 DITA App - The Ultimate Student Companion
 
+[![Version](https://img.shields.io/badge/version-15.4.26%2B55-blue.svg)]()
+
 ![DITA App Banner](assets/banner.png)
 
 DITA App is the official mobile application for the Daystar Information Technology Association (DITA). It serves as a comprehensive digital companion for students, integrating academic tools, social features, gamification, and campus services into a single, polished platform.
@@ -20,9 +22,9 @@ Designed with a **Midnight Blue & Gold** aesthetic, the app features a robust **
 ### 📅 Academic Management
 
 - **Exam Timetable**: 
-  - Automatically fetches from backend
-  - Filter by program and year
-  - Works **offline** via local caching
+  - Automatically fetches from backend with intelligent course-code mapping
+  - **Native Calendar Sync**: Easily bulk-add your exams directly to your device's calendar
+  - Works **flawlessly offline** via local device caching and deduplication
 - **Class Schedule**: 
   - Sync directly from Student Portal (via secure WebView extraction)
   - Manual entry with color-coded days
@@ -82,7 +84,7 @@ Designed with a **Midnight Blue & Gold** aesthetic, the app features a robust **
 - **Resources Library**: Access past papers and PDF notes (Gold Members only)
 - **Biometric Login**: Secure entry using Fingerprint/Face ID
 - **GPA Calculator**: Plan your semester and calculate expected GPA
-- **Home Widget**: Android widget showing next class/exam on home screen
+- **Home Widget**: Android widget showing your next class/exam right on your home screen
 
 ### 🔔 Notifications
 
@@ -131,7 +133,7 @@ Designed with a **Midnight Blue & Gold** aesthetic, the app features a robust **
 - **Storage**: Cloudinary (Profile Pictures, Post Images, Stories)
 - **Push Notifications**: Firebase Admin SDK
 - **Hosting**: Render
-- **Updates**: Shorebird (Code Push for Flutter)
+- **Updates**: Shorebird (Over-The-Air Code Push updates for seamless patching)
 
 ### Key Architecture Patterns
 
@@ -246,13 +248,20 @@ flutter run
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
+Contributions are heavily encouraged and welcome! To ensure a smooth process and high code quality, please follow these guidelines:
 
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Development Workflow
+1. **Fork the repository** and clone it locally
+2. **Create a new branch** (`git checkout -b feature/AmazingFeature` or `bugfix/LoginIssue`)
+3. Ensure you have properly set up your local `.env` files for both the Backend and Frontend (see **Getting Started**).
+4. **Commit your changes** (`git commit -m 'feat: Add some AmazingFeature'`)
+5. **Push to the branch** (`git push origin feature/AmazingFeature`)
+6. **Open a Pull Request** into the `main` branch
+
+### Coding Standards
+* **Architecture:** Ensure any new Flutter data features adhere to our **Riverpod Offline-First Repository Pattern**.
+* **Linting:** Run `flutter analyze` to ensure there are no warnings or errors before pushing your code.
+* **UI/UX:** Respect the "Midnight Navy & Gold" theme, and ensure all features correctly adapt to Dark Mode dynamically.
 
 ## 📄 License
 
