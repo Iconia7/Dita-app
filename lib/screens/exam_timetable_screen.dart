@@ -343,13 +343,21 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
                 loading: () => const TimetableSkeleton(),
                 error: (err, stack) => Center(child: Text('Error: $err')),
                 data: (exams) {
+                  // Deduplicate (cleans up legacy cached items that had null keys)
+                  final uniqueExams = <String, TimetableModel>{};
+                  for (final e in exams) {
+                    final key = '${e.title}_${e.examDate?.toIso8601String()}';
+                    uniqueExams[key] = e; // Latest overwrites previous
+                  }
+                  exams = uniqueExams.values.toList();
+
                   // Apply search filter
                   if (_codeController.text.isNotEmpty) {
                     final query = _codeController.text.toUpperCase();
                     exams = exams
                         .where((e) =>
                             (e.code?.toUpperCase().contains(query) ?? false) ||
-                            (e.title?.toUpperCase().contains(query) ?? false))
+                            (e.title.toUpperCase().contains(query)))
                         .toList();
                   }
 
@@ -387,7 +395,8 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
 
                       final date = exam.examDate!;
                       final status = _getDaysRemaining(date);
-                      final statusColor = _getStatusColor(status, primaryColor);
+                      final baseColor = isDark ? _accentGold : primaryColor;
+                      final statusColor = _getStatusColor(status, baseColor);
                       final bool isLast = index == exams.length - 1;
                       final bool isDone = status == 'Done';
 
