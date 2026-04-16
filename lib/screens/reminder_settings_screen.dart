@@ -151,6 +151,7 @@ class _ReminderSettingsScreenState extends ConsumerState<ReminderSettingsScreen>
     required int currentValue,
     required ValueChanged<int?> onChanged,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
