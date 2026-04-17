@@ -15,44 +15,57 @@ class DitaToast {
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Image.asset(
-                'assets/icon/icon.png',
-                height: 24,
-                width: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: bgColor,
-        duration: duration,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        elevation: 6,
-        shape: StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        duration: duration,
+        // Remove fixed horizontal margins to allow centering via content
         margin: EdgeInsets.only(
           bottom: MediaQuery.of(context).size.height * 0.05,
-          left: 20,
-          right: 20,
+        ),
+        content: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Image.asset(
+                    'assets/icon/icon.png',
+                    height: 20, // Slightly smaller icon for better balance
+                    width: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
