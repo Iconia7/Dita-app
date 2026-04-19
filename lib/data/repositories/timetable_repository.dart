@@ -97,8 +97,10 @@ class TimetableRepository {
             final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
             final cleanTitle = e.title.replaceAll(' ', '').toUpperCase();
             return codes.any((c) {
-              final check = c.replaceAll(' ', '').toUpperCase();
-              return cleanCode.contains(check) || cleanTitle.contains(check);
+              // Standardize: Remove spaces, dashes, etc.
+              final check = c.replaceAll(RegExp(r'[^A-Z0-9]'), '').toUpperCase();
+              // Bidirectional check: handles NUR-120R vs NUR120 and ACS 441 A vs ACS441
+              return cleanCode.contains(check) || check.contains(cleanCode) || cleanTitle.contains(check);
             });
           }).toList();
           return Either.right(filtered);
@@ -117,8 +119,8 @@ class TimetableRepository {
           final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
           final cleanTitle = e.title.replaceAll(' ', '').toUpperCase();
           return codes.any((c) {
-            final check = c.replaceAll(' ', '').toUpperCase();
-            return cleanCode.contains(check) || cleanTitle.contains(check);
+            final check = c.replaceAll(RegExp(r'[^A-Z0-9]'), '').toUpperCase();
+            return cleanCode.contains(check) || check.contains(cleanCode) || cleanTitle.contains(check);
           });
         }).toList();
         // Return filtered if we matched something, otherwise return full cache

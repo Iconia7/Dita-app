@@ -243,16 +243,23 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
 
   String _convertTo24Hour(String timeStr) {
     try {
-      timeStr = timeStr.toUpperCase().replaceAll(".", "").trim(); 
+      // Normalize: 12.05 PM -> 12:05 PM
+      timeStr = timeStr.toUpperCase().replaceAll(".", ":").trim(); 
       bool isPM = timeStr.contains("PM");
       bool isAM = timeStr.contains("AM");
       String cleanTime = timeStr.replaceAll("AM", "").replaceAll("PM", "").trim();
+      
+      // Split by colon (now handles both 12:05 and the converted 12.05)
       List<String> parts = cleanTime.split(":");
-      int hour = int.parse(parts[0]);
-      int minute = parts.length > 1 ? int.parse(parts[1]) : 0;
+      int hour = int.tryParse(parts[0]) ?? 8;
+      int minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
       
       if (isPM && hour != 12) hour += 12;
       if (isAM && hour == 12) hour = 0;
+      
+      // Safety clamp to valid 24h range
+      hour = hour.clamp(0, 23);
+      minute = minute.clamp(0, 59);
       
       return "${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}";
     } catch (e) {

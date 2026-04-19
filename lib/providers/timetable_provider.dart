@@ -118,8 +118,10 @@ class ExamsNotifier extends StateNotifier<AsyncValue<List<TimetableModel>>> {
           final cleanCode = e.code?.replaceAll(' ', '').toUpperCase() ?? '';
           final cleanTitle = e.title.replaceAll(' ', '').toUpperCase();
           return codes.any((c) {
-            final check = c.replaceAll(' ', '').toUpperCase();
-            return cleanCode.contains(check) || cleanTitle.contains(check);
+            final check = c.replaceAll(RegExp(r'[^A-Z0-9]'), '').toUpperCase();
+            // Bidirectional check: either the class contains the exam code OR vice versa
+            // This handles NUR-120R B (check) matching with NUR120 (cleanCode)
+            return cleanCode.contains(check) || check.contains(cleanCode) || cleanTitle.contains(check);
           });
         }).toList();
         // Show cache immediately (don't set loading — avoids spinner flash)

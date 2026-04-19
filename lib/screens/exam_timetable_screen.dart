@@ -40,8 +40,8 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
           final codes = items
               .where((i) => i.isClass)
               .map((i) {
-                final val = i.code ?? i.title;
-                return val.split(':')[0].replaceAll('-', '').replaceAll(' ', '').toUpperCase();
+                final raw = i.code ?? i.title;
+                return raw.replaceAll(RegExp(r'[^A-Z0-9]'), '').toUpperCase();
               })
               .where((c) => c.isNotEmpty && c.length >= 3)
               .toSet()
@@ -210,8 +210,8 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
         final codes = items
             .where((i) => i.isClass)
             .map((i) {
-              final val = i.code ?? i.title;
-              return val.split(':')[0].replaceAll('-', '').replaceAll(' ', '').toUpperCase();
+              final raw = i.code ?? i.title;
+              return raw.replaceAll(RegExp(r'[^A-Z0-9]'), '').toUpperCase();
             })
             .where((c) => c.isNotEmpty && c.length >= 3)
             .toSet()
@@ -339,13 +339,35 @@ class _ExamTimetableScreenState extends ConsumerState<ExamTimetableScreen> {
             Expanded(
               child: examsAsync.when(
                 loading: () => const TimetableSkeleton(),
-                error: (err, stack) => Center(child: Text('Error: $err')),
-                data: (exams) {
+                error: (err, stack) {
+                  // Simplified error display to prevent DiagnosticsProperty crash
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 40),
+                          const SizedBox(height: 10),
+                          const Text('Unable to load exams', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 5),
+                          Text('There was a problem syncing your schedule.', 
+                               textAlign: TextAlign.center, 
+                               style: TextStyle(color: subTextColor)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                data: (examsList) {
+                  // Create a modifiable copy
+                  var exams = List<TimetableModel>.from(examsList);
+
                   // Deduplicate (cleans up legacy cached items that had null keys)
                   final uniqueExams = <String, TimetableModel>{};
                   for (final e in exams) {
-                    final key = '${e.title}_${e.examDate?.toIso8601String()}';
-                    uniqueExams[key] = e; // Latest overwrites previous
+                    final key = '${e.title}_${e.examDate?.toIso8601String() ?? 'no-date'}';
+                    uniqueExams[key] = e;
                   }
                   exams = uniqueExams.values.toList();
 
