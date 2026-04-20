@@ -5,12 +5,14 @@ import '../data/models/timetable_model.dart';
 class HomeWidgetUI extends StatelessWidget {
   final List<TimetableModel> upcomingClasses;
   final List<TimetableModel> todayExams;
+  final bool isExamSeason;
   final String dateStr;
 
   const HomeWidgetUI({
     super.key,
     required this.upcomingClasses,
     this.todayExams = const [],
+    this.isExamSeason = false,
     required this.dateStr,
   });
 
@@ -55,7 +57,7 @@ class HomeWidgetUI extends StatelessWidget {
           _buildHeader(),
           const SizedBox(height: 20),
           Expanded(
-            child: todayExams.isNotEmpty
+            child: (isExamSeason && todayExams.isNotEmpty)
                 ? _buildExamState(todayExams.first, now)
                 : currentClass != null
                     ? _buildInSessionState(currentClass, now)
@@ -63,12 +65,16 @@ class HomeWidgetUI extends StatelessWidget {
                         ? _buildUpcomingState(nextClass, now, totalClasses, completedClasses)
                         : _buildAllClearState(totalClasses),
           ),
-          if (totalClasses > 0) ...[
+          if (totalClasses > 0 && !isExamSeason) ...[
             const SizedBox(height: 16),
             _buildProgressBar(completedClasses, totalClasses),
           ],
           const SizedBox(height: 12),
-          _buildFooter(currentClass != null, nextClass != null),
+          _buildFooter(
+            currentClass != null && !isExamSeason,
+            nextClass != null && !isExamSeason,
+            isExamSeason: isExamSeason,
+          ),
         ],
       ),
     );
@@ -541,7 +547,7 @@ class HomeWidgetUI extends StatelessWidget {
     );
   }
 
-  Widget _buildFooter(bool inSession, bool hasNext) {
+  Widget _buildFooter(bool inSession, bool hasNext, {bool isExamSeason = false}) {
     final now = DateTime.now();
     final contextMessage = _getContextualMessage(now, inSession, hasNext);
     
@@ -567,7 +573,13 @@ class HomeWidgetUI extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Text(
-              inSession ? 'ACTIVE SESSION' : hasNext ? 'SCHEDULE SYNCED' : 'RESTING MODE',
+              isExamSeason 
+                  ? 'EXAM SEASON ACTIVE' 
+                  : inSession 
+                      ? 'ACTIVE SESSION' 
+                      : hasNext 
+                          ? 'SCHEDULE SYNCED' 
+                          : 'RESTING MODE',
               style: GoogleFonts.inter(
                 color: Colors.white.withOpacity(0.3),
                 fontSize: 8,
@@ -685,6 +697,24 @@ class HomeWidgetUI extends StatelessWidget {
   }
 
   String _getContextualMessage(DateTime now, bool inSession, bool hasNext) {
+    if (isExamSeason) {
+      if (todayExams.isNotEmpty) {
+        final exam = todayExams.first;
+        final isToday = exam.examDate != null && 
+            exam.examDate!.year == now.year && 
+            exam.examDate!.month == now.month && 
+            exam.examDate!.day == now.day;
+        
+        if (isToday) {
+          return 'Exam day! Success in your ${exam.title} exam. ✨';
+        } else {
+          final days = exam.examDate?.difference(DateTime(now.year, now.month, now.day)).inDays ?? 0;
+          return 'Study hard — next exam in $days ${days == 1 ? 'day' : 'days'}. 📚';
+        }
+      }
+      return 'Exam season active. Keep focusing! 🎯';
+    }
+
     final hour = now.hour;
     final totalClasses = _getTotalClassesToday();
     final completed = _getCompletedClasses(now);

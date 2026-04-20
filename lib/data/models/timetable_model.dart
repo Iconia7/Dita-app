@@ -148,7 +148,28 @@ class TimetableModel {
   /// Check if exam is in the past
   bool get isPastExam {
     if (examDate == null) return false;
-    return examDate!.isBefore(DateTime.now());
+    final now = DateTime.now();
+    
+    // If it's a previous day, it's definitely past
+    final examDay = DateTime(examDate!.year, examDate!.month, examDate!.day);
+    final today = DateTime(now.year, now.month, now.day);
+    
+    if (examDay.isBefore(today)) return true;
+    if (examDay.isAfter(today)) return false;
+    
+    // If it's today, check the end time
+    try {
+      final endParts = endTime.split(':');
+      final examEndTime = DateTime(
+        now.year, now.month, now.day,
+        int.parse(endParts[0]),
+        int.parse(endParts[1]),
+      );
+      return now.isAfter(examEndTime);
+    } catch (e) {
+      // Fallback if time format is invalid
+      return false;
+    }
   }
 
   /// Check if exam is upcoming (within 7 days)

@@ -19,6 +19,7 @@ class HomeWidgetService {
   static Future<void> updateWidget(List<TimetableModel> timetable, {List<TimetableModel> exams = const []}) async {
     try {
       final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
       final todayName = DateFormat('EEEE').format(now);
       
       // Filter classes for today and sort by time
@@ -27,22 +28,62 @@ class HomeWidgetService {
           .toList()
         ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
-      // Filter exams for today (ignoring dayOfWeek as exams have examDate)
-      final todayExams = exams.where((item) {
-        if (item.examDate == null) return false;
-        final examDay = DateTime(item.examDate!.year, item.examDate!.month, item.examDate!.day);
-        final today = DateTime(now.year, now.month, now.day);
-        return examDay.isAtSameMomentAs(today);
-      }).toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+      // Calculate Exam Season (from first exam day to last exam day)
+      bool isExamSeason = false;
+      TimetableModel? relevantExam;
+      
+      if (exams.isNotEmpty) {
+        // Normalize dates to midnight for range comparison
+        final examDates = exams
+            .where((e) => e.examDate != null)
+            .map((e) => DateTime(e.examDate!.year, e.examDate!.month, e.examDate!.day))
+            .toList();
+            
+        if (examDates.isNotEmpty) {
+          examDates.sort();
+          final firstExamDate = examDates.first;
+          final lastExamDate = examDates.last;
+          
+          isExamSeason = !today.isBefore(firstExamDate) && !today.isAfter(lastExamDate);
+          
+          // Find most relevant exam
+          // 1. Check for exams today
+          final todayExams = exams.where((e) {
+            if (e.examDate == null) return false;
+            final d = DateTime(e.examDate!.year, e.examDate!.month, e.examDate!.day);
+            return d.isAtSameMomentAs(today);
+          }).toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+          
+          if (todayExams.isNotEmpty) {
+            relevantExam = todayExams.first;
+          } else {
+            // 2. Find next upcoming exam
+            final upcomingExams = exams.where((e) {
+              if (e.examDate == null) return false;
+              final d = DateTime(e.examDate!.year, e.examDate!.month, e.examDate!.day);
+              return d.isAfter(today);
+            }).toList()..sort((a, b) {
+              final dateComp = a.examDate!.compareTo(b.examDate!);
+              if (dateComp != 0) return dateComp;
+              return a.startTime.compareTo(b.startTime);
+            });
+            
+            if (upcomingExams.isNotEmpty) {
+              relevantExam = upcomingExams.first;
+            }
+          }
+        }
+      }
 
       final dateStr = DateFormat('EEE, d MMM').format(now);
 
-      // Render the widget to an image (pass ALL today's classes for status detection)
+      // Render the widget to an image
       await HomeWidget.setAppGroupId(_groupId); // Required for iOS App Groups
       await HomeWidget.renderFlutterWidget(
         HomeWidgetUI(
-          upcomingClasses: todayClasses, // Widget now handles in-session detection
-          todayExams: todayExams,
+          upcomingClasses: todayClasses,
+          todayExams: relevantExam != null ? [relevantExam] : [],
+          isExamSeason: isExamSeason,
           dateStr: dateStr,
         ),
         key: 'widget_image',
@@ -57,7 +98,7 @@ class HomeWidgetService {
         androidName: _androidWidgetName,
       );
       
-      AppLogger.success('Native widget updated with rendered image');
+      AppLogger.success('Native widget updated (Exam Season: $isExamSeason)');
     } catch (e) {
       AppLogger.error('Error updating native widget', error: e);
     }
