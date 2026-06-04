@@ -81,7 +81,7 @@ class TimerScreen extends ConsumerWidget {
                     const SizedBox(height: 10),
                     Text(
                       statusText,
-                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      style: TextStyle(fontSize: 16, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                     )
                   ],
                 )

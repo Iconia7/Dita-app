@@ -1,5 +1,6 @@
 import 'package:dita_app/screens/privacy_policy_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dita_app/providers/auth_provider.dart';
 import 'package:dita_app/utils/dita_toast.dart';
@@ -180,6 +181,27 @@ void _showRegistrationErrorDialog(String? errorMsg) {
     }
   }
 
+  String? _validateUsername(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return "Username is required";
+    }
+    final trimmed = value.trim();
+    if (trimmed.contains(' ')) {
+      return "Username cannot contain spaces. Use underscores instead (e.g. john_doe)";
+    }
+    if (trimmed.length < 3) {
+      return "Username must be at least 3 characters";
+    }
+    if (trimmed.length > 20) {
+      return "Username must be 20 characters or fewer";
+    }
+    final usernameRegex = RegExp(r'^[a-zA-Z0-9_@.+-]+$');
+    if (!usernameRegex.hasMatch(trimmed)) {
+      return "Username can only contain letters, numbers, and _ @ . + -";
+    }
+    return null;
+  }
+
   String? _validatePhoneNumber(String? value) {
     if (value == null || value.isEmpty) {
       return "Phone number is required";
@@ -315,8 +337,10 @@ void _showRegistrationErrorDialog(String? errorMsg) {
                               children: [
                                 _buildStylishInput(
                                   controller: _usernameController, 
-                                  hint: "Username (e.g. Newton)", 
+                                  hint: "Username (no spaces, e.g. john_doe)", 
                                   icon: Icons.person_outline_rounded,
+                                  validator: _validateUsername,
+                                  noSpaces: true,
                                   inputFill: fillColor, textColor: textColor, isDark: isDark
                                 ),
                                 const SizedBox(height: 15),
@@ -473,6 +497,7 @@ void _showRegistrationErrorDialog(String? errorMsg) {
     required Color? textColor,
     required bool isDark,
     bool isPassword = false,
+    bool noSpaces = false,
     String? Function(String?)? validator,
     TextInputType keyboardType = TextInputType.text,
   }) {
@@ -480,7 +505,13 @@ void _showRegistrationErrorDialog(String? errorMsg) {
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       keyboardType: keyboardType,
-      validator: validator ?? (v) => v!.isEmpty ? "Required" : null,
+      inputFormatters: noSpaces
+          ? [FilteringTextInputFormatter.deny(RegExp(r'\s'))]
+          : null,
+      validator: validator ?? (v) {
+        if (v == null || v.trim().isEmpty) return "Required";
+        return null;
+      },
       style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
       decoration: InputDecoration(
         filled: true,

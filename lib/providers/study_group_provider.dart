@@ -4,6 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../services/api_service.dart';
 import '../data/models/study_group_model.dart';
 import '../providers/auth_provider.dart';
+import '../data/datasources/local/user_local_datasource.dart';
 import '../utils/app_logger.dart';
 
 // ========== Study Groups List Provider ==========
@@ -98,7 +99,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
     _connectWebSocket();
   }
 
-  void _connectWebSocket() {
+  Future<void> _connectWebSocket() async {
     if (_isDisposed) return;
     
     final user = ref.read(currentUserProvider);
@@ -106,12 +107,21 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<GroupMessageModel>>> {
 
     ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.connecting;
 
-    final token = user.accessToken;
-    // Django Channels typically expects the token in the query string or as a subprotocol.
-    // Given the production URL, appending it as a query param is the most standard fix.
-    final url = 'wss://api.dita.co.ke/ws/chat/$groupId/${token != null ? "?token=$token" : ""}';
+    // Tokens are stored in FlutterSecureStorage (stripped from Hive cache for security).
+    // We must read from secure storage directly — user.accessToken is always null.
+    final token = await UserLocalDataSource().getAccessToken();
     
-    AppLogger.debug('Connecting to Study Group Chat: $url');
+    if (token == null || token.isEmpty) {
+      AppLogger.error('No access token available for WebSocket auth. User must be logged in.');
+      if (!_isDisposed) {
+        ref.read(chatConnectionStatusProvider(groupId).notifier).state = ConnectionStatus.disconnected;
+      }
+      return;
+    }
+
+    final url = 'wss://api.dita.co.ke/ws/chat/$groupId/?token=$token';
+    
+    AppLogger.debug('Connecting to Study Group Chat WS for group $groupId');
     
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));

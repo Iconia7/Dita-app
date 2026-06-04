@@ -117,7 +117,7 @@ void _showInstructionDialog() {
             const SizedBox(height: 15),
             Container(
               height: 5, width: 50,
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: isDark ? Colors.white24 : Colors.grey[300], borderRadius: BorderRadius.circular(10)),
             ),
             
             // --- HEADER ---

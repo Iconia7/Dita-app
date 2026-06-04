@@ -72,6 +72,93 @@ class ApiService {
     }
   }
 
+  static Future<bool> requestOtp(String phoneNumber) async {
+    try {
+      AppLogger.api('POST', '/auth/request-otp/');
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/request-otp/'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "phone_number": phoneNumber,
+        }),
+      ).timeout(_timeout);
+
+      AppLogger.api('POST', '/auth/request-otp/', statusCode: response.statusCode);
+
+      if (response.statusCode == 200) {
+        AppLogger.success('OTP request successful');
+        return true;
+      } else {
+        AppLogger.warning('OTP request failed: ${response.statusCode}');
+        String errorMsg = "Failed to request OTP";
+        try {
+          final decoded = json.decode(response.body);
+          if (decoded is Map && decoded.containsKey('error')) {
+            errorMsg = decoded['error'].toString();
+          }
+        } catch (_) {}
+        throw ApiException(errorMsg, statusCode: response.statusCode);
+      }
+    } on SocketException {
+      AppLogger.error('Network error during OTP request');
+      throw NetworkException();
+    } on TimeoutException {
+      AppLogger.error('Request timeout during OTP request');
+      throw TimeoutException();
+    } catch (e) {
+      if (e is ApiException || e is NetworkException || e is TimeoutException) {
+        rethrow;
+      }
+      AppLogger.error('Unexpected error during OTP request', error: e);
+      throw ApiException("An unexpected error occurred: $e");
+    }
+  }
+
+  static Future<bool> resetPasswordWithOtp(String phoneNumber, String otp, String newPassword) async {
+    try {
+      AppLogger.api('POST', '/auth/reset-password-otp/');
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/reset-password-otp/'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "phone_number": phoneNumber,
+          "otp": otp,
+          "new_password": newPassword,
+        }),
+      ).timeout(_timeout);
+
+      AppLogger.api('POST', '/auth/reset-password-otp/', statusCode: response.statusCode);
+
+      if (response.statusCode == 200) {
+        AppLogger.success('Password reset with OTP successful');
+        return true;
+      } else {
+        AppLogger.warning('Password reset with OTP failed: ${response.statusCode}');
+        String errorMsg = "Failed to reset password";
+        try {
+          final decoded = json.decode(response.body);
+          if (decoded is Map && decoded.containsKey('error')) {
+            errorMsg = decoded['error'].toString();
+          }
+        } catch (_) {}
+        throw ApiException(errorMsg, statusCode: response.statusCode);
+      }
+    } on SocketException {
+      AppLogger.error('Network error during password reset with OTP');
+      throw NetworkException();
+    } on TimeoutException {
+      AppLogger.error('Request timeout during password reset with OTP');
+      throw TimeoutException();
+    } catch (e) {
+      if (e is ApiException || e is NetworkException || e is TimeoutException) {
+        rethrow;
+      }
+      AppLogger.error('Unexpected error during password reset with OTP', error: e);
+      throw ApiException("An unexpected error occurred: $e");
+    }
+  }
+
+
   // --- 🔧 HTTP PUT METHOD ---
   static Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> data) async {
     try {
@@ -1016,30 +1103,71 @@ class ApiService {
       }
       
       AppLogger.warning('Registration failed: ${response.statusCode}');
-      String errorMessage = "Registration Failed. Please try again.";
+      String errorMessage = "Registration failed. Please check your details and try again.";
       
       try {
         final decoded = json.decode(response.body);
         if (decoded is Map<String, dynamic>) {
-           List<String> errors = [];
-           decoded.forEach((key, value) {
-              String niceKey = key.replaceAll('_', ' ');
-              niceKey = niceKey[0].toUpperCase() + niceKey.substring(1);
-              if (value is List) {
-                 errors.add("$niceKey: ${value.join(', ')}");
-              } else {
-                 errors.add("$niceKey: $value");
-              }
-           });
-           if (errors.isNotEmpty) {
-               errorMessage = errors.join('\n');
-           }
+          List<String> errors = [];
+          decoded.forEach((key, value) {
+            final String rawError = value is List ? value.join(' ') : value.toString();
+            final String lowerError = rawError.toLowerCase();
+
+            String friendlyMessage;
+            switch (key) {
+              case 'username':
+                if (lowerError.contains('already exists') || lowerError.contains('already taken')) {
+                  friendlyMessage = '❌ That username is already taken. Please choose a different one.';
+                } else if (lowerError.contains('enter a valid username') || lowerError.contains('invalid')) {
+                  friendlyMessage = '❌ Username can only contain letters, numbers, underscores, or hyphens — no spaces.';
+                } else {
+                  friendlyMessage = '❌ Username: $rawError';
+                }
+                break;
+              case 'email':
+                if (lowerError.contains('already exists') || lowerError.contains('already taken')) {
+                  friendlyMessage = '❌ An account with that email already exists. Try logging in instead.';
+                } else if (lowerError.contains('valid email') || lowerError.contains('invalid')) {
+                  friendlyMessage = '❌ Please enter a valid email address (e.g. you@example.com).';
+                } else {
+                  friendlyMessage = '❌ Email: $rawError';
+                }
+                break;
+              case 'admission_number':
+                if (lowerError.contains('already exists') || lowerError.contains('already taken')) {
+                  friendlyMessage = '❌ That admission number is already registered. If this is your account, try logging in.';
+                } else {
+                  friendlyMessage = '❌ Admission number: $rawError';
+                }
+                break;
+              case 'phone_number':
+                if (lowerError.contains('already exists') || lowerError.contains('already taken')) {
+                  friendlyMessage = '❌ That phone number is already linked to an account.';
+                } else {
+                  friendlyMessage = '❌ Phone number: $rawError';
+                }
+                break;
+              case 'password':
+                friendlyMessage = '❌ Password: $rawError';
+                break;
+              case 'non_field_errors':
+                friendlyMessage = '❌ $rawError';
+                break;
+              default:
+                final niceKey = key.replaceAll('_', ' ');
+                friendlyMessage = '❌ ${niceKey[0].toUpperCase()}${niceKey.substring(1)}: $rawError';
+            }
+            errors.add(friendlyMessage);
+          });
+          if (errors.isNotEmpty) {
+            errorMessage = errors.join('\n\n');
+          }
         } else if (decoded is String) {
-           errorMessage = decoded;
+          errorMessage = decoded;
         }
       } catch (_) {
-        if (response.body.length < 100) {
-           errorMessage = response.body;
+        if (response.body.length < 200) {
+          errorMessage = response.body;
         }
       }
       

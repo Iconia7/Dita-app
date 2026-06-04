@@ -254,7 +254,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
           CircleAvatar(
             backgroundColor: isConnected ? const Color(0xFFFFD700) : (isDark ? Colors.white10 : Colors.grey[300]),
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.black),
+              icon: Icon(Icons.send, color: isConnected ? Colors.black : Colors.grey),
               onPressed: isConnected ? _sendMessage : null,
             ),
           ),
@@ -295,7 +295,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: isDark ? Colors.white24 : Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 24),
             Row(
               children: [

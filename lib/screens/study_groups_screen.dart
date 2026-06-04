@@ -111,7 +111,7 @@ class _StudyGroupsScreenState extends ConsumerState<StudyGroupsScreen> {
                            const SizedBox(height: 16),
                            Text(
                              _searchQuery.isEmpty ? 'No study groups yet' : 'No groups found',
-                             style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                             style: TextStyle(fontSize: 18, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                            ),
                            if (_searchQuery.isNotEmpty) ...[
                              const SizedBox(height: 8),
@@ -182,7 +182,7 @@ class _StudyGroupsScreenState extends ConsumerState<StudyGroupsScreen> {
                                                  children: [
                                                    Icon(Icons.people_rounded, size: 14, color: Colors.grey[500]),
                                                    const SizedBox(width: 4),
-                                                   Text("${group.memberCount} members", style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                                                   Text("${group.memberCount} members", style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[500])),
                                                  ],
                                                ),
                                              ],

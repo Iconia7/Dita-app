@@ -324,7 +324,7 @@ void _showNotificationsDialog() {
                       ? "You are all set for \"$eventTitle\".\nSee you there!"
                       : "You have been removed from the guest list for \"$eventTitle\".",
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.5),
+                   style: TextStyle(color: Theme.of(ctx).brightness == Brightness.dark ? Colors.grey[400] : Colors.grey[600], fontSize: 13, height: 1.5),
                 ),
                 
                 const SizedBox(height: 20),
@@ -387,7 +387,7 @@ void _showSuccessDialog(String title, String msg) {
                       Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, 
                           color: isDark ? Colors.white : Theme.of(context).primaryColor), textAlign: TextAlign.center), // 🟢
                       const SizedBox(height: 10),
-                      Text(msg, style: TextStyle(color: Colors.grey[600], fontSize: 14), textAlign: TextAlign.center),
+                      Text(msg, style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: 14), textAlign: TextAlign.center),
                       const SizedBox(height: 25),
                       SizedBox(
                         width: double.infinity,
@@ -451,7 +451,7 @@ void _showResponseDialog({required bool isError, required String title, required
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, 
                         color: isDark ? Colors.white : Theme.of(context).primaryColor), textAlign: TextAlign.center), // 🟢
                       const SizedBox(height: 10),
-                      Text(msg, style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5), textAlign: TextAlign.center),
+                      Text(msg, style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600], fontSize: 14, height: 1.5), textAlign: TextAlign.center),
                       const SizedBox(height: 25),
                       SizedBox(
                         width: double.infinity,

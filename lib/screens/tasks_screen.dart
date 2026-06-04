@@ -366,7 +366,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                   const SizedBox(width: 5),
                                   Text(
                                     DateFormat('MMM d, h:mm a').format(task.dueDate),
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDone ? Colors.grey[400] : Colors.grey[600]),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDone ? Colors.grey[400] : (isDark ? Colors.grey[400] : Colors.grey[600])),
                                   )
                                 ],
                               )

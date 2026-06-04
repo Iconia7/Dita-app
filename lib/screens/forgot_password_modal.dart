@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/api_service.dart';
 import 'package:dita_app/utils/dita_toast.dart';
+import '../core/errors/exceptions.dart';
 
 class ForgotPasswordModal extends StatefulWidget {
   const ForgotPasswordModal({super.key});
@@ -20,10 +20,6 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
   bool _isLoading = false;
   String? _message;
   bool _isError = false;
-
-  // 🔥 FIREBASE VARIABLES
-  String? _verificationId;
-  int? _resendToken;
 
   // ⏱️ TIMER VARIABLES
   Timer? _timer;
@@ -57,10 +53,7 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
           _start--;
         });
       }
-    });
-  }
-
-  // 🚀 STEP 1: SEND SMS (Using Firebase)
+    });  // 🚀 STEP 1: SEND SMS (Using Africa's Talking)
   Future<void> _verifyPhone() async {
     final phone = _phoneController.text.trim();
     
@@ -73,55 +66,22 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
     setState(() { _isLoading = true; _message = null; });
 
     try {
-      // FORMAT: Ensure it has +254 (or your country code)
-      String formattedPhone = phone.startsWith('0') 
-          ? '+254${phone.substring(1)}' 
-          : phone;
-
-      await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: formattedPhone,
-        forceResendingToken: _resendToken, // Used for resend logic
-
-        // 1. SILENT VERIFICATION (Android Only)
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          // Auto-sign in the user
-          await FirebaseAuth.instance.signInWithCredential(credential);
-          
-          // Proceed to update password on backend immediately
-          await _updateBackendPassword(); 
-        },
-
-        // 2. ERROR HANDLING
-        verificationFailed: (FirebaseAuthException e) {
-          
-          String errorMsg = "Verification Failed.";
-          if (e.code == 'invalid-phone-number') errorMsg = "Invalid Phone Number.";
-          if (e.code == 'too-many-requests') errorMsg = "Too many attempts. Try again later.";
-          
-          _showMessage(errorMsg, true);
-        },
-
-        // 3. CODE SENT (Standard Flow)
-        codeSent: (String verificationId, int? resendToken) {
-          if (mounted) {
-            setState(() {
-              _verificationId = verificationId;
-              _resendToken = resendToken; // Save this for resending
-              _step = 2;
-              _isLoading = false;
-              _message = "OTP sent via SMS";
-              _isError = false;
-            });
-            _startTimer(); // Start the countdown
-          }
-        },
-
-        // 4. TIMEOUT
-        codeAutoRetrievalTimeout: (String verificationId) {
-          // Just update the ID, don't stop the UI
-          if (mounted) setState(() => _verificationId = verificationId);
-        },
-      );
+      bool success = await ApiService.requestOtp(phone);
+      if (success) {
+        if (mounted) {
+          setState(() {
+            _step = 2;
+            _isLoading = false;
+            _message = "OTP sent via SMS";
+            _isError = false;
+          });
+          _startTimer(); // Start the countdown
+        }
+      } else {
+        _showMessage("Failed to send OTP. Please try again.", true);
+      }
+    } on ApiException catch (e) {
+      _showMessage(e.message, true);
     } catch (e) {
       _showMessage("Error: $e", true);
     }
@@ -130,76 +90,34 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
   // 🔄 RESEND LOGIC
   Future<void> _resendCode() async {
     if (!_canResend) return;
-    _verifyPhone(); // Firebase handles the resend using the same function
+    _verifyPhone();
   }
 
   // 🚀 STEP 2: VERIFY OTP & RESET
   Future<void> _submitOtpAndReset() async {
-    if (_otpController.text.isEmpty || _newPassController.text.isEmpty) {
+    final phone = _phoneController.text.trim();
+    final otp = _otpController.text.trim();
+    final newPassword = _newPassController.text.trim();
+
+    if (otp.isEmpty || newPassword.isEmpty) {
        _showMessage("Please fill all fields", true);
        return;
-    }
-    
-    if (_verificationId == null) {
-      _showMessage("Error: No Verification ID found.", true);
-      return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // 1. Create Credential
-      PhoneAuthCredential credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!, 
-        smsCode: _otpController.text.trim()
-      );
-
-      // 2. Verify with Firebase
-      await FirebaseAuth.instance.signInWithCredential(credential);
-
-      // 3. If successful, update Backend
-      await _updateBackendPassword();
-
-    } on FirebaseAuthException catch (e) {
-      _showMessage(e.code == 'invalid-verification-code' ? "Invalid OTP Code" : "Error: ${e.message}", true);
-    } catch (e) {
-      _showMessage("An unknown error occurred.", true);
-    }
-  }
-
-// 🔌 BACKEND CALL (Updated to send Token)
-  Future<void> _updateBackendPassword() async {
-    try {
-      // 1. Get the current logged-in user (we just signed in with OTP)
-      User? firebaseUser = FirebaseAuth.instance.currentUser;
-
-      if (firebaseUser == null) {
-        _showMessage("Error: User not identified.", true);
-        return;
-      }
-
-      // 2. GET THE SECURITY TOKEN
-      String? idToken = await firebaseUser.getIdToken();
-
-      if (idToken == null) {
-        _showMessage("Error: Could not generate security token.", true);
-        return;
-      }
-
-      // 3. Send the TOKEN (not the phone number) to the backend
-      bool success = await ApiService.resetPasswordByPhone(
-        idToken, // <--- SEND TOKEN HERE
-        _newPassController.text.trim()
-      );
-
+      bool success = await ApiService.resetPasswordWithOtp(phone, otp, newPassword);
       if (success && mounted) {
         Navigator.pop(context);
         DitaToast.success(context, "Password Reset Successful! Login now.");
       } else {
         _showMessage("Server Error: Could not update password.", true);
       }
+    } on ApiException catch (e) {
+      _showMessage(e.message, true);
     } catch (e) {
-      _showMessage("Network Error: $e", true);
+      _showMessage("Error: $e", true);
     }
   }
 
