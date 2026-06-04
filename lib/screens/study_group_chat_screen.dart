@@ -282,6 +282,7 @@ class _StudyGroupChatScreenState extends ConsumerState<StudyGroupChatScreen> {
   }
 
   void _showGroupInfo(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,

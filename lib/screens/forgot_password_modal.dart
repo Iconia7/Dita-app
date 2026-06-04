@@ -53,7 +53,10 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
           _start--;
         });
       }
-    });  // 🚀 STEP 1: SEND SMS (Using Africa's Talking)
+    });
+  }
+
+  // 🚀 STEP 1: SEND SMS (Using Africa's Talking)
   Future<void> _verifyPhone() async {
     final phone = _phoneController.text.trim();
     
