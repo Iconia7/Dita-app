@@ -105,37 +105,50 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
           if (!table) return "NOT_FOUND";
 
           var rows = table.querySelectorAll('tr');
-          var collecting = false; 
+          
+          // Check if "My Timetable" header exists in any row of the table first
+          var hasMyTimetableHeader = false;
+          for (var k = 0; k < rows.length; k++) {
+              var rt = (rows[k].innerText || rows[k].textContent || "").trim().toLowerCase();
+              if (rt.indexOf("my timetable") > -1) {
+                  hasMyTimetableHeader = true;
+                  break;
+              }
+          }
+
+          // If the header row is found in the table, start as false and wait for it.
+          // Otherwise, start as true (assuming the table only contains the timetable entries).
+          var collecting = !hasMyTimetableHeader; 
 
           for (var i = 0; i < rows.length; i++) {
               var rowText = rows[i].innerText || rows[i].textContent;
               rowText = rowText.trim();
 
               // Start collecting after "My Timetable" header
-              if (rowText === "My Timetable") {
+              if (rowText.toLowerCase().indexOf("my timetable") > -1) {
                   collecting = true;
                   continue; 
               }
 
               // Stop if we hit the next section
-              if (rowText.indexOf("Courses in Timetable") > -1) {
+              if (rowText.toLowerCase().indexOf("courses in timetable") > -1) {
                   break; 
               }
 
               if (collecting) {
                   var cells = rows[i].querySelectorAll('td');
-                  if (cells.length >= 7) {
+                  if (cells.length >= 5) {
                       var unit = cells[0].innerText.trim();
-                      if (unit.toLowerCase() === "unit" || unit === "") continue;
+                      if (unit.toLowerCase() === "unit" || unit === "" || unit.toLowerCase().indexOf("course") > -1) continue;
 
                       extractedData.push({
                           "unit": unit,
-                          "section": cells[1].innerText.trim(),
-                          "day": cells[2].innerText.trim(),
-                          "period": cells[3].innerText.trim(),
-                          "campus": cells[4].innerText.trim(),
-                          "room": cells[5].innerText.trim(),
-                          "lecturer": cells[6].innerText.trim()
+                          "section": cells[1] ? cells[1].innerText.trim() : "",
+                          "day": cells[2] ? cells[2].innerText.trim() : "",
+                          "period": cells[3] ? cells[3].innerText.trim() : "",
+                          "campus": cells[4] ? cells[4].innerText.trim() : "",
+                          "room": cells[5] ? cells[5].innerText.trim() : "",
+                          "lecturer": cells[6] ? cells[6].innerText.trim() : ""
                       });
                   }
               }
@@ -178,12 +191,15 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
       List<Map<String, dynamic>> finalClasses = [];
 
       for (var item in rawData) {
-        String unitCode = item['unit'];
-        String section = item['section'] ?? '';
-        String dayRaw = item['day'];
-        String timeRange = item['period']; 
-        String venue = item['room'];
-        String lecturer = item['lecturer'];
+        if (item is! Map) continue;
+        String unitCode = (item['unit'] ?? '').toString();
+        String section = (item['section'] ?? '').toString();
+        String dayRaw = (item['day'] ?? '').toString();
+        String timeRange = (item['period'] ?? '').toString(); 
+        String venue = (item['room'] ?? '').toString();
+        String lecturer = (item['lecturer'] ?? '').toString();
+
+        if (unitCode.isEmpty) continue;
 
         // Combine unit code with section letter (e.g., "ACS-442" + "A-ATH" = "ACS-442 A")
         String code = unitCode;
@@ -206,7 +222,7 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
         }
 
         finalClasses.add({
-          "code": code,  // Now includes section: "ACS-442 A"
+          "code": code,
           "title": "Class: $code",
           "venue": venue,
           "lecturer": lecturer,
@@ -219,9 +235,14 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
 
       if (finalClasses.isNotEmpty) {
         await _saveClasses(finalClasses);
+      } else {
+        _showError("No valid class entries could be parsed.");
+        setState(() => _isLoading = false);
+        _hasExtracted = false;
       }
 
     } catch (e) {
+      debugPrint("Timetable extraction error: $e");
       setState(() => _isLoading = false);
       _showError("Extraction failed. Please try again.");
       _hasExtracted = false;
@@ -285,18 +306,22 @@ class _PortalImportScreenState extends ConsumerState<PortalImportScreen> {
        models.add(model);
 
        // Schedule Notification
-       TimeOfDay t = TimeOfDay(
-         hour: int.parse(model.startTime.split(":")[0]), 
-         minute: int.parse(model.startTime.split(":")[1])
-       );
-       
-       await NotificationService.scheduleClassNotification(
-         id: model.id,
-         title: model.code ?? model.title,
-         venue: model.venue ?? 'TBA',
-         dayOfWeek: model.dayNumber + 1, // dayNumber is 0-indexed (Mon=0), scheduleClassNotification expects 1-indexed (Mon=1)
-         startTime: t,
-       );
+       try {
+         TimeOfDay t = TimeOfDay(
+           hour: int.parse(model.startTime.split(":")[0]), 
+           minute: int.parse(model.startTime.split(":")[1])
+         );
+         
+         await NotificationService.scheduleClassNotification(
+           id: model.id,
+           title: model.code ?? model.title,
+           venue: model.venue ?? 'TBA',
+           dayOfWeek: model.dayNumber + 1, // dayNumber is 0-indexed (Mon=0), scheduleClassNotification expects 1-indexed (Mon=1)
+           startTime: t,
+         );
+       } catch (notificationError) {
+         debugPrint("Failed to schedule class notification for ${model.code}: $notificationError");
+       }
     }
 
     final success = await ref.read(timetableProvider.notifier).saveTimetable(models);
